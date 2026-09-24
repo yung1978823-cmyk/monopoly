@@ -10,41 +10,38 @@ import {
   landmarkIsSmashed,
   msUntilNextDie,
   rawDst,
+  spendDice,
   spendDie,
 } from "./rules";
 
-describe("dst from the locked daily rules", () => {
-  it("defense 4, roll 4 takes 1", () => {
+describe("dst from combat power plus luck", () => {
+  it("equal totals take 1", () => {
     assert.equal(rawDst(4, 4), 1);
-    assert.equal(dstTaken({ roll: 4, defense: 4, defenderHasNft: true, remainingPurse: 5, stolenToday: 0 }), 1);
+    assert.equal(dstTaken({ attack: 4, defense: 4, defenderHasNft: true, remainingPurse: 5, stolenToday: 0 }), 1);
   });
 
-  it("defense 4, roll 3 takes 0", () => {
+  it("a lower attack total takes 0", () => {
     assert.equal(rawDst(3, 4), 0);
-    assert.equal(dstTaken({ roll: 3, defense: 4, defenderHasNft: true, remainingPurse: 5, stolenToday: 0 }), 0);
+    assert.equal(dstTaken({ attack: 3, defense: 4, defenderHasNft: true, remainingPurse: 5, stolenToday: 0 }), 0);
   });
 
-  it("defense 0, roll 6 takes 5", () => {
+  it("a higher total uses min(5, max(2, attack - defense + 1))", () => {
     assert.equal(rawDst(6, 0), 5);
-    assert.equal(dstTaken({ roll: 6, defense: 0, defenderHasNft: true, remainingPurse: 5, stolenToday: 0 }), 5);
-  });
-
-  it("above defense uses min(5, max(2, roll - defense + 1))", () => {
     assert.equal(rawDst(5, 4), 2);
     assert.equal(rawDst(6, 4), 3);
-    assert.equal(rawDst(6, 2), 5);
-    assert.equal(rawDst(1, 0), 2);
+    assert.equal(rawDst(12, 4), 5);
+    assert.equal(dstTaken({ attack: 12, defense: 0, defenderHasNft: true, remainingPurse: 5, stolenToday: 0 }), 5);
   });
 
   it("never exceeds the remaining purse or the daily 5", () => {
-    assert.equal(dstTaken({ roll: 6, defense: 0, defenderHasNft: true, remainingPurse: 1, stolenToday: 0 }), 1);
-    assert.equal(dstTaken({ roll: 6, defense: 0, defenderHasNft: true, remainingPurse: 5, stolenToday: 4 }), 1);
-    assert.equal(dstTaken({ roll: 6, defense: 0, defenderHasNft: true, remainingPurse: 5, stolenToday: 5 }), 0);
-    assert.equal(dstTaken({ roll: 4, defense: 4, defenderHasNft: true, remainingPurse: 0, stolenToday: 0 }), 0);
+    assert.equal(dstTaken({ attack: 12, defense: 0, defenderHasNft: true, remainingPurse: 1, stolenToday: 0 }), 1);
+    assert.equal(dstTaken({ attack: 12, defense: 0, defenderHasNft: true, remainingPurse: 5, stolenToday: 4 }), 1);
+    assert.equal(dstTaken({ attack: 12, defense: 0, defenderHasNft: true, remainingPurse: 5, stolenToday: 5 }), 0);
+    assert.equal(dstTaken({ attack: 4, defense: 4, defenderHasNft: true, remainingPurse: 0, stolenToday: 0 }), 0);
   });
 
   it("without an NFT purse, DST stays 0", () => {
-    assert.equal(dstTaken({ roll: 6, defense: 0, defenderHasNft: false, remainingPurse: 5, stolenToday: 0 }), 0);
+    assert.equal(dstTaken({ attack: 12, defense: 0, defenderHasNft: false, remainingPurse: 5, stolenToday: 0 }), 0);
   });
 });
 
@@ -79,11 +76,14 @@ describe("dice refill", () => {
     assert.deepEqual(full, { dice: 20, lastRefillAt: 0, gained: 0 });
   });
 
-  it("starts a fresh 30 minutes when a die is spent from a full stack", () => {
+  it("starts a fresh 30 minutes when dice are spent from a full stack", () => {
     const spent = spendDie(20, 0, 50_000);
     assert.deepEqual(spent, { dice: 19, lastRefillAt: 50_000 });
-    const kept = spendDie(4, 10, 50_000);
-    assert.deepEqual(kept, { dice: 3, lastRefillAt: 10 });
+    const pair = spendDice(20, 0, 50_000, 2);
+    assert.deepEqual(pair, { dice: 18, lastRefillAt: 50_000 });
+    assert.equal(spendDice(1, 10, 50_000, 2), null);
+    const kept = spendDice(4, 10, 50_000, 2);
+    assert.deepEqual(kept, { dice: 2, lastRefillAt: 10 });
   });
 
   it("test die adds one without passing the cap", () => {

@@ -1,4 +1,5 @@
 export const DICE_CAP = 20;
+export const ROLL_COST = 2;
 export const REFILL_MS = 30 * 60 * 1000;
 export const DAILY_DST_CAP = 5;
 export const PURSE_MAX = 5;
@@ -16,21 +17,21 @@ export const POINTS = {
 
 export type AttackBand = "below" | "equal" | "above";
 
-export function attackBand(roll: number, defense: number): AttackBand {
-  if (roll < defense) return "below";
-  if (roll === defense) return "equal";
+export function attackBand(attack: number, defense: number): AttackBand {
+  if (attack < defense) return "below";
+  if (attack === defense) return "equal";
   return "above";
 }
 
-/** Uncapped-by-purse amount from the locked comparison. Still clamped to 5. */
-export function rawDst(roll: number, defense: number): number {
-  if (roll < defense) return 0;
-  if (roll === defense) return 1;
-  return Math.min(DAILY_DST_CAP, Math.max(2, roll - defense + 1));
+/** Uncapped-by-purse amount. Attack is combat power plus luck. Still clamped to 5. */
+export function rawDst(attack: number, defense: number): number {
+  if (attack < defense) return 0;
+  if (attack === defense) return 1;
+  return Math.min(DAILY_DST_CAP, Math.max(2, attack - defense + 1));
 }
 
 export function dstTaken(args: {
-  roll: number;
+  attack: number;
   defense: number;
   defenderHasNft: boolean;
   remainingPurse: number;
@@ -40,15 +41,15 @@ export function dstTaken(args: {
   const room = Math.max(0, DAILY_DST_CAP - args.stolenToday);
   const purse = Math.max(0, args.remainingPurse);
   if (room === 0 || purse === 0) return 0;
-  return Math.min(rawDst(args.roll, args.defense), purse, room);
+  return Math.min(rawDst(args.attack, args.defense), purse, room);
 }
 
 export function landmarkIsSmashed(
-  roll: number,
+  attack: number,
   defense: number,
   targetIsBuilt: boolean,
 ): boolean {
-  return targetIsBuilt && defense > 0 && roll >= defense;
+  return targetIsBuilt && defense > 0 && attack >= defense;
 }
 
 export function applyRefill(
@@ -78,16 +79,25 @@ export function applyRefill(
   };
 }
 
+export function spendDice(
+  dice: number,
+  lastRefillAt: number,
+  now: number,
+  count = 1,
+): { dice: number; lastRefillAt: number } | null {
+  if (count <= 0 || dice < count) return null;
+  return {
+    dice: dice - count,
+    lastRefillAt: dice >= DICE_CAP ? now : lastRefillAt,
+  };
+}
+
 export function spendDie(
   dice: number,
   lastRefillAt: number,
   now: number,
 ): { dice: number; lastRefillAt: number } | null {
-  if (dice <= 0) return null;
-  return {
-    dice: dice - 1,
-    lastRefillAt: dice >= DICE_CAP ? now : lastRefillAt,
-  };
+  return spendDice(dice, lastRefillAt, now, 1);
 }
 
 export function addTestDie(dice: number): number {

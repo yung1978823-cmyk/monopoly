@@ -3,12 +3,13 @@ import {
   DAILY_DST_CAP,
   POINTS,
   PURSE_MAX,
+  ROLL_COST,
   addTestDie,
   applyRefill,
   attackBand,
   dstTaken,
   landmarkIsSmashed,
-  spendDie,
+  spendDice,
 } from "./rules";
 
 export type Landmark = "empty" | "built" | "ruined";
@@ -19,6 +20,19 @@ export type LogEntry = {
   id: number;
   tone: LogTone;
   text: string;
+};
+
+export type DiePair = [number, number];
+
+export type StrikeReadout = {
+  attacker: "you" | "rival";
+  faces: DiePair;
+  luck: number;
+  yourPower: number;
+  rivalPower: number;
+  attackTotal: number;
+  defense: number;
+  dst: number;
 };
 
 export type GameState = {
@@ -40,18 +54,19 @@ export type GameState = {
   nextLogId: number;
   pendingBuildIndex: number | null;
   dayKey: string;
-  lastPlayerRoll: number | null;
-  lastRivalRoll: number | null;
+  lastPlayerFaces: DiePair | null;
+  lastRivalFaces: DiePair | null;
+  lastStrike: StrikeReadout | null;
 };
 
 export type Action =
   | { type: "tick"; now: number; dayKey: string }
   | { type: "add-test-die" }
-  | { type: "move"; roll: number; now: number }
+  | { type: "move"; dice: DiePair; now: number }
   | { type: "build" }
   | { type: "skip-build" }
-  | { type: "attack"; roll: number; target: number | null; now: number }
-  | { type: "rival"; roll: number; now: number }
+  | { type: "attack"; dice: DiePair; target: number | null; now: number }
+  | { type: "rival"; dice: DiePair; now: number }
   | { type: "set-nft"; value: boolean }
   | { type: "set-purse"; value: number }
   | { type: "reset"; now: number; dayKey: string }
@@ -81,8 +96,9 @@ export function createGame(now: number, dayKey: string): GameState {
     nextLogId: 1,
     pendingBuildIndex: null,
     dayKey,
-    lastPlayerRoll: null,
-    lastRivalRoll: null,
+    lastPlayerFaces: null,
+    lastRivalFaces: null,
+    lastStrike: null,
   };
 }
 
@@ -113,8 +129,19 @@ function pushLog(state: GameState, tone: LogTone, text: string): GameState {
   };
 }
 
-function isRoll(roll: number): boolean {
-  return Number.isInteger(roll) && roll >= 1 && roll <= 6;
+function isFace(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 6;
+}
+
+export function readPair(value: unknown): DiePair | null {
+  if (!Array.isArray(value) || value.length !== 2 || !isFace(value[0]) || !isFace(value[1])) {
+    return null;
+  }
+  return [value[0], value[1]];
+}
+
+export function luckOf(dice: DiePair): number {
+  return dice[0] + dice[1];
 }
 
 function isLandmark(value: unknown): value is Landmark {
@@ -184,15 +211,34 @@ export function sanitizeState(
         ? value.pendingBuildIndex
         : null,
     dayKey: typeof value.dayKey === "string" && value.dayKey ? value.dayKey : dayKey,
-    lastPlayerRoll:
-      typeof value.lastPlayerRoll === "number" && isRoll(value.lastPlayerRoll)
-        ? value.lastPlayerRoll
-        : null,
-    lastRivalRoll:
-      typeof value.lastRivalRoll === "number" && isRoll(value.lastRivalRoll)
-        ? value.lastRivalRoll
-        : null,
+    lastPlayerFaces: readPair(value.lastPlayerFaces),
+    lastRivalFaces: readPair(value.lastRivalFaces),
+    lastStrike: readStrike(value.lastStrike),
   };
+}
+
+function inRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
+}
+
+function readStrike(value: unknown): StrikeReadout | null {
+  if (!value || typeof value !== "object") return null;
+  const strike = value as Partial<StrikeReadout>;
+  const faces = readPair(strike.faces);
+  const { attacker, luck, yourPower, rivalPower, attackTotal, defense, dst } = strike;
+  if (
+    !faces ||
+    (attacker !== "you" && attacker !== "rival") ||
+    !inRange(luck, 2, 12) ||
+    !inRange(yourPower, 0, 4) ||
+    !inRange(rivalPower, 0, 4) ||
+    !inRange(attackTotal, 2, 16) ||
+    !inRange(defense, 0, 4) ||
+    !inRange(dst, 0, DAILY_DST_CAP)
+  ) {
+    return null;
+  }
+  return { attacker, faces, luck, yourPower, rivalPower, attackTotal, defense, dst };
 }
 
 export function parseSave(raw: string, now: number, dayKey: string): GameState | null {
@@ -220,7 +266,7 @@ function movePoints(from: number, roll: number): {
 }
 
 function dstClause(args: {
-  roll: number;
+  attack: number;
   defense: number;
   defenderHasNft: boolean;
   remainingBefore: number;
@@ -228,52 +274,31 @@ function dstClause(args: {
   dst: number;
   walletName: string;
 }): string {
-  const band = attackBand(args.roll, args.defense);
-  const compare =
-    band === "below"
-      ? `${args.roll} 低過防守 ${args.defense}`
-      : band === "equal"
-        ? `${args.roll} 等於防守 ${args.defense}`
-        : `${args.roll} 高過防守 ${args.defense}`;
-
-  if (!args.defenderHasNft) {
-    return `${compare}。沒有 NFT，DST 拿走 0。`;
-  }
-  if (args.remainingBefore <= 0) {
-    return `${compare}。沒有放出剩餘錢包，DST 拿走 0。`;
-  }
-  if (args.stolenBefore >= DAILY_DST_CAP) {
-    return `${compare}。今日已到 5 DST 上限，拿走 0。`;
-  }
-  if (band === "below" || args.dst === 0) {
-    return `${compare}，拿走 0 DST。`;
-  }
+  const band = attackBand(args.attack, args.defense);
+  if (!args.defenderHasNft) return "沒有 NFT，DST 拿走 0。";
+  if (args.remainingBefore <= 0) return "沒有放出剩餘錢包，DST 拿走 0。";
+  if (args.stolenBefore >= DAILY_DST_CAP) return "今日已到 5 DST 上限，拿走 0。";
+  if (band === "below" || args.dst === 0) return "低過，拿走 0 DST。";
   const left = args.remainingBefore - args.dst;
   const stolen = args.stolenBefore + args.dst;
   const after = `${args.walletName}剩 ${left} DST。今日已拿走 ${stolen}／5。`;
-  if (band === "equal") {
-    return `${compare}，拿走 ${args.dst} DST。${after}`;
-  }
-  const formula = Math.max(2, args.roll - args.defense + 1);
+  if (band === "equal") return `等於，拿走 ${args.dst} DST。${after}`;
+  const formula = Math.max(2, args.attack - args.defense + 1);
   const capped = Math.min(DAILY_DST_CAP, formula);
   const limited = args.dst < capped ? "受錢包或當日上限擋住，" : "";
-  return `${compare}，點數 − 防守 + 1 = ${formula}，${limited}拿走 ${args.dst} DST。${after}`;
+  return `高過，攻擊 − 防守 + 1 = ${formula}，${limited}拿走 ${args.dst} DST。${after}`;
 }
 
 function applyAttack(
   state: GameState,
   attacker: "player" | "rival",
-  roll: number,
+  dice: DiePair,
   target: number | null,
   now: number,
 ): GameState {
   const playerAttacks = attacker === "player";
-  const spend = spendDie(
-    playerAttacks ? state.dice : state.rivalDice,
-    playerAttacks ? state.lastRefillAt : state.rivalLastRefillAt,
-    now,
-  );
-  if (!spend) return state;
+  const pool = playerAttacks ? state.dice : state.rivalDice;
+  if (pool < ROLL_COST || !readPair(dice)) return state;
 
   const defenderLandmarks = playerAttacks ? state.rivalLandmarks : state.landmarks;
   const defense = countBuilt(defenderLandmarks);
@@ -285,18 +310,30 @@ function applyAttack(
     return state;
   }
 
+  const spend = spendDice(
+    pool,
+    playerAttacks ? state.lastRefillAt : state.rivalLastRefillAt,
+    now,
+    ROLL_COST,
+  );
+  if (!spend) return state;
+
+  const yourPower = countBuilt(state.landmarks);
+  const rivalPower = countBuilt(state.rivalLandmarks);
+  const luck = luckOf(dice);
+  const attackTotal = (playerAttacks ? yourPower : rivalPower) + luck;
   const stolenBefore = playerAttacks ? state.rivalStolenToday : state.playerStolenToday;
   const posted = playerAttacks ? PURSE_MAX : state.postedPurse;
   const remainingBefore = remainingPurse(state.hasNft, posted, stolenBefore);
   const dst = dstTaken({
-    roll,
+    attack: attackTotal,
     defense,
     defenderHasNft: state.hasNft,
     remainingPurse: remainingBefore,
     stolenToday: stolenBefore,
   });
   const smashed = landmarkIsSmashed(
-    roll,
+    attackTotal,
     defense,
     target !== null && defenderLandmarks[target] === "built",
   );
@@ -306,7 +343,7 @@ function applyAttack(
           index === target ? ("ruined" as const) : landmark,
         )
       : defenderLandmarks;
-  const connect = roll >= defense;
+  const connect = attackTotal >= defense;
   const attackerGain = connect ? POINTS.attackHitAttacker : POINTS.attackMissAttacker;
   const defenderGain = connect ? POINTS.attackHitDefender : POINTS.attackMissDefender;
   const targetName = target === null ? null : LANDMARK_NAMES[target];
@@ -317,7 +354,7 @@ function applyAttack(
       : "";
   const walletName = playerAttacks ? "阿強的錢包" : "你的錢包";
   const clause = dstClause({
-    roll,
+    attack: attackTotal,
     defense,
     defenderHasNft: state.hasNft,
     remainingBefore,
@@ -332,7 +369,17 @@ function applyAttack(
     ? `瞄準${playerAttacks ? "阿強的" : "你的"}${targetName}。`
     : "板上沒有已建成的地標。";
   const who = playerAttacks ? "你" : "阿強";
-  const text = `${who}花 1 顆骰，擲出 ${roll}，${aim}${smashText}${clause}${scoreText}`;
+  const text = `${who}花 2 顆，擲出 ${dice[0]} 和 ${dice[1]}。幸運值 ${luck}。你的戰鬥力 ${yourPower}，阿強的戰鬥力 ${rivalPower}。攻擊 ${attackTotal}，防守 ${defense}。${aim}${smashText}${clause}${scoreText}`;
+  const strike: StrikeReadout = {
+    attacker: playerAttacks ? "you" : "rival",
+    faces: dice,
+    luck,
+    yourPower,
+    rivalPower,
+    attackTotal,
+    defense,
+    dst,
+  };
 
   const next: GameState = {
     ...state,
@@ -342,8 +389,9 @@ function applyAttack(
     rivalLandmarks: playerAttacks ? nextLandmarks : state.rivalLandmarks,
     playerStolenToday: playerAttacks ? state.playerStolenToday : state.playerStolenToday + dst,
     rivalStolenToday: playerAttacks ? state.rivalStolenToday + dst : state.rivalStolenToday,
-    lastPlayerRoll: playerAttacks ? roll : state.lastPlayerRoll,
-    lastRivalRoll: playerAttacks ? state.lastRivalRoll : roll,
+    lastPlayerFaces: playerAttacks ? dice : state.lastPlayerFaces,
+    lastRivalFaces: playerAttacks ? state.lastRivalFaces : dice,
+    lastStrike: strike,
   };
   if (playerAttacks) {
     next.dice = spend.dice;
@@ -356,7 +404,7 @@ function applyAttack(
 }
 
 export function rivalCanStrike(state: GameState): boolean {
-  if (state.rivalDice <= 0 || state.pendingBuildIndex !== null) return false;
+  if (state.rivalDice < ROLL_COST || state.pendingBuildIndex !== null) return false;
   if (countBuilt(state.landmarks) > 0) return true;
   return (
     remainingPurse(state.hasNft, state.postedPurse, state.playerStolenToday) > 0 &&
@@ -440,17 +488,19 @@ export function reduce(state: GameState, action: Action): GameState {
       );
     }
     case "move": {
-      if (!isRoll(action.roll) || state.pendingBuildIndex !== null) return state;
-      const spent = spendDie(state.dice, state.lastRefillAt, action.now);
+      const faces = readPair(action.dice);
+      if (!faces || state.pendingBuildIndex !== null || state.dice < ROLL_COST) return state;
+      const spent = spendDice(state.dice, state.lastRefillAt, action.now, ROLL_COST);
       if (!spent) return state;
-      const moved = movePoints(state.position, action.roll);
+      const luck = luckOf(faces);
+      const moved = movePoints(state.position, luck);
       const tile = TILES[moved.position];
       let pending: number | null = null;
       let extra = "";
       if (tile.kind === "landmark" && tile.landmarkIndex !== null) {
         const landmark = state.landmarks[tile.landmarkIndex];
         if (landmark === "built") {
-          extra = "這座還在，防守算它。";
+          extra = "這座還在，戰鬥力算它。";
         } else {
           pending = tile.landmarkIndex;
           extra = landmark === "ruined" ? "這裡是廢墟，可以再蓋。" : "這一格還沒蓋。";
@@ -465,12 +515,13 @@ export function reduce(state: GameState, action: Action): GameState {
         points: state.points + moved.gained,
         rollCount: state.rollCount + 1,
         pendingBuildIndex: pending,
-        lastPlayerRoll: action.roll,
+        lastPlayerFaces: faces,
+        lastStrike: null,
       };
       return pushLog(
         next,
         "you",
-        `你擲出 ${action.roll}，${passed}走到${tile.name}。分數 +${moved.gained}，合計 ${next.points}。${extra}`,
+        `你花 2 顆，擲出 ${faces[0]} 和 ${faces[1]}。幸運值 ${luck}，走 ${luck} 格。${passed}走到${tile.name}。分數 +${moved.gained}，合計 ${next.points}。${extra}`,
       );
     }
     case "build": {
@@ -491,7 +542,7 @@ export function reduce(state: GameState, action: Action): GameState {
       return pushLog(
         next,
         "you",
-        `你蓋好${LANDMARK_NAMES[index]}。防守變成 ${defense}。分數 +${POINTS.build}，合計 ${next.points}。`,
+        `你蓋好${LANDMARK_NAMES[index]}。戰鬥力變成 ${defense}。分數 +${POINTS.build}，合計 ${next.points}。`,
       );
     }
     case "skip-build": {
@@ -504,20 +555,19 @@ export function reduce(state: GameState, action: Action): GameState {
       );
     }
     case "attack": {
-      if (!isRoll(action.roll) || state.pendingBuildIndex !== null) return state;
-      return applyAttack(state, "player", action.roll, action.target, action.now);
+      if (state.pendingBuildIndex !== null) return state;
+      return applyAttack(state, "player", action.dice, action.target, action.now);
     }
     case "rival": {
-      if (!isRoll(action.roll) || state.pendingBuildIndex !== null) return state;
-      if (!rivalCanStrike(state)) return state;
+      if (state.pendingBuildIndex !== null || !rivalCanStrike(state)) return state;
       const target = firstBuilt(state.landmarks);
-      return applyAttack(state, "rival", action.roll, target, action.now);
+      return applyAttack(state, "rival", action.dice, target, action.now);
     }
     default:
       return state;
   }
 }
 
-export function previewMove(state: GameState, roll: number, now: number): GameState {
-  return reduce(state, { type: "move", roll, now });
+export function previewMove(state: GameState, dice: DiePair, now: number): GameState {
+  return reduce(state, { type: "move", dice, now });
 }

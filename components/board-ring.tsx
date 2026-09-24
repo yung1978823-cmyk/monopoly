@@ -66,7 +66,7 @@ export function BoardRing({
           <p className="text-4xl font-bold tabular-nums text-[#f0d7a2] sm:text-5xl" data-testid="points">
             {points}
           </p>
-          <p className="mt-1 text-xs text-[#d9cbb8]">防守 {defense}／4</p>
+          <p className="mt-1 text-xs text-[#d9cbb8]">戰鬥力 {defense}／4</p>
           <p className="text-xs text-[#8fd0be]">{purseLabel}</p>
           <p className="mt-1 text-[10px] text-[#b5a594]">{placeLabel}</p>
         </div>

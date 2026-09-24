@@ -91,7 +91,7 @@ export function DailyGame() {
   const [now, setNow] = useState(0);
   const [busy, setBusy] = useState(false);
   const [spinning, setSpinning] = useState(false);
-  const [spinFace, setSpinFace] = useState<number | null>(null);
+  const [spinFaces, setSpinFaces] = useState<[number, number] | null>(null);
   const [spinWho, setSpinWho] = useState<"you" | "rival" | null>(null);
   const [target, setTarget] = useState(0);
   const [resetArmed, setResetArmed] = useState(false);
@@ -189,25 +189,29 @@ export function DailyGame() {
     });
   }
 
-  async function spin(roll: number) {
+  function rollPair(): [number, number] {
+    return [rollDie(), rollDie()];
+  }
+
+  async function spin(pair: [number, number]) {
     setSpinning(true);
     for (let step = 0; step < 7; step += 1) {
-      setSpinFace(rollDie());
+      setSpinFaces([rollDie(), rollDie()]);
       await pause(70);
       if (!alive.current) return;
     }
-    setSpinFace(roll);
+    setSpinFaces(pair);
     setSpinning(false);
     await pause(180);
   }
 
   async function playRival(from: GameState) {
     if (!alive.current || !rivalCanStrike(from)) return;
-    const roll = rollDie();
+    const dice = rollPair();
     setSpinWho("rival");
-    await spin(roll);
+    await spin(dice);
     if (!alive.current) return;
-    dispatch({ type: "rival", roll, now: Date.now() });
+    dispatch({ type: "rival", dice, now: Date.now() });
   }
 
   async function withLock(task: () => Promise<void>) {
@@ -228,15 +232,15 @@ export function DailyGame() {
 
   function onRoll() {
     const current = state;
-    if (current.dice <= 0 || current.pendingBuildIndex !== null) return;
+    if (current.dice < 2 || current.pendingBuildIndex !== null) return;
     void withLock(async () => {
-      const roll = rollDie();
+      const dice = rollPair();
       const stamp = Date.now();
       setSpinWho("you");
-      await spin(roll);
+      await spin(dice);
       if (!alive.current) return;
-      const next = previewMove(current, roll, stamp);
-      dispatch({ type: "move", roll, now: stamp });
+      const next = previewMove(current, dice, stamp);
+      dispatch({ type: "move", dice, now: stamp });
       if (next.pendingBuildIndex !== null) return;
       await pause(420);
       await playRival(next);
@@ -256,7 +260,7 @@ export function DailyGame() {
 
   function onAttack() {
     const current = state;
-    if (current.dice <= 0 || current.pendingBuildIndex !== null) return;
+    if (current.dice < 2 || current.pendingBuildIndex !== null) return;
     const built = current.rivalLandmarks.flatMap((landmark, index) =>
       landmark === "built" ? [index] : [],
     );
@@ -266,13 +270,13 @@ export function DailyGame() {
       if (!current.hasNft || purse <= 0 || current.rivalStolenToday >= 5) return;
     }
     void withLock(async () => {
-      const roll = rollDie();
+      const dice = rollPair();
       const stamp = Date.now();
       setSpinWho("you");
-      await spin(roll);
+      await spin(dice);
       if (!alive.current) return;
-      const next = reduce(current, { type: "attack", roll, target: chosen, now: stamp });
-      dispatch({ type: "attack", roll, target: chosen, now: stamp });
+      const next = reduce(current, { type: "attack", dice, target: chosen, now: stamp });
+      dispatch({ type: "attack", dice, target: chosen, now: stamp });
       if (next === current) return;
       await pause(420);
       await playRival(next);
@@ -285,7 +289,6 @@ export function DailyGame() {
   const rivalPurse = remainingPurse(state.hasNft, PURSE_MAX, state.rivalStolenToday);
   const countdown =
     booted && now > 0 ? msUntilNextDie(state.dice, state.lastRefillAt, now) : null;
-  const face = spinning ? spinFace : spinWho === "rival" ? state.lastRivalRoll : state.lastPlayerRoll;
   const here = TILES[state.position]?.name ?? "起點";
   const pendingName =
     state.pendingBuildIndex === null ? null : LANDMARK_NAMES[state.pendingBuildIndex];
@@ -294,13 +297,19 @@ export function DailyGame() {
   const canAttackPurse =
     state.hasNft && rivalPurse > 0 && state.rivalStolenToday < 5 && builtTargets.length === 0;
   const canAttack =
-    state.dice > 0 &&
+    state.dice >= 2 &&
     state.pendingBuildIndex === null &&
     (attackName !== null || canAttackPurse);
+  const faces = spinning
+    ? spinFaces
+    : spinWho === "rival"
+      ? state.lastRivalFaces
+      : state.lastPlayerFaces;
+  const luck = faces ? faces[0] + faces[1] : null;
 
   let statusTitle = "棋盤空著";
   let statusBody =
-    "四個地標都還沒蓋。沒有 NFT 也可以走。骰子不出售，每 30 分鐘補 1 顆，最多存 20 顆。";
+    "四個地標都還沒蓋。沒有 NFT 也可以走。骰子不出售，每 30 分鐘補 1 顆，最多存 20 顆。走一步要 2 顆。";
   let statusTone: "empty" | "first" | "wait" | "play" | "boot" = "empty";
   if (!booted) {
     statusTitle = "正在擺棋盤";
@@ -308,23 +317,27 @@ export function DailyGame() {
     statusTone = "boot";
   } else if (pendingName) {
     statusTitle = `你站在${pendingName}`;
-    statusBody = "這一格可以蓋成地標。蓋成之後防守加 1，並得 3 分。";
+    statusBody = "這一格可以蓋成地標。蓋成之後戰鬥力加 1，並得 3 分。";
     statusTone = "play";
   } else if (state.rollCount === 0 && state.dice === 0) {
     statusTone = "empty";
-  } else if (state.rollCount === 0 && state.dice > 0) {
-    statusTitle = "第一粒在手上";
-    statusBody = "擲 1 至 6，只在這塊棋盤上走。先得到的是分數，不是 DST。";
+  } else if (state.dice === 1) {
+    statusTitle = "只有 1 顆";
+    statusBody = "走一步要 2 顆，攻擊也要 2 顆。你現在只有 1 顆。再補一粒（測試），或等 30 分鐘。";
+    statusTone = "wait";
+  } else if (state.rollCount === 0 && state.dice >= 2) {
+    statusTitle = "兩顆在手上";
+    statusBody = "擲兩顆，點數相加是 2 至 12，只在這塊棋盤上走。先得到的是分數，不是 DST。";
     statusTone = "first";
   } else if (state.dice === 0) {
     statusTitle = "手上沒有骰子";
     statusBody = countdown
-      ? `下一顆 ${formatClock(countdown)}。正式規則每 30 分鐘補 1 顆。要接著走，用補一粒（測試）。`
-      : "已滿 20 顆才會暫停補充。要接著走，用補一粒（測試）。";
+      ? `下一顆 ${formatClock(countdown)}。正式規則每 30 分鐘補 1 顆。走一步和攻擊都要 2 顆。`
+      : "已滿 20 顆才會暫停補充。走一步和攻擊都要 2 顆。";
     statusTone = "wait";
   } else {
     statusTitle = `你在${here}`;
-    statusBody = "再擲一顆，或花一顆去砸阿強沒守住的地標。";
+    statusBody = "再擲兩顆往前走，或花 2 顆去砸阿強。幸運值是兩顆的和，戰鬥力是已建成的地標。";
     statusTone = "play";
   }
 
@@ -335,7 +348,7 @@ export function DailyGame() {
           <p className="text-sm font-medium tracking-[0.22em] text-[#9e3428]">每日棋盤</p>
           <h1 className="mt-1 text-4xl font-bold tracking-tight text-[#2a1c14]">大富翁</h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-[#6f5b4b]">
-            一個人的圈，四個地標。擲一顆骰往前走，先得到的是分數。
+            一個人的圈，四個地標。擲兩顆骰往前走，先得到的是分數。
           </p>
         </div>
         <div
@@ -371,7 +384,7 @@ export function DailyGame() {
             <h2 className="text-base font-semibold">這一局發生了什麼</h2>
             {state.log.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-[#6f5b4b]">
-                還沒有紀錄。補一粒骰，擲出第一格。分數和 DST 會分開寫。
+                還沒有紀錄。補兩粒，擲出第一輪。分數和 DST 會分開寫。
               </p>
             ) : (
               <ol className="mt-3 space-y-2">
@@ -434,19 +447,31 @@ export function DailyGame() {
                   <span className="text-base font-medium text-[#6f5b4b]">／20 顆</span>
                 </p>
               </div>
-              <DieFace value={booted ? face : null} spinning={spinning} />
+              <div className="flex gap-2">
+                <DieFace value={booted ? (faces?.[0] ?? null) : null} spinning={spinning} />
+                <DieFace value={booted ? (faces?.[1] ?? null) : null} spinning={spinning} />
+              </div>
             </div>
-            <p className="mt-3 text-sm leading-6 text-[#6f5b4b]">
+            <p className="mt-3 text-sm leading-6" data-testid="luck">
               {spinning
                 ? spinWho === "rival"
-                  ? "阿強在擲。"
-                  : "骰子還在轉。"
-                : spinWho === "rival" && state.lastRivalRoll
-                  ? `阿強擲出 ${state.lastRivalRoll}。`
-                  : state.lastPlayerRoll
-                    ? `你擲出 ${state.lastPlayerRoll}。`
-                    : "還沒擲過。"}
+                  ? "阿強在擲兩顆。"
+                  : "兩顆還在轉。"
+                : luck === null
+                  ? "還沒擲過。幸運值是兩顆的和。"
+                  : `幸運值 ${luck}`}
             </p>
+            {state.lastStrike && !spinning ? (
+              <div className="mt-2 rounded-2xl bg-[#f6efe4] px-3 py-2 text-sm leading-6" data-testid="strike">
+                <p>
+                  你的戰鬥力 {state.lastStrike.yourPower} · 阿強的戰鬥力 {state.lastStrike.rivalPower}
+                </p>
+                <p>
+                  攻擊 {state.lastStrike.attackTotal} · 防守 {state.lastStrike.defense}
+                </p>
+                <p className="font-medium text-[#1e7a62]">拿走 {state.lastStrike.dst} DST</p>
+              </div>
+            ) : null}
             <p className="mt-2 text-sm leading-6">
               每 30 分鐘補 1 顆，不出售。滿 20 顆就停。
               {countdown ? (
@@ -461,16 +486,16 @@ export function DailyGame() {
             <div className="mt-3 grid gap-2">
               <Button
                 className={actionButton}
-                variant={state.dice > 0 ? "default" : "outline"}
-                disabled={!booted || busy || state.dice === 0 || state.pendingBuildIndex !== null}
+                variant={state.dice >= 2 ? "default" : "outline"}
+                disabled={!booted || busy || state.dice < 2 || state.pendingBuildIndex !== null}
                 onClick={onRoll}
                 data-testid="roll-move"
               >
-                {state.rollCount === 0 ? "擲出第一粒" : "擲骰前進"}
+                {state.rollCount === 0 ? "擲出第一輪" : "擲兩顆前進"}
               </Button>
               <Button
                 className={actionButton}
-                variant={state.dice === 0 ? "default" : "outline"}
+                variant={state.dice < 2 ? "default" : "outline"}
                 disabled={!booted || busy || state.dice >= DICE_CAP}
                 onClick={onTestDie}
                 data-testid="test-die"
@@ -478,6 +503,11 @@ export function DailyGame() {
                 補一粒（測試）
               </Button>
             </div>
+            {state.dice === 1 ? (
+              <p className="mt-2 text-sm leading-6 text-[#9e3428]" data-testid="need-two">
+                走一步要 2 顆，你現在只有 1 顆。
+              </p>
+            ) : null}
             <p className="mt-2 text-xs leading-5 text-[#6f5b4b]">
               補一粒（測試）不用等。正式規則仍是每 30 分鐘補 1 顆，最多 20 顆。
             </p>
@@ -538,7 +568,7 @@ export function DailyGame() {
             </p>
             <div className="mt-3 flex items-center justify-between text-sm">
               <span className="inline-flex items-center gap-2">
-                防守 {rivalDefense}
+                戰鬥力 {rivalDefense}
                 <DefensePips value={rivalDefense} />
               </span>
               <span className="tabular-nums text-[#6f5b4b]">骰子 {state.rivalDice}／20</span>
@@ -553,11 +583,11 @@ export function DailyGame() {
                 ? "你先決定要不要蓋。阿強等這一下。"
                 : playerDefense === 0 && playerPurse === 0
                   ? "阿強在看。你還沒有可砸的地標，也沒有放出錢包。"
-                  : state.rivalDice <= 0
-                    ? "阿強沒有骰子，這一下出不了手。"
+                  : state.rivalDice < 2
+                    ? `阿強只有 ${state.rivalDice} 顆，湊不齊兩顆，這一下出不了手。`
                     : firstBuilt(state.landmarks) !== null
-                      ? `你行動之後，阿強會花自己的 1 顆，瞄準${LANDMARK_NAMES[firstBuilt(state.landmarks) ?? 0]}。`
-                      : "你沒有地標。阿強下一手只打你放出的錢包。"}
+                      ? `你行動之後，阿強會花自己的 2 顆，瞄準${LANDMARK_NAMES[firstBuilt(state.landmarks) ?? 0]}。`
+                      : "你沒有地標。阿強下一手花 2 顆，只打你放出的錢包。"}
             </p>
             <LandmarkStrip title="阿強的四個地標" landmarks={state.rivalLandmarks} />
             {builtTargets.length > 0 ? (
@@ -586,27 +616,34 @@ export function DailyGame() {
               onClick={onAttack}
               data-testid="attack"
             >
-              {attackName ? `砸${attackName}（花 1 顆）` : canAttackPurse ? "對錢包擲骰（花 1 顆）" : "現在砸不了"}
+              {attackName ? `砸${attackName}（花 2 顆）` : canAttackPurse ? "對錢包擲兩顆（花 2 顆）" : "現在砸不了"}
             </Button>
-            <p className="mt-2 text-xs leading-5 text-[#6f5b4b]">
-              {state.hasNft
-                ? `點數低過防守拿 0，等於拿 1，高過按算式拿，且不超過阿強剩下的 ${rivalPurse} DST。`
-                : "沒有 NFT，就算砸中也拿走 0 DST。雙方只得分數。"}
-            </p>
+            {state.dice === 1 ? (
+              <p className="mt-2 text-sm leading-6 text-[#9e3428]">攻擊要 2 顆，你現在只有 1 顆。</p>
+            ) : (
+              <p className="mt-2 text-xs leading-5 text-[#6f5b4b]">
+                {state.hasNft
+                  ? `攻擊＝你的戰鬥力＋幸運值。低過阿強的戰鬥力拿 0，等於拿 1，高過按算式拿，且不超過他剩下的 ${rivalPurse} DST。`
+                  : "沒有 NFT，就算砸中也拿走 0 DST。雙方只得分數。"}
+              </p>
+            )}
           </section>
 
           <section className="order-6 rounded-3xl border border-[#eadcc6] bg-[#fffaf3] p-4 text-sm leading-6 lg:order-none">
             <h2 className="text-base font-semibold">攻擊怎麼算</h2>
-            <p className="mt-2">防守等於已建成的地標數，0 至 4。攻擊花 1 顆，擲 1 至 6。</p>
+            <p className="mt-2">
+              走一步花 2 顆，擲兩顆，幸運值是和，2 至 12，走那麼多格。戰鬥力等於已建成的地標，0 至 4。你和阿強都一樣。
+            </p>
             <ul className="mt-2 space-y-1">
-              <li>點數低過防守：0 DST，地標守住。</li>
-              <li>點數等於防守：1 DST，砸碎一座。</li>
-              <li>點數高過防守：min(5, max(2, 點數 − 防守 + 1)) DST，也不得多過剩餘錢包和當日 5 DST。</li>
+              <li>攻擊也花 2 顆。攻擊合計＝你的戰鬥力＋幸運值。防守合計＝阿強的戰鬥力。</li>
+              <li>攻擊低過防守：0 DST，地標守住。</li>
+              <li>等於：1 DST，砸碎一座。</li>
+              <li>高過：min(5, max(2, 攻擊 − 防守 + 1)) DST，仍不超過剩餘錢包和當日 5 DST。</li>
             </ul>
             <p className="mt-2 text-[#6f5b4b]">
-              例：防守 4、擲 4，拿走 1。防守 4、擲 3，拿走 0。防守 0、擲 6，拿走 5。
+              例：戰鬥力 0、幸運值 2、對方戰鬥力 4，攻擊 2，拿走 0。戰鬥力 0、幸運值 4、對方 4，拿走 1。戰鬥力 0、幸運值 12、對方 0，拿走 5。
             </p>
-            <p className="mt-2">走到一格 +1 分。經過起點另 +2 分。蓋成地標 +3 分。這些分數留在棋盤上。</p>
+            <p className="mt-2">走到一格 +1 分。經過起點另 +2 分。蓋成地標 +3 分。這些分數留在棋盤上，不能換成 DST。</p>
           </section>
 
           <Button
@@ -621,7 +658,7 @@ export function DailyGame() {
               const stamp = Date.now();
               dispatch({ type: "reset", now: stamp, dayKey: dayKeyOf(stamp) });
               setSpinWho(null);
-              setSpinFace(null);
+              setSpinFaces(null);
               setResetArmed(false);
               setSaveNote(null);
             }}
