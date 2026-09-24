@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { countBuilt, createGame, reduce, rivalCanStrike, type Landmark } from "./game";
+import { STARTING_DICE, countBuilt, createGame, reduce, rivalCanStrike, type Landmark } from "./game";
 import { REFILL_MS } from "./rules";
 
 const NOW = Date.parse("2026-09-24T08:00:00");
@@ -11,23 +11,31 @@ function start() {
 }
 
 describe("daily board", () => {
-  it("starts empty: no dice, no points, four open landmarks", () => {
+  it("opens ready to roll, raise, and attack", () => {
     const state = start();
-    assert.equal(state.dice, 0);
+    assert.equal(state.dice, STARTING_DICE);
     assert.equal(state.points, 0);
     assert.equal(state.rollCount, 0);
+    assert.equal(state.hasNft, true);
+    assert.equal(state.postedPurse, 5);
     assert.deepEqual(state.landmarks, ["empty", "empty", "empty", "empty"]);
     assert.equal(countBuilt(state.landmarks), 0);
     assert.equal(countBuilt(state.rivalLandmarks), 2);
-    assert.equal(state.hasNft, false);
+  });
+
+  it("raises the first open landmark before any roll", () => {
+    const state = reduce(start(), { type: "build" });
+    assert.equal(state.landmarks[0], "built");
+    assert.equal(state.points, 3);
+    assert.equal(countBuilt(state.landmarks), 1);
   });
 
   it("walks the loop with two dice, scores points, and offers a build", () => {
-    let state = reduce(start(), { type: "add-test-die" });
+    let state = { ...start(), dice: 1 };
     const short = reduce(state, { type: "move", dice: [1, 1], now: NOW });
     assert.equal(short, state);
 
-    state = reduce(state, { type: "add-test-die" });
+    state = { ...state, dice: 2 };
     state = reduce(state, { type: "move", dice: [1, 1], now: NOW });
     assert.equal(state.position, 2);
     assert.equal(state.points, 1);
@@ -53,7 +61,7 @@ describe("daily board", () => {
   });
 
   it("keeps DST at 0 without the NFT toggle, and still smashes for points", () => {
-    let state = { ...start(), dice: 2 };
+    let state = { ...start(), dice: 2, hasNft: false, postedPurse: 0 };
     state = reduce(state, { type: "attack", dice: [6, 6], target: 0, now: NOW });
     assert.equal(state.rivalStolenToday, 0);
     assert.equal(state.rivalLandmarks[0], "ruined");
@@ -126,7 +134,7 @@ describe("daily board", () => {
   });
 
   it("does not let the rival act when nothing can be smashed or taken", () => {
-    const state = start();
+    const state = { ...start(), hasNft: false, postedPurse: 0 };
     assert.equal(rivalCanStrike(state), false);
     assert.equal(reduce(state, { type: "rival", dice: [6, 6], now: NOW }), state);
     const short = {
@@ -138,7 +146,7 @@ describe("daily board", () => {
   });
 
   it("refills a real die after 30 minutes", () => {
-    const state = start();
+    const state = { ...start(), dice: 0 };
     const next = reduce(state, { type: "tick", now: NOW + REFILL_MS, dayKey: DAY });
     assert.equal(next.dice, 1);
     assert.match(next.log[0]?.text ?? "", /30 分鐘/);

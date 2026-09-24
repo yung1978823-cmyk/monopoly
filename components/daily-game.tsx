@@ -11,6 +11,7 @@ import {
   createGame,
   firstBuilt,
   parseSave,
+  raiseTarget,
   previewMove,
   reduce,
   remainingPurse,
@@ -232,7 +233,7 @@ export function DailyGame() {
 
   function onRoll() {
     const current = state;
-    if (current.dice < 2 || current.pendingBuildIndex !== null) return;
+    if (current.dice < 2) return;
     void withLock(async () => {
       const dice = rollPair();
       const stamp = Date.now();
@@ -249,7 +250,8 @@ export function DailyGame() {
 
   function onBuild(skip: boolean) {
     const current = state;
-    if (current.pendingBuildIndex === null) return;
+    if (!skip && raiseTarget(current) === null) return;
+    if (skip && current.pendingBuildIndex === null) return;
     void withLock(async () => {
       const next = reduce(current, skip ? { type: "skip-build" } : { type: "build" });
       dispatch(skip ? { type: "skip-build" } : { type: "build" });
@@ -260,7 +262,7 @@ export function DailyGame() {
 
   function onAttack() {
     const current = state;
-    if (current.dice < 2 || current.pendingBuildIndex !== null) return;
+    if (current.dice < 2) return;
     const built = current.rivalLandmarks.flatMap((landmark, index) =>
       landmark === "built" ? [index] : [],
     );
@@ -296,10 +298,8 @@ export function DailyGame() {
     builtTargets.length > 0 ? LANDMARK_NAMES[selectedTarget] : null;
   const canAttackPurse =
     state.hasNft && rivalPurse > 0 && state.rivalStolenToday < 5 && builtTargets.length === 0;
-  const canAttack =
-    state.dice >= 2 &&
-    state.pendingBuildIndex === null &&
-    (attackName !== null || canAttackPurse);
+  const canRaise = raiseTarget(state) !== null;
+  const canAttack = state.dice >= 2 && (attackName !== null || canAttackPurse);
   const faces = spinning
     ? spinFaces
     : spinWho === "rival"
@@ -317,7 +317,7 @@ export function DailyGame() {
     statusTone = "boot";
   } else if (pendingName) {
     statusTitle = `你站在${pendingName}`;
-    statusBody = "這一格可以蓋成地標。蓋成之後戰鬥力加 1，並得 3 分。";
+    statusBody = "按起地標，這一格就蓋起來。戰鬥力加 1，分數加 3。";
     statusTone = "play";
   } else if (state.rollCount === 0 && state.dice === 0) {
     statusTone = "empty";
@@ -326,8 +326,8 @@ export function DailyGame() {
     statusBody = "走一步要 2 顆，攻擊也要 2 顆。你現在只有 1 顆。再補一粒（測試），或等 30 分鐘。";
     statusTone = "wait";
   } else if (state.rollCount === 0 && state.dice >= 2) {
-    statusTitle = "兩顆在手上";
-    statusBody = "擲兩顆，點數相加是 2 至 12，只在這塊棋盤上走。先得到的是分數，不是 DST。";
+    statusTitle = "你在起點";
+    statusBody = "擲兩粒骰往前走。起地標加戰鬥力和分數。攻擊阿強會改 DST。";
     statusTone = "first";
   } else if (state.dice === 0) {
     statusTitle = "手上沒有骰子";
@@ -359,6 +359,81 @@ export function DailyGame() {
         </div>
       </header>
 
+      <section
+        className="rounded-3xl border-2 border-[#9e3428] bg-[#fffaf3] p-4"
+        data-testid="actions"
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div>
+            <p className="text-sm text-[#6f5b4b]">分數</p>
+            <p className="text-4xl font-bold tabular-nums text-[#2a1c14]" data-testid="score-now">
+              {booted ? state.points : "–"}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm text-[#6f5b4b]">DST</p>
+            <p className="text-4xl font-bold tabular-nums text-[#1e7a62]" data-testid="dst-now">
+              {booted ? state.rivalStolenToday : "–"}
+            </p>
+            <p className="text-xs text-[#6f5b4b]">阿強被拿走</p>
+          </div>
+          <div className="col-span-2 sm:col-span-1">
+            <p className="text-sm text-[#6f5b4b]">這一手</p>
+            <p className="text-lg font-semibold text-[#2a1c14]" data-testid="last-result">
+              {spinning
+                ? "骰子在轉"
+                : state.lastStrike
+                  ? `拿走 ${state.lastStrike.dst} DST`
+                  : "還沒出手"}
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <Button
+            className={actionButton}
+            disabled={!booted || busy || state.dice < 2}
+            onClick={onRoll}
+            data-testid="roll-move"
+          >
+            擲兩粒骰
+          </Button>
+          <Button
+            className={actionButton}
+            disabled={!booted || busy || !canRaise}
+            onClick={() => onBuild(false)}
+            data-testid="raise"
+          >
+            起地標
+          </Button>
+          <Button
+            className={actionButton}
+            disabled={!booted || busy || !canAttack}
+            onClick={onAttack}
+            data-testid="attack"
+          >
+            攻擊
+          </Button>
+          <Button
+            className={actionButton}
+            variant="outline"
+            disabled={!booted || busy || state.dice >= DICE_CAP}
+            onClick={onTestDie}
+            data-testid="test-die"
+          >
+            補一粒（測試）
+          </Button>
+        </div>
+        {state.dice === 1 ? (
+          <p className="mt-2 text-sm leading-6 text-[#9e3428]" data-testid="need-two">
+            走一步和攻擊要 2 顆，你現在只有 1 顆。
+          </p>
+        ) : (
+          <p className="mt-2 text-sm leading-6 text-[#6f5b4b]">
+            手上 {booted ? state.dice : "–"}／20 顆。走一步和攻擊各花 2 顆。
+          </p>
+        )}
+      </section>
+
       <p className="rounded-2xl border border-[#eadcc6] bg-[#fffaf3] px-4 py-3 text-sm leading-6 text-[#3a2a1e]">
         分數不能換成 DST，也不計入賽季。骰子不出售，每 30 分鐘補 1 顆，最多存 20 顆。
       </p>
@@ -384,7 +459,7 @@ export function DailyGame() {
             <h2 className="text-base font-semibold">這一局發生了什麼</h2>
             {state.log.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-[#6f5b4b]">
-                還沒有紀錄。補兩粒，擲出第一輪。分數和 DST 會分開寫。
+                還沒有紀錄。按上面的按鈕，分數和 DST 會改。
               </p>
             ) : (
               <ol className="mt-3 space-y-2">
@@ -422,19 +497,14 @@ export function DailyGame() {
               {statusBody}
             </p>
             {pendingName ? (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <Button className={actionButton} disabled={busy} onClick={() => onBuild(false)}>
-                  蓋成地標
-                </Button>
-                <Button
-                  className={actionButton}
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => onBuild(true)}
-                >
-                  先不蓋
-                </Button>
-              </div>
+              <Button
+                className={cn(actionButton, "mt-3")}
+                variant="outline"
+                disabled={!booted || busy}
+                onClick={() => onBuild(true)}
+              >
+                先不蓋
+              </Button>
             ) : null}
           </section>
 
@@ -483,31 +553,6 @@ export function DailyGame() {
                 " 現在已滿，暫停補充。"
               ) : null}
             </p>
-            <div className="mt-3 grid gap-2">
-              <Button
-                className={actionButton}
-                variant={state.dice >= 2 ? "default" : "outline"}
-                disabled={!booted || busy || state.dice < 2 || state.pendingBuildIndex !== null}
-                onClick={onRoll}
-                data-testid="roll-move"
-              >
-                {state.rollCount === 0 ? "擲出第一輪" : "擲兩顆前進"}
-              </Button>
-              <Button
-                className={actionButton}
-                variant={state.dice < 2 ? "default" : "outline"}
-                disabled={!booted || busy || state.dice >= DICE_CAP}
-                onClick={onTestDie}
-                data-testid="test-die"
-              >
-                補一粒（測試）
-              </Button>
-            </div>
-            {state.dice === 1 ? (
-              <p className="mt-2 text-sm leading-6 text-[#9e3428]" data-testid="need-two">
-                走一步要 2 顆，你現在只有 1 顆。
-              </p>
-            ) : null}
             <p className="mt-2 text-xs leading-5 text-[#6f5b4b]">
               補一粒（測試）不用等。正式規則仍是每 30 分鐘補 1 顆，最多 20 顆。
             </p>
@@ -609,24 +654,13 @@ export function DailyGame() {
                 </div>
               </div>
             ) : null}
-            <Button
-              className={cn(actionButton, "mt-3")}
-              variant="secondary"
-              disabled={!booted || busy || !canAttack}
-              onClick={onAttack}
-              data-testid="attack"
-            >
-              {attackName ? `砸${attackName}（花 2 顆）` : canAttackPurse ? "對錢包擲兩顆（花 2 顆）" : "現在砸不了"}
-            </Button>
-            {state.dice === 1 ? (
-              <p className="mt-2 text-sm leading-6 text-[#9e3428]">攻擊要 2 顆，你現在只有 1 顆。</p>
-            ) : (
-              <p className="mt-2 text-xs leading-5 text-[#6f5b4b]">
-                {state.hasNft
+            <p className="mt-2 text-xs leading-5 text-[#6f5b4b]">
+              {state.dice === 1
+                ? "攻擊要 2 顆，你現在只有 1 顆。"
+                : state.hasNft
                   ? `攻擊＝你的戰鬥力＋幸運值。低過阿強的戰鬥力拿 0，等於拿 1，高過按算式拿，且不超過他剩下的 ${rivalPurse} DST。`
                   : "沒有 NFT，就算砸中也拿走 0 DST。雙方只得分數。"}
-              </p>
-            )}
+            </p>
           </section>
 
           <section className="order-6 rounded-3xl border border-[#eadcc6] bg-[#fffaf3] p-4 text-sm leading-6 lg:order-none">
@@ -643,7 +677,7 @@ export function DailyGame() {
             <p className="mt-2 text-[#6f5b4b]">
               例：戰鬥力 0、幸運值 2、對方戰鬥力 4，攻擊 2，拿走 0。戰鬥力 0、幸運值 4、對方 4，拿走 1。戰鬥力 0、幸運值 12、對方 0，拿走 5。
             </p>
-            <p className="mt-2">走到一格 +1 分。經過起點另 +2 分。蓋成地標 +3 分。這些分數留在棋盤上，不能換成 DST。</p>
+            <p className="mt-2">走到一格 +1 分。經過起點另 +2 分。起地標 +3 分。這些分數留在棋盤上，不能換成 DST。</p>
           </section>
 
           <Button

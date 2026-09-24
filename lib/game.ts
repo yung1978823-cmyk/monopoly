@@ -72,14 +72,15 @@ export type Action =
   | { type: "reset"; now: number; dayKey: string }
   | { type: "hydrate"; state: GameState; now: number; dayKey: string };
 
-export const STORAGE_KEY = "dafuweng-daily-board-v1";
+export const STORAGE_KEY = "dafuweng-daily-board-v2";
+export const STARTING_DICE = 6;
 
 const emptyLandmarks = (): Landmark[] => ["empty", "empty", "empty", "empty"];
 
 export function createGame(now: number, dayKey: string): GameState {
   return {
     position: 0,
-    dice: 0,
+    dice: STARTING_DICE,
     lastRefillAt: now,
     rivalDice: 20,
     rivalLastRefillAt: now,
@@ -87,8 +88,8 @@ export function createGame(now: number, dayKey: string): GameState {
     rivalPoints: 0,
     landmarks: emptyLandmarks(),
     rivalLandmarks: ["built", "built", "empty", "empty"],
-    hasNft: false,
-    postedPurse: 0,
+    hasNft: true,
+    postedPurse: 5,
     playerStolenToday: 0,
     rivalStolenToday: 0,
     rollCount: 0,
@@ -109,6 +110,21 @@ export function countBuilt(landmarks: readonly Landmark[]): number {
 export function firstBuilt(landmarks: readonly Landmark[]): number | null {
   const index = landmarks.findIndex((landmark) => landmark === "built");
   return index === -1 ? null : index;
+}
+
+export function raiseTarget(state: GameState): number | null {
+  if (
+    state.pendingBuildIndex !== null &&
+    state.landmarks[state.pendingBuildIndex] !== "built"
+  ) {
+    return state.pendingBuildIndex;
+  }
+  const here = TILES[state.position];
+  if (here && here.landmarkIndex !== null && state.landmarks[here.landmarkIndex] !== "built") {
+    return here.landmarkIndex;
+  }
+  const open = state.landmarks.findIndex((landmark) => landmark !== "built");
+  return open === -1 ? null : open;
 }
 
 export function remainingPurse(
@@ -489,7 +505,7 @@ export function reduce(state: GameState, action: Action): GameState {
     }
     case "move": {
       const faces = readPair(action.dice);
-      if (!faces || state.pendingBuildIndex !== null || state.dice < ROLL_COST) return state;
+      if (!faces || state.dice < ROLL_COST) return state;
       const spent = spendDice(state.dice, state.lastRefillAt, action.now, ROLL_COST);
       if (!spent) return state;
       const luck = luckOf(faces);
@@ -525,7 +541,7 @@ export function reduce(state: GameState, action: Action): GameState {
       );
     }
     case "build": {
-      const index = state.pendingBuildIndex;
+      const index = raiseTarget(state);
       if (index === null) return state;
       const landmark = state.landmarks[index];
       if (landmark === "built") return state;
@@ -542,7 +558,7 @@ export function reduce(state: GameState, action: Action): GameState {
       return pushLog(
         next,
         "you",
-        `你蓋好${LANDMARK_NAMES[index]}。戰鬥力變成 ${defense}。分數 +${POINTS.build}，合計 ${next.points}。`,
+        `你起了${LANDMARK_NAMES[index]}。戰鬥力變成 ${defense}。分數 +${POINTS.build}，合計 ${next.points}。`,
       );
     }
     case "skip-build": {
@@ -555,7 +571,6 @@ export function reduce(state: GameState, action: Action): GameState {
       );
     }
     case "attack": {
-      if (state.pendingBuildIndex !== null) return state;
       return applyAttack(state, "player", action.dice, action.target, action.now);
     }
     case "rival": {
