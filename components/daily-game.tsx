@@ -356,8 +356,8 @@ export function DailyGame() {
         </p>
       ) : null}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_23rem]">
-        <section className="order-2 space-y-4 lg:order-1">
+      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1.15fr)_23rem] lg:items-start">
+        <section className="order-3 space-y-4 lg:order-none">
           <BoardRing
             position={state.position}
             landmarks={state.landmarks}
@@ -393,10 +393,10 @@ export function DailyGame() {
           </section>
         </section>
 
-        <aside className="order-1 space-y-4 lg:sticky lg:top-4 lg:order-2">
+        <aside className="contents lg:sticky lg:top-4 lg:flex lg:flex-col lg:gap-4">
           <section
             className={cn(
-              "rounded-3xl border px-4 py-4",
+              "order-1 rounded-3xl border px-4 py-4 lg:order-none",
               statusTone === "first" && "border-[#9e3428] bg-[#9e3428] text-[#fff7ee]",
               statusTone === "empty" && "border-dashed border-[#c4b29a] bg-[#fffaf3] text-[#2a1c14]",
               statusTone === "wait" && "border-[#e0bf78] bg-[#fbf3df] text-[#3a2a1e]",
@@ -425,7 +425,7 @@ export function DailyGame() {
             ) : null}
           </section>
 
-          <section className="rounded-3xl border border-[#eadcc6] bg-[#fffaf3] p-4">
+          <section className="order-2 rounded-3xl border border-[#eadcc6] bg-[#fffaf3] p-4 lg:order-none">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold">你的骰子</h2>
@@ -483,7 +483,7 @@ export function DailyGame() {
             </p>
           </section>
 
-          <section className="rounded-3xl border border-[#eadcc6] bg-[#fffaf3] p-4">
+          <section className="order-4 rounded-3xl border border-[#eadcc6] bg-[#fffaf3] p-4 lg:order-none">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold" id="nft-label">
@@ -530,7 +530,7 @@ export function DailyGame() {
             )}
           </section>
 
-          <section className="rounded-3xl border border-[#eadcc6] bg-[#fffaf3] p-4">
+          <section className="order-5 rounded-3xl border border-[#eadcc6] bg-[#fffaf3] p-4 lg:order-none">
             <h2 className="text-base font-semibold">街坊阿強</h2>
             <p className="mt-1 text-sm leading-6 text-[#6f5b4b]">
               這位對手在這台裝置上，不連線。他花自己的骰，不花你的。
@@ -595,7 +595,7 @@ export function DailyGame() {
             </p>
           </section>
 
-          <section className="rounded-3xl border border-[#eadcc6] bg-[#fffaf3] p-4 text-sm leading-6">
+          <section className="order-6 rounded-3xl border border-[#eadcc6] bg-[#fffaf3] p-4 text-sm leading-6 lg:order-none">
             <h2 className="text-base font-semibold">攻擊怎麼算</h2>
             <p className="mt-2">防守等於已建成的地標數，0 至 4。攻擊花 1 顆，擲 1 至 6。</p>
             <ul className="mt-2 space-y-1">
@@ -611,7 +611,7 @@ export function DailyGame() {
 
           <Button
             variant="ghost"
-            className="h-10 w-full cursor-pointer text-[#6f5b4b]"
+            className="order-7 h-10 w-full cursor-pointer text-[#6f5b4b] lg:order-none"
             disabled={!booted || busy}
             onClick={() => {
               if (!resetArmed) {

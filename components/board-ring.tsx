@@ -51,13 +51,13 @@ export function BoardRing({
               )}
               aria-current={current ? "true" : undefined}
             >
+              <span className="text-xs font-semibold sm:text-sm">{tile.name}</span>
+              {status ? <span className="mt-0.5 text-[10px] tracking-wide opacity-90">{status}</span> : null}
               {current ? (
-                <span className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-[#9e3428] text-[10px] font-bold text-white">
+                <span className={cn("text-[10px] font-bold", built || ruined ? "text-[#f0d7a2]" : "text-[#9e3428]")}>
                   你
                 </span>
               ) : null}
-              <span className="text-xs font-semibold sm:text-sm">{tile.name}</span>
-              {status ? <span className="mt-0.5 text-[10px] tracking-wide opacity-90">{status}</span> : null}
             </div>
           );
         })}
