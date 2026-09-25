@@ -51,22 +51,22 @@ function buildTiles(): Tile[] {
 export const TILES: readonly Tile[] = buildTiles();
 
 /** The board art the squares are laid over (1254 × 1254). */
-export const BOARD_ART = "/art/board-28.png";
+export const BOARD_ART = "/art/board-28-mario.png";
 
 /**
- * Centre of each square on the board art, as a fraction of the image width and height.
- * Measured from public/art/board-28.png. Start is the bottom corner; play runs up the
- * lower-left edge, across the top, and back down the lower-right edge.
+ * Centre of each square on the board art, in pixels, measured from the art.
+ * Start is the bottom corner; play runs up the lower-left edge, across the top, and back
+ * down the lower-right edge.
  */
 const ART_POINTS: readonly [number, number][] = [
-  [618, 988],
-  [538, 916], [461, 849], [386, 778], [309, 711], [240, 642], [173, 578],
-  [107, 513],
-  [183, 455], [255, 400], [333, 341], [409, 284], [482, 229], [553, 175],
-  [627, 114],
-  [699, 175], [768, 228], [840, 285], [913, 345], [993, 404], [1065, 461],
-  [1145, 523],
-  [1073, 582], [1004, 639], [933, 714], [857, 782], [781, 852], [704, 921],
+  [619, 997],
+  [537, 921], [461, 850], [386, 779], [312, 710], [242, 643], [174, 579],
+  [107, 514],
+  [185, 458], [256, 404], [334, 345], [410, 287], [483, 231], [553, 177],
+  [627, 120],
+  [699, 177], [768, 232], [840, 288], [914, 347], [990, 406], [1063, 463],
+  [1142, 523],
+  [1073, 587], [1004, 650], [932, 716], [857, 784], [780, 853], [703, 923],
 ];
 const ART_SIZE = 1254;
 
@@ -75,5 +75,5 @@ export const TILE_POSITIONS: readonly { x: number; y: number }[] = ART_POINTS.ma
   y: y / ART_SIZE,
 }));
 
-/** Where the red velvet centre sits on the art, for the score panel. */
-export const BOARD_CENTRE = { x: 626 / ART_SIZE, y: 551 / ART_SIZE } as const;
+/** Where the green centre sits on the art, for the score panel. */
+export const BOARD_CENTRE = { x: 625 / ART_SIZE, y: 555 / ART_SIZE } as const;

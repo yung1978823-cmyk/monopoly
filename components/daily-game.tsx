@@ -262,7 +262,7 @@ export function DailyGame() {
 
   return (
     <main
-      className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-[#4FBBFD] text-[#1E3A8A]"
+      className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-[#5EBDFD] text-[#1E3A8A]"
       data-testid="walk"
     >
       {/* Top bar: points, dice, today's DST, menu. */}

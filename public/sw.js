@@ -1,9 +1,9 @@
 // 大富翁 service worker: keeps the app shell and art so the board opens without a network.
-const CACHE = "dafuweng-v2";
+const CACHE = "dafuweng-v3";
 const SHELL = [
   "/",
   "/manifest.webmanifest",
-  "/art/board-28.png",
+  "/art/board-28-mario.png",
   "/art/title.jpg",
   "/art/city-harbor.jpg",
   "/art/city-park.jpg",
