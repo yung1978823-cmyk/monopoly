@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 
 const LOAD_MS = 1400;
 
-/** Opening screen: the title art full-bleed, a loading bar, then a tap to start. */
+/** Swap in the drawn logo here once it exists (e.g. "/art/logo.png"); until then a type logo stands in. */
+const LOGO_ART: string | null = null;
+
+/** Opening screen: the title art shown whole, the logo, a slim loading bar, then a tap to start. */
 export function TitleScreen({ onStart }: { onStart: () => void }) {
   const [progress, setProgress] = useState(0);
 
@@ -24,7 +27,7 @@ export function TitleScreen({ onStart }: { onStart: () => void }) {
 
   return (
     <main
-      className="relative flex h-dvh w-full flex-col items-center justify-end overflow-hidden bg-[#1E3A8A] [container-type:size]"
+      className="relative flex h-dvh w-full flex-col items-center overflow-hidden bg-[#1E3A8A] [container-type:size]"
       data-testid="title-screen"
     >
       {/* Blurred copy fills the screen behind; the sharp art is shown whole so no face is cut off. */}
@@ -34,7 +37,7 @@ export function TitleScreen({ onStart }: { onStart: () => void }) {
         aria-hidden="true"
       />
       <div
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-contain bg-center bg-no-repeat"
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-[breathe_6s_ease-in-out_infinite] bg-contain bg-center bg-no-repeat"
         style={{
           backgroundImage: "url(/art/title.jpg)",
           width: "min(100cqw, calc(100cqh * 1122 / 1402))",
@@ -43,36 +46,55 @@ export function TitleScreen({ onStart }: { onStart: () => void }) {
           WebkitMaskImage: "linear-gradient(transparent, black 10%, black 90%, transparent)",
         }}
         role="img"
-        aria-label="大富翁主角同朋友"
+        aria-label="Dice Tycoon 主角同朋友"
       />
-      <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-[#1E3A8A]/70 to-transparent" />
-      <h1
-        className="absolute top-[max(env(safe-area-inset-top),2.5rem)] text-6xl font-black tracking-wider text-[#FBD000]"
-        style={{ WebkitTextStroke: "3px #1E3A8A", textShadow: "0 6px 0 #E52521, 0 10px 18px rgba(30,58,138,0.6)" }}
-      >
-        大富翁
-      </h1>
-      <div className="relative z-10 mb-[max(env(safe-area-inset-bottom),2rem)] flex w-full max-w-sm flex-col items-center gap-4 px-8">
+      <div className="absolute inset-x-0 top-0 h-[40%] bg-gradient-to-b from-[#0f2a6b]/80 via-[#0f2a6b]/35 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-[35%] bg-gradient-to-t from-[#0f2a6b]/85 via-[#0f2a6b]/35 to-transparent" />
+
+      {/* Logo. */}
+      <header className="relative z-10 mt-[max(env(safe-area-inset-top),2.25rem)] flex flex-col items-center">
+        {LOGO_ART ? (
+          <div
+            className="h-[22cqh] w-[88cqw] bg-contain bg-center bg-no-repeat drop-shadow-[0_8px_16px_rgba(15,42,107,0.5)]"
+            style={{ backgroundImage: `url(${LOGO_ART})` }}
+            role="img"
+            aria-label="Dice Tycoon"
+          />
+        ) : (
+          <h1 className="flex flex-col items-center font-display leading-[0.82] tracking-tight" aria-label="Dice Tycoon">
+            <span className="logo-type text-[min(19cqw,5.5rem)] text-[#FBD000]">DICE</span>
+            <span className="logo-type text-[min(15cqw,4.4rem)] text-white">TYCOON</span>
+          </h1>
+        )}
+        <span className="mt-2 rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold tracking-[0.3em] text-white/90 backdrop-blur-sm">
+          大富翁
+        </span>
+      </header>
+
+      {/* Start. */}
+      <footer className="relative z-10 mt-auto mb-[max(env(safe-area-inset-bottom),2.25rem)] flex w-full max-w-xs flex-col items-center gap-3 px-10">
         {ready ? (
           <button
             type="button"
             onClick={onStart}
-            className="h-16 w-full animate-pulse cursor-pointer rounded-full border-4 border-[#FBD000] bg-[#E52521] text-2xl font-black tracking-widest text-[#FFFFFF] shadow-[0_6px_0_#1E3A8A,0_12px_24px_rgba(30,58,138,0.5)] active:translate-y-1 active:shadow-[0_2px_0_#1E3A8A]"
+            className="relative h-14 w-full cursor-pointer animate-[bob_2.4s_ease-in-out_infinite] overflow-hidden rounded-full bg-gradient-to-b from-[#FF5A4E] to-[#D91F1A] font-display text-xl font-extrabold tracking-wider text-white shadow-[0_5px_0_#9E1512,0_12px_24px_rgba(15,42,107,0.45)] transition-transform active:translate-y-1 active:shadow-[0_1px_0_#9E1512]"
             data-testid="start"
           >
-            開始遊戲
+            <span className="absolute inset-x-3 top-1 h-[42%] rounded-full bg-white/30" aria-hidden="true" />
+            <span className="relative">開始遊戲</span>
           </button>
         ) : (
-          <div className="h-6 w-full overflow-hidden rounded-full border-2 border-[#FBD000] bg-[#1E3A8A]/80">
-            <div
-              className="flex h-full items-center justify-end rounded-full bg-gradient-to-r from-[#049CD8] to-[#FBD000] pr-2 text-xs font-bold text-[#1E3A8A]"
-              style={{ width: `${Math.max(12, progress * 100)}%` }}
-            >
-              {Math.round(progress * 100)}%
+          <>
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/25 ring-1 ring-white/40">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#FBD000] to-[#FFE866]"
+                style={{ width: `${Math.max(6, progress * 100)}%` }}
+              />
             </div>
-          </div>
+            <p className="text-xs font-bold tracking-widest text-white/80">載入中 {Math.round(progress * 100)}%</p>
+          </>
         )}
-      </div>
+      </footer>
     </main>
   );
 }

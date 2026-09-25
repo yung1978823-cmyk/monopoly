@@ -7,7 +7,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "WenQuanYi Micro Hei", ui-sans-serif, sans-serif;
+  --font-sans: "M PLUS Rounded 1c", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "WenQuanYi Micro Hei", ui-sans-serif, sans-serif;
+  --font-display: "Baloo 2", "M PLUS Rounded 1c", "PingFang TC", ui-sans-serif, sans-serif;
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -148,4 +149,25 @@
   40% { transform: translate(calc(-50% + 6px), calc(-50% - 3px)); }
   60% { transform: translate(calc(-50% - 4px), -50%); }
   80% { transform: translate(calc(-50% + 3px), -50%); }
+}
+
+/* Title screen: type logo until the drawn logo lands, button bob, gentle art breathing. */
+.logo-type {
+  font-weight: 800;
+  -webkit-text-stroke: 0.1em #1e3a8a;
+  paint-order: stroke fill;
+  text-shadow:
+    0 0.07em 0 #1e3a8a,
+    0 0.14em 0.22em rgba(15, 42, 107, 0.45);
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes breathe {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.02); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [class*="animate-["] { animation: none !important; }
 }

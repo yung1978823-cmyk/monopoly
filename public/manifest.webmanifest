@@ -1,6 +1,6 @@
 {
-  "name": "大富翁",
-  "short_name": "大富翁",
+  "name": "Dice Tycoon 大富翁",
+  "short_name": "Dice Tycoon",
   "description": "每日棋盤：擲骰行棋、起地標、攻擊對手。",
   "lang": "zh-Hant",
   "start_url": "/",
