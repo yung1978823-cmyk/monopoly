@@ -40,11 +40,13 @@ export type Phase = "walk" | "search";
 
 export type WeaponReadout = {
   weapon: number;
-  rivalPower: number;
+  attackTotal: number;
+  defenseTotal: number;
   enemyLuck: number;
-  rivalTotal: number;
   hit: boolean;
   dst: number;
+  pointsGained: number;
+  shieldBreak: boolean;
 };
 
 export type GameState = {
@@ -72,6 +74,8 @@ export type GameState = {
   lastPlayerFaces: DiePair | null;
   lastRivalFaces: DiePair | null;
   enemyLuck: number | null;
+  enemyShield: boolean;
+  fightSettled: boolean;
   weaponReadout: WeaponReadout | null;
   lastStrike: StrikeReadout | null;
 };
@@ -123,6 +127,8 @@ export function createGame(now: number, dayKey: string): GameState {
     lastPlayerFaces: null,
     lastRivalFaces: null,
     enemyLuck: null,
+    enemyShield: false,
+    fightSettled: false,
     weaponReadout: null,
     lastStrike: null,
   };
@@ -262,6 +268,8 @@ export function sanitizeState(
     lastPlayerFaces: readPair(value.lastPlayerFaces),
     lastRivalFaces: readPair(value.lastRivalFaces),
     enemyLuck: inRange(value.enemyLuck, 2, 12) ? value.enemyLuck : null,
+    enemyShield: value.enemyShield === true,
+    fightSettled: value.fightSettled === true,
     weaponReadout: readWeapon(value.weaponReadout),
     lastStrike: readStrike(value.lastStrike),
     phase: value.phase === "search" && inRange(value.enemyLuck, 2, 12) ? "search" : "walk",
@@ -275,18 +283,20 @@ function inRange(value: unknown, min: number, max: number): value is number {
 function readWeapon(value: unknown): WeaponReadout | null {
   if (!value || typeof value !== "object") return null;
   const readout = value as Partial<WeaponReadout>;
-  const { weapon, rivalPower, enemyLuck, rivalTotal, hit, dst } = readout;
+  const { weapon, attackTotal, defenseTotal, enemyLuck, hit, dst, pointsGained, shieldBreak } = readout;
   if (
     !inRange(weapon, 0, 4) ||
-    !inRange(rivalPower, 0, 4) ||
+    !inRange(attackTotal, 10, 30) ||
+    !inRange(defenseTotal, 2, 32) ||
     !inRange(enemyLuck, 2, 12) ||
-    !inRange(rivalTotal, 2, 16) ||
     typeof hit !== "boolean" ||
-    !inRange(dst, 0, DAILY_DST_CAP)
+    !inRange(dst, 0, DAILY_DST_CAP) ||
+    !inRange(pointsGained, 0, 5) ||
+    typeof shieldBreak !== "boolean"
   ) {
     return null;
   }
-  return { weapon, rivalPower, enemyLuck, rivalTotal, hit, dst };
+  return { weapon, attackTotal, defenseTotal, enemyLuck, hit, dst, pointsGained, shieldBreak };
 }
 
 function readStrike(value: unknown): StrikeReadout | null {
@@ -592,6 +602,8 @@ export function reduce(state: GameState, action: Action): GameState {
         walkFace: face,
         lastRivalFaces: searching ? enemyFaces : null,
         enemyLuck,
+        enemyShield: searching,
+        fightSettled: false,
         weaponReadout: null,
         lastStrike: null,
       };
@@ -602,49 +614,52 @@ export function reduce(state: GameState, action: Action): GameState {
       );
     }
     case "weapon": {
-      if (state.phase !== "search" || state.enemyLuck === null || state.weaponReadout) return state;
+      if (state.phase !== "search" || state.enemyLuck === null || state.fightSettled) return state;
       const weapon = countBuilt(state.landmarks);
-      const rivalPower = countBuilt(state.rivalLandmarks);
-      const rivalTotal = rivalPower + state.enemyLuck;
-      const hit = weapon > rivalTotal;
-      const target = hit ? firstBuilt(state.rivalLandmarks) : null;
-      const rivalLandmarks =
-        target === null
-          ? state.rivalLandmarks
-          : state.rivalLandmarks.map((item, index) =>
-              index === target ? ("ruined" as const) : item,
-            );
+      const attackTotal = 10 + weapon * 5;
+      const defenseTotal = countBuilt(state.rivalLandmarks) * 5 + state.enemyLuck;
+      const hit = attackTotal > defenseTotal;
       const bothNft = state.hasNft && state.rivalHasNft !== false;
-      const dst =
-        hit && bothNft
-          ? dstTaken({
-              attack: weapon,
-              defense: rivalTotal,
-              defenderHasNft: true,
-              remainingPurse: remainingPurse(true, PURSE_MAX, state.rivalStolenToday),
-              stolenToday: state.rivalStolenToday,
-            })
-          : 0;
+      let pointsGained = 0;
+      let dst = 0;
+      let shieldBreak = false;
+      let enemyShield = state.enemyShield;
+      let fightSettled = true;
+      if (hit && state.enemyShield) {
+        pointsGained = 1;
+        dst = 0;
+        shieldBreak = true;
+        enemyShield = false;
+        fightSettled = false;
+      } else if (hit) {
+        pointsGained = Math.min(5, Math.max(1, attackTotal - defenseTotal));
+        const room = Math.max(0, DAILY_DST_CAP - state.rivalStolenToday);
+        dst = bothNft ? Math.min(pointsGained, room) : 0;
+      }
       const weaponReadout: WeaponReadout = {
         weapon,
-        rivalPower,
+        attackTotal,
+        defenseTotal,
         enemyLuck: state.enemyLuck,
-        rivalTotal,
         hit,
         dst,
+        pointsGained,
+        shieldBreak,
       };
-      const verdict = hit ? "打中" : "打唔中";
-      const damage = target === null ? "" : `砸了${LANDMARK_NAMES[target]}。`;
+      const verdict = shieldBreak ? "盾破" : hit ? "打中" : "打唔中";
       const pay = dst > 0 ? `搬走 ${dst} DST。` : "DST 0。";
+      const nextPoints = state.points + pointsGained;
       return pushLog(
         {
           ...state,
-          rivalLandmarks,
+          points: nextPoints,
           rivalStolenToday: state.rivalStolenToday + dst,
+          enemyShield,
+          fightSettled,
           weaponReadout,
         },
         "you",
-        `武器 ${weapon}，敵人 ${rivalTotal}（戰鬥力 ${rivalPower} ＋ 幸運值 ${state.enemyLuck}）。${verdict}。${damage}分數 ${state.points}。${pay}`,
+        `總攻擊 ${attackTotal}，總防守 ${defenseTotal}。${verdict}。得 ${pointsGained} 分，合計 ${nextPoints}。${pay}`,
       );
     }
     case "return-walk": {

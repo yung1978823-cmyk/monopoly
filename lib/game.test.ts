@@ -54,53 +54,63 @@ describe("daily board", () => {
     assert.match(state.log[0]?.text ?? "", /幸運值 3/);
   });
 
-  it("hits only when the weapon is greater than the rival total", () => {
+  it("breaks the shield for 1 point and 0 DST, then pays DST only on a later hit", () => {
     let state = reduce(start(), {
       type: "move",
       face: 2,
       enemyDice: [1, 1],
       now: NOW,
     });
+    assert.equal(state.enemyShield, true);
     const missed = reduce(state, { type: "weapon" });
-    assert.equal(missed.weaponReadout?.weapon, 0);
-    assert.equal(missed.weaponReadout?.rivalTotal, 4);
+    assert.equal(missed.weaponReadout?.attackTotal, 10);
+    assert.equal(missed.weaponReadout?.defenseTotal, 12);
     assert.equal(missed.weaponReadout?.hit, false);
+    assert.equal(missed.weaponReadout?.pointsGained, 0);
     assert.equal(missed.weaponReadout?.dst, 0);
-    assert.equal(missed.rivalLandmarks[0], "built");
+    assert.equal(missed.enemyShield, true);
+    assert.equal(missed.points, state.points);
 
     state = {
       ...state,
-      landmarks: ["built", "built", "built", "built"],
-      rivalLandmarks: ["built", "empty", "empty", "empty"],
+      landmarks: ["built", "built", "built", "built"] as Landmark[],
+      rivalLandmarks: ["built", "empty", "empty", "empty"] as Landmark[],
       enemyLuck: 2,
-      lastRivalFaces: [1, 1],
+      enemyShield: true,
+      fightSettled: false,
     };
-    const hit = reduce(state, { type: "weapon" });
-    assert.equal(hit.weaponReadout?.weapon, 4);
-    assert.equal(hit.weaponReadout?.rivalPower, 1);
-    assert.equal(hit.weaponReadout?.rivalTotal, 3);
-    assert.equal(hit.weaponReadout?.hit, true);
-    assert.equal(hit.rivalLandmarks[0], "ruined");
-    assert.equal(hit.points, state.points);
-    assert.ok((hit.weaponReadout?.dst ?? 0) > 0);
-    assert.ok((hit.weaponReadout?.dst ?? 0) <= 5);
-    assert.equal(hit.rivalStolenToday, state.rivalStolenToday + (hit.weaponReadout?.dst ?? 0));
-    assert.match(hit.log[0]?.text ?? "", /搬走/);
+    const shield = reduce(state, { type: "weapon" });
+    assert.equal(shield.weaponReadout?.attackTotal, 30);
+    assert.equal(shield.weaponReadout?.defenseTotal, 7);
+    assert.equal(shield.weaponReadout?.shieldBreak, true);
+    assert.equal(shield.weaponReadout?.pointsGained, 1);
+    assert.equal(shield.weaponReadout?.dst, 0);
+    assert.equal(shield.points, state.points + 1);
+    assert.equal(shield.enemyShield, false);
+    assert.equal(shield.fightSettled, false);
+    assert.match(shield.log[0]?.text ?? "", /DST 0/);
 
-    const noPlayer = reduce({ ...state, hasNft: false }, { type: "weapon" });
-    assert.equal(noPlayer.weaponReadout?.hit, true);
+    const scored = reduce(shield, { type: "weapon" });
+    assert.equal(scored.weaponReadout?.shieldBreak, false);
+    assert.equal(scored.weaponReadout?.pointsGained, 5);
+    assert.equal(scored.weaponReadout?.dst, 5);
+    assert.equal(scored.points, shield.points + 5);
+    assert.equal(scored.rivalStolenToday, 5);
+    assert.match(scored.log[0]?.text ?? "", /搬走 5 DST/);
+
+    const noPlayer = reduce({ ...shield, hasNft: false }, { type: "weapon" });
+    assert.equal(noPlayer.weaponReadout?.pointsGained, 5);
     assert.equal(noPlayer.weaponReadout?.dst, 0);
     assert.match(noPlayer.log[0]?.text ?? "", /DST 0/);
 
-    const noRival = reduce({ ...state, rivalHasNft: false }, { type: "weapon" });
-    assert.equal(noRival.weaponReadout?.hit, true);
+    const noRival = reduce({ ...shield, rivalHasNft: false }, { type: "weapon" });
     assert.equal(noRival.weaponReadout?.dst, 0);
 
-    const capped = reduce({ ...state, rivalStolenToday: 5 }, { type: "weapon" });
-    assert.equal(capped.weaponReadout?.dst, 0);
-    const room = reduce({ ...state, rivalStolenToday: 4 }, { type: "weapon" });
+    const room = reduce({ ...shield, rivalStolenToday: 4 }, { type: "weapon" });
     assert.equal(room.weaponReadout?.dst, 1);
-    assert.equal(noPlayer.rivalLandmarks[0], "ruined");
+    const capped = reduce({ ...shield, rivalStolenToday: 5 }, { type: "weapon" });
+    assert.equal(capped.weaponReadout?.dst, 0);
+    assert.equal(capped.weaponReadout?.pointsGained, 5);
   });
 
   it("raises the first open landmark before any roll", () => {

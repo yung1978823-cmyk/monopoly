@@ -17,7 +17,7 @@ import {
 } from "@/lib/game";
 import { DICE_CAP, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
 import { cn } from "cn";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 
 const STEP_MS = 420;
 
@@ -29,6 +29,14 @@ type PendingWalk = {
   running: boolean;
   committed: boolean;
 };
+
+function artBackground(file: string, wash: number): CSSProperties {
+  return {
+    backgroundImage: `linear-gradient(rgba(255,250,243,${wash}), rgba(255,247,238,${wash})), url(/art/${file})`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+  };
+}
 
 function landmarkLabel(landmark: Landmark): string {
   if (landmark === "built") return "已建成";
@@ -236,12 +244,14 @@ export function DailyGame() {
   }
 
   function onWeapon() {
-    if (state.phase !== "search" || state.weaponReadout) return;
+    if (state.phase !== "search" || state.fightSettled) return;
     dispatch({ type: "weapon" });
   }
 
   const weapon = countBuilt(state.landmarks);
   const rivalPower = countBuilt(state.rivalLandmarks);
+  const attackTotal = 10 + weapon * 5;
+  const defenseTotal = rivalPower * 5 + (state.enemyLuck ?? 0);
   const shownStep = pending?.step ?? 0;
   const tokenIndex = pending ? (pending.from + shownStep) % TILES.length : state.position;
   const trail = pending
@@ -269,7 +279,11 @@ export function DailyGame() {
       ) : null}
 
       {state.phase === "search" ? (
-        <section className="rounded-3xl border-2 border-[#9e3428] bg-[#fffaf3] p-4" data-testid="search">
+        <section
+          className="rounded-3xl border-2 border-[#9e3428] bg-[#fffaf3] p-4"
+          style={artBackground("enemy-city.jpg", 0.86)}
+          data-testid="search"
+        >
           <p className="text-sm leading-6 text-[#6f5b4b]">配到街坊阿強。不用你選。</p>
           <div className="mt-4">
             <LandmarkStrip title="阿強的四座建築" landmarks={state.rivalLandmarks} />
@@ -280,17 +294,28 @@ export function DailyGame() {
               <p className="text-4xl font-bold tabular-nums text-[#2a1c14]" data-testid="enemy-luck">
                 {state.enemyLuck ?? "–"}
               </p>
-              <p className="mt-1 text-sm text-[#6f5b4b]">戰鬥力 {rivalPower}／4</p>
+              <p className="mt-1 text-sm text-[#6f5b4b]">建築 {rivalPower}／4</p>
             </div>
             <div className="flex gap-2">
               <DieFace value={state.lastRivalFaces?.[0] ?? null} />
               <DieFace value={state.lastRivalFaces?.[1] ?? null} />
             </div>
           </div>
-          <p className="mt-4 text-sm leading-6">
-            你的武器 <span className="text-2xl font-bold tabular-nums">{weapon}</span>／4
-            <span className="text-[#6f5b4b]">。武器是你已建成的地標。</span>
-          </p>
+          <div
+            className="mt-4 overflow-hidden rounded-2xl border border-[#e0bf78] p-4"
+            style={artBackground(state.enemyShield ? "shield.jpg" : "attack.jpg", 0.72)}
+            data-testid={state.enemyShield ? "shield" : "attack-art"}
+          >
+            <p className="text-sm text-[#6f5b4b]">{state.enemyShield ? "敵人有一面盾" : "盾已經破了"}</p>
+            <p className="mt-1 text-sm leading-6">
+              總攻擊 <span className="text-2xl font-bold tabular-nums">{attackTotal}</span>
+              <span className="text-[#6f5b4b]">（10＋武器 {weapon}×5）</span>
+            </p>
+            <p className="text-sm leading-6">
+              總防守 <span className="text-2xl font-bold tabular-nums">{defenseTotal}</span>
+              <span className="text-[#6f5b4b]">（建築 {rivalPower}×5＋幸運值 {state.enemyLuck ?? "–"}）</span>
+            </p>
+          </div>
           <p className="mt-2 text-3xl font-bold tabular-nums" data-testid="fight-points">
             分數 {state.points}
           </p>
@@ -299,27 +324,32 @@ export function DailyGame() {
               起地標
             </Button>
             <p className="self-center text-xs leading-5 text-[#6f5b4b]" data-testid="dst-still">
-              {bothNft ? "兩邊都有 NFT。打中才搬 DST，一日最多 5。" : "有一邊沒有 NFT。只計分數，DST 0。"}
+              {bothNft
+                ? "兩邊都有 NFT。盾破只得 1 分、0 DST。沒有盾才搬 DST，一日最多 5。"
+                : "有一邊沒有 NFT。只計分數，DST 0。"}
             </p>
           </div>
           {readout ? (
             <div className="mt-4 rounded-2xl bg-[#f6efe4] px-4 py-3" data-testid="verdict">
               <p className="text-sm text-[#6f5b4b]">
-                武器 {readout.weapon} · 敵人 {readout.rivalTotal}
+                總攻擊 {readout.attackTotal} · 總防守 {readout.defenseTotal}
               </p>
-              <p className="mt-1 text-3xl font-bold text-[#9e3428]">{readout.hit ? "打中" : "打唔中"}</p>
+              <p className="mt-1 text-3xl font-bold text-[#9e3428]">
+                {readout.shieldBreak ? "盾破" : readout.hit ? "打中" : "打唔中"}
+              </p>
               <p className="mt-1 text-sm leading-6" data-testid="dst-pay">
-                {readout.hit ? "砸了一座建築。" : "沒有損傷。"}
+                得 {readout.pointsGained} 分。
                 {readout.dst > 0 ? `搬走 ${readout.dst} DST。` : "DST 0。"}
               </p>
             </div>
-          ) : (
+          ) : null}
+          {state.fightSettled ? null : (
             <Button
               className="mt-4 h-24 w-full cursor-pointer text-3xl font-bold"
               onClick={onWeapon}
               data-testid="weapon"
             >
-              用武器攻擊
+              {readout?.shieldBreak ? "再攻擊" : "用武器攻擊"}
             </Button>
           )}
           <div className="mt-4">
@@ -341,10 +371,15 @@ export function DailyGame() {
           ) : null}
         </section>
       ) : (
-        <section className="space-y-4" data-testid="walk">
-          <p className="text-sm leading-6 text-[#6f5b4b]">
-            自己一個人走。棋盤有四格攻擊，踩到任何一格就搜尋敵人。
-          </p>
+        <section className="space-y-4 rounded-3xl p-3" style={artBackground("board.jpg", 0.9)} data-testid="walk">
+          <div
+            className="flex h-28 items-end rounded-2xl p-4"
+            style={artBackground("mission.jpg", 0.35)}
+          >
+            <p className="rounded-xl bg-[#fffaf3]/90 px-3 py-2 text-sm font-semibold text-[#2a1c14]">
+              每日：自己走。四格攻擊，踩到就搜尋敵人。
+            </p>
+          </div>
           <NftToggles
             hasNft={state.hasNft}
             rivalHasNft={state.rivalHasNft !== false}

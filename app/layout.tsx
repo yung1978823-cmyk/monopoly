@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "大富翁 · 每日棋盤",
-  description: "一個人的棋盤，四個地標。擲兩顆得分數。骰子每 30 分鐘補一顆，最多存二十顆。",
+  description: "第一層每日棋盤。擲一顆走，四格攻擊，戰鬥用兩顆骰。",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
