@@ -50,16 +50,30 @@ function buildTiles(): Tile[] {
 
 export const TILES: readonly Tile[] = buildTiles();
 
+/** The board art the squares are laid over (1254 × 1254). */
+export const BOARD_ART = "/art/board-28.png";
+
 /**
- * Grid cell (1-based column and row on an 8 × 8 grid) for each square.
- * Start sits in the bottom-right corner and play runs clockwise: left along the bottom,
- * up the left side, right along the top, down the right side.
+ * Centre of each square on the board art, as a fraction of the image width and height.
+ * Measured from public/art/board-28.png. Start is the bottom corner; play runs up the
+ * lower-left edge, across the top, and back down the lower-right edge.
  */
-export const TILE_PLACEMENT: readonly { col: number; row: number }[] = TILES.map((_, index) => {
-  const last = BOARD_SIDE;
-  const edge = BOARD_SIDE - 1;
-  if (index < edge) return { col: last - index, row: last };
-  if (index < edge * 2) return { col: 1, row: last - (index - edge) };
-  if (index < edge * 3) return { col: 1 + (index - edge * 2), row: 1 };
-  return { col: last, row: 1 + (index - edge * 3) };
-});
+const ART_POINTS: readonly [number, number][] = [
+  [618, 988],
+  [538, 916], [461, 849], [386, 778], [309, 711], [240, 642], [173, 578],
+  [107, 513],
+  [183, 455], [255, 400], [333, 341], [409, 284], [482, 229], [553, 175],
+  [627, 114],
+  [699, 175], [768, 228], [840, 285], [913, 345], [993, 404], [1065, 461],
+  [1145, 523],
+  [1073, 582], [1004, 639], [933, 714], [857, 782], [781, 852], [704, 921],
+];
+const ART_SIZE = 1254;
+
+export const TILE_POSITIONS: readonly { x: number; y: number }[] = ART_POINTS.map(([x, y]) => ({
+  x: x / ART_SIZE,
+  y: y / ART_SIZE,
+}));
+
+/** Where the red velvet centre sits on the art, for the score panel. */
+export const BOARD_CENTRE = { x: 626 / ART_SIZE, y: 551 / ART_SIZE } as const;

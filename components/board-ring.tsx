@@ -1,10 +1,26 @@
-import { BOARD_SIDE, TILES, TILE_PLACEMENT } from "@/lib/board";
+import { BOARD_ART, BOARD_CENTRE, TILES, TILE_POSITIONS, type Tile } from "@/lib/board";
 import type { Landmark } from "@/lib/game";
 import { cn } from "cn";
+import type { CSSProperties } from "react";
 
 function landmarkOf(landmarks: Landmark[], index: number | null): Landmark | null {
   if (index === null) return null;
   return landmarks[index] ?? null;
+}
+
+/** Squares nearer the bottom of the art are drawn larger, so the overlays grow with them. */
+function depthScale(y: number): number {
+  return 0.88 + (0.28 * (y - 0.09)) / 0.7;
+}
+
+/** Tint and label laid over a square of the art. Plain streets stay bare. */
+function overlayOf(tile: Tile, built: boolean): { tint: string; label: string } | null {
+  if (tile.kind === "attack") return { tint: "rgba(199,51,49,0.82)", label: "🔨" };
+  if (tile.kind === "start") return { tint: "rgba(242,181,58,0.88)", label: "起點" };
+  if (tile.kind === "landmark") {
+    return { tint: built ? "rgba(47,166,106,0.9)" : "rgba(47,166,106,0.55)", label: tile.name };
+  }
+  return null;
 }
 
 export function BoardRing({
@@ -28,74 +44,78 @@ export function BoardRing({
 }) {
   return (
     <div
-      className="rounded-[28px] bg-[#3b2a1f] p-2.5 shadow-[inset_0_0_0_3px_#6a4b34,0_16px_40px_rgba(48,24,10,0.25)] sm:p-3"
+      className="relative aspect-square w-full overflow-hidden rounded-[28px] bg-[#f7b8b8] bg-cover bg-center"
+      style={{ backgroundImage: `url(${BOARD_ART})` }}
       data-testid="board"
       role="group"
       aria-label="你的每日棋盤"
     >
-      <div
-        className="grid aspect-square gap-0.5 sm:gap-1"
-        style={{
-          gridTemplateColumns: `repeat(${BOARD_SIDE}, minmax(0, 1fr))`,
-          gridTemplateRows: `repeat(${BOARD_SIDE}, minmax(0, 1fr))`,
-        }}
-      >
-        {TILES.map((tile, index) => {
-          const landmark = landmarkOf(landmarks, tile.landmarkIndex);
-          const current = index === position;
-          const built = landmark === "built";
-          const trailOrder = trail.indexOf(index);
-          const onTrail = trailOrder >= 0;
-          const stopped = stopIndex === index;
-          const label =
-            tile.kind === "attack" ? "攻" : tile.kind === "start" ? "起" : tile.kind === "landmark" ? tile.name : null;
-          const place = TILE_PLACEMENT[index];
-          return (
-            <div
-              key={tile.id}
+      {TILES.map((tile, index) => {
+        const spot = TILE_POSITIONS[index];
+        const landmark = landmarkOf(landmarks, tile.landmarkIndex);
+        const built = landmark === "built";
+        const overlay = overlayOf(tile, built);
+        const onTrail = trail.includes(index);
+        const stopped = stopIndex === index;
+        const scale = depthScale(spot.y);
+        const place: CSSProperties = {
+          left: `${spot.x * 100}%`,
+          top: `${spot.y * 100}%`,
+          width: `${9.4 * scale}%`,
+          height: `${7.4 * scale}%`,
+        };
+        return (
+          <div
+            key={tile.id}
+            className="absolute -translate-x-1/2 -translate-y-1/2"
+            style={place}
+            title={`${tile.name}${built ? "（已建成）" : tile.kind === "landmark" ? "（未建）" : ""}`}
+            data-square={index}
+            data-trail={onTrail ? "true" : undefined}
+          >
+            {/* Rhombus matching the isometric square underneath. */}
+            <span
               className={cn(
-                "relative flex h-full min-h-0 flex-col items-center justify-center overflow-hidden rounded-md border text-center",
-                built && "border-[#174f36] bg-[#1f6b4a] text-[#f4fff8]",
-                !built && tile.kind === "start" && "border-[#e0bf78] bg-[#f0d7a2] text-[#3a2714]",
-                !built && tile.kind === "street" && "border-[#e4d3ba] bg-[#f7efe2] text-[#2a1c14]",
-                tile.kind === "attack" && "border-[#9e3428] bg-[#9e3428] text-[#fff7ee]",
-                tile.kind === "landmark" && !built && "border-dashed",
-                onTrail && "z-10 ring-2 ring-[#f0d7a2]",
-                stopped && "z-20 ring-2 ring-[#e2b657] ring-offset-1 ring-offset-[#3b2a1f]",
+                "absolute inset-0 m-auto block aspect-square w-[72%] rounded-[18%]",
+                "[transform:scaleY(0.78)_rotate(45deg)]",
+                onTrail && "shadow-[0_0_0_3px_rgba(254,224,186,0.95)]",
+                stopped && "shadow-[0_0_0_4px_#f2b53a,0_0_18px_6px_rgba(242,181,58,0.8)]",
               )}
-              style={{ gridColumn: place.col, gridRow: place.row }}
-              title={`${tile.name}${built ? "（已建成）" : tile.kind === "landmark" ? "（未建）" : ""}`}
-              data-square={index}
-              data-trail={onTrail ? "true" : undefined}
-              data-trail-step={onTrail ? trailOrder + 1 : undefined}
-              aria-current={current ? "true" : undefined}
-            >
-              {label ? (
-                <span className="px-0.5 text-[9px] font-semibold leading-none sm:text-xs">{label}</span>
-              ) : null}
-              {current ? (
-                <span
-                  className="absolute inset-0 m-auto flex size-[80%] items-center justify-center rounded-full bg-[#f0d7a2] text-[9px] font-bold text-[#3a2714] shadow sm:text-xs"
-                  data-testid="token"
-                >
-                  你
-                </span>
-              ) : null}
-            </div>
-          );
-        })}
-        <div
-          style={{ gridColumn: `2 / ${BOARD_SIDE}`, gridRow: `2 / ${BOARD_SIDE}` }}
-          className="flex flex-col items-center justify-center rounded-2xl bg-[#241910] px-2 text-center text-[#f6efe4]"
-        >
-          <p className="text-[10px] tracking-[0.22em] text-[#e2b657]">分數</p>
-          <p className="text-4xl font-bold tabular-nums text-[#f0d7a2] sm:text-5xl" data-testid="points">
-            {points}
-          </p>
-          <p className="mt-1 text-xs text-[#d9cbb8]">武器 {defense}／4</p>
-          <p className="text-xs text-[#8fd0be]">{purseLabel}</p>
-          <p className="mt-1 text-[10px] text-[#b5a594]">{placeLabel}</p>
-        </div>
+              style={{ background: overlay?.tint ?? (onTrail || stopped ? "rgba(254,224,186,0.55)" : "transparent") }}
+            />
+            {overlay ? (
+              <span className="absolute inset-0 flex items-center justify-center text-[clamp(8px,2.4vw,13px)] font-bold leading-none text-white drop-shadow-[0_1px_1px_rgba(65,19,20,0.8)]">
+                {overlay.label}
+              </span>
+            ) : null}
+          </div>
+        );
+      })}
+
+      {/* The player's token rides above its square. */}
+      <div
+        className="pointer-events-none absolute z-20 flex -translate-x-1/2 -translate-y-[85%] flex-col items-center transition-[left,top] duration-200 ease-out"
+        style={{ left: `${TILE_POSITIONS[position].x * 100}%`, top: `${TILE_POSITIONS[position].y * 100}%` }}
+        data-testid="token"
+        aria-current="true"
+      >
+        <span className="flex size-[clamp(26px,8vw,42px)] items-center justify-center rounded-full border-[3px] border-[#f2b53a] bg-[#411314] text-[clamp(11px,3vw,16px)] font-black text-[#fee0ba] shadow-[0_6px_10px_rgba(65,19,20,0.45)]">
+          你
+        </span>
+        <span className="-mt-0.5 h-2 w-2 rotate-45 bg-[#f2b53a]" />
+      </div>
+
+      <div
+        className="absolute flex w-[34%] -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center text-[#fee0ba]"
+        style={{ left: `${BOARD_CENTRE.x * 100}%`, top: `${BOARD_CENTRE.y * 100}%` }}
+      >
+        <p className="text-[10px] tracking-[0.22em] text-[#f2b53a]">分數</p>
+        <p className="text-4xl font-black tabular-nums text-[#fee0ba] drop-shadow sm:text-5xl" data-testid="points">
+          {points}
+        </p>
+        <p className="mt-1 text-xs">武器 {defense}／4</p>
+        <p className="text-xs text-[#f7c9a8]">{purseLabel}</p>
+        <p className="mt-1 text-[10px] text-[#f79c79]">{placeLabel}</p>
       </div>
     </div>
   );

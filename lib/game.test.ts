@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { BOARD_SIDE, TILES, TILE_PLACEMENT } from "./board";
+import { TILES, TILE_POSITIONS } from "./board";
 import {
   STARTING_DICE,
   canBuild,
@@ -75,16 +75,14 @@ describe("daily board", () => {
     assert.match(state.log[0]?.text ?? "", /搜尋敵人/);
   });
 
-  it("places the 28 squares on distinct cells around the 8 × 8 edge", () => {
-    const cells = new Set(TILE_PLACEMENT.map(({ col, row }) => `${col},${row}`));
-    assert.equal(cells.size, TILES.length);
-    for (const { col, row } of TILE_PLACEMENT) {
-      assert.ok(col === 1 || col === BOARD_SIDE || row === 1 || row === BOARD_SIDE);
-    }
-    TILE_PLACEMENT.forEach((cell, index) => {
-      const next = TILE_PLACEMENT[(index + 1) % TILE_PLACEMENT.length];
-      assert.equal(Math.abs(cell.col - next.col) + Math.abs(cell.row - next.row), 1, `gap after ${index}`);
+  it("places the 28 squares on the board art, each a short even step from the last", () => {
+    assert.equal(TILE_POSITIONS.length, TILES.length);
+    const steps = TILE_POSITIONS.map((point, index) => {
+      const next = TILE_POSITIONS[(index + 1) % TILE_POSITIONS.length];
+      assert.ok(point.x > 0 && point.x < 1 && point.y > 0 && point.y < 1);
+      return Math.hypot(next.x - point.x, next.y - point.y);
     });
+    for (const step of steps) assert.ok(step > 0.06 && step < 0.09, `step ${step}`);
   });
 
   it("lands on 攻擊 about one roll in four from any square", () => {
