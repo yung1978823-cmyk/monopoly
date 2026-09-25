@@ -258,7 +258,7 @@ export function DailyGame() {
       ) : (
         <section className="space-y-4" data-testid="walk">
           <p className="text-sm leading-6 text-[#6f5b4b]">
-            自己一個人走。多數格子只加分數。踩到標著攻擊的那一格，才搜尋敵人。
+            自己一個人走。棋盤有四格攻擊，踩到任何一格就搜尋敵人。
           </p>
           <BoardRing
             position={state.position}

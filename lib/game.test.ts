@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { TILES } from "./board";
 import { STARTING_DICE, countBuilt, createGame, reduce, rivalCanStrike, type Landmark } from "./game";
 import { REFILL_MS } from "./rules";
 
@@ -24,13 +25,14 @@ describe("daily board", () => {
   });
 
   it("opens 搜尋敵人 when the walk lands on 攻擊", () => {
+    assert.equal(TILES.filter((tile) => tile.kind === "attack").length, 4);
     const state = reduce(start(), {
       type: "move",
-      face: 6,
+      face: 2,
       enemyDice: [1, 2],
       now: NOW,
     });
-    assert.equal(state.position, 6);
+    assert.equal(state.position, 2);
     assert.equal(state.phase, "search");
     assert.equal(state.enemyLuck, 3);
     assert.deepEqual(state.lastRivalFaces, [1, 2]);
@@ -41,7 +43,7 @@ describe("daily board", () => {
   it("hits only when the weapon is greater than the rival total", () => {
     let state = reduce(start(), {
       type: "move",
-      face: 6,
+      face: 2,
       enemyDice: [1, 1],
       now: NOW,
     });
