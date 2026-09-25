@@ -1,0 +1,239 @@
+"use client";
+
+import { DieFace } from "@/components/die-face";
+import { LANDMARK_NAMES } from "@/lib/board";
+import { CITIES, SHIELD_ART } from "@/lib/cities";
+import { builtIndexes, countBuilt, type GameState } from "@/lib/game";
+import { cn } from "cn";
+import { useEffect, useState } from "react";
+
+type Flash = { kind: "shield" | "smash" | "hit" | "miss"; key: number };
+
+const FLASH_MS = 1700;
+
+/**
+ * The rival's city: their four landmarks drawn on the city art. With a shield up you strike
+ * once to break it; after that you tap a standing landmark to smash it.
+ */
+export function AttackScreen({
+  state,
+  onStrike,
+  onReturn,
+}: {
+  state: GameState;
+  onStrike: (target: number | null) => void;
+  onReturn: () => void;
+}) {
+  const city = CITIES[state.rivalCity] ?? CITIES[0];
+  const readout = state.weaponReadout;
+  const standing = builtIndexes(state.rivalLandmarks);
+  const weapon = countBuilt(state.landmarks);
+  const rivalPower = countBuilt(state.rivalLandmarks);
+  // Show the totals the last strike used; a smash lowers the rival's defence afterwards.
+  const attackTotal = readout?.attackTotal ?? 10 + weapon * 5;
+  const defenseTotal = readout?.defenseTotal ?? rivalPower * 5 + (state.enemyLuck ?? 0);
+  const picking = !state.fightSettled && !state.enemyShield && standing.length > 0;
+  const [flash, setFlash] = useState<Flash | null>(null);
+  const [aimed, setAimed] = useState<number | null>(null);
+
+  // Play the result of each strike once: shield, smash, plain hit or miss.
+  useEffect(() => {
+    if (!readout) return;
+    const kind: Flash["kind"] = readout.shieldBreak
+      ? "shield"
+      : readout.smashed !== null
+        ? "smash"
+        : readout.hit
+          ? "hit"
+          : "miss";
+    const show = window.setTimeout(() => setFlash({ kind, key: Date.now() }), 0);
+    const hide = window.setTimeout(() => setFlash(null), FLASH_MS);
+    return () => {
+      window.clearTimeout(show);
+      window.clearTimeout(hide);
+    };
+  }, [readout]);
+
+  function strike(target: number | null) {
+    if (state.fightSettled) return;
+    setAimed(target);
+    onStrike(target);
+  }
+
+  const status = state.fightSettled
+    ? readout?.smashed != null
+      ? `打爛咗${LANDMARK_NAMES[readout.smashed]}！`
+      : readout?.hit
+        ? "打中！"
+        : "打唔中……"
+    : state.enemyShield
+      ? "阿強有 NFT，有一面盾。先打破佢！"
+      : standing.length > 0
+        ? state.rivalHasNft
+          ? "盾破咗！撳一座建築打落去"
+          : "阿強冇 NFT，冇盾。撳一座建築打落去"
+        : "阿強一座建築都冇，直接攻擊";
+
+  return (
+    <main
+      className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden [container-type:size]"
+      style={{ background: `linear-gradient(${city.sky} 0 50%, ${city.ground} 50% 100%)` }}
+      data-testid="search"
+    >
+      {/* City art, fitted inside the screen, with the landmark targets on it. */}
+      <div
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-cover bg-center"
+        style={{
+          backgroundImage: `url(${city.art})`,
+          width: `min(100cqw, calc(100cqh * ${city.width / city.height}))`,
+          aspectRatio: `${city.width} / ${city.height}`,
+        }}
+      >
+        {city.targets.map((spot, index) => {
+          const landmark = state.rivalLandmarks[index];
+          const smashedNow = flash?.kind === "smash" && readout?.smashed === index;
+          const place = { left: `${spot.x * 100}%`, top: `${spot.y * 100}%` };
+          if (landmark === "empty") {
+            return (
+              <span
+                key={index}
+                className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/85 px-2 py-0.5 text-xs font-bold text-[#1E3A8A]"
+                style={place}
+              >
+                {LANDMARK_NAMES[index]}·未起
+              </span>
+            );
+          }
+          if (landmark === "ruined") {
+            return (
+              <span
+                key={index}
+                className={cn(
+                  "absolute flex size-[18%] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full bg-[#5b4a42]/70 text-3xl",
+                  smashedNow && "animate-[smash_0.5s_ease-out]",
+                )}
+                style={place}
+                data-testid={`ruined-${index}`}
+              >
+                💥
+                <span className="text-[10px] font-bold text-white">已打爛</span>
+              </span>
+            );
+          }
+          return (
+            <button
+              key={index}
+              type="button"
+              disabled={!picking}
+              onClick={() => strike(index)}
+              className={cn(
+                "absolute flex size-[20%] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full",
+                picking ? "cursor-pointer" : "cursor-default",
+              )}
+              style={place}
+              aria-label={`攻擊${LANDMARK_NAMES[index]}`}
+              data-testid={`target-${index}`}
+            >
+              <span
+                className={cn(
+                  "absolute inset-0 rounded-full border-[5px] border-white shadow-[0_0_0_3px_rgba(229,37,33,0.9),inset_0_0_0_3px_rgba(229,37,33,0.9)]",
+                  picking ? "animate-pulse" : "opacity-60",
+                )}
+              />
+              <span className="absolute h-[70%] w-[5px] rounded bg-white/90" />
+              <span className="absolute h-[5px] w-[70%] rounded bg-white/90" />
+              {aimed === index && state.fightSettled ? (
+                <span className="absolute -top-6 text-4xl animate-[hammer_0.6s_ease-out]">🔨</span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Rival banner. */}
+      <header className="relative z-10 mx-3 mt-[max(env(safe-area-inset-top),0.75rem)] flex items-center gap-3 rounded-full border-[3px] border-[#FBD000] bg-white/95 py-1.5 pl-1.5 pr-4 shadow-lg">
+        <span className="flex size-12 items-center justify-center rounded-full bg-[#E52521] text-2xl">💪</span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-lg font-black text-[#1E3A8A]">阿強嘅{city.name}</p>
+          <p className="text-xs font-bold text-[#3B5BA9]">
+            {state.rivalHasNft ? "🛡️ 有 NFT" : "冇 NFT"} · 建築 {rivalPower}／4
+          </p>
+        </div>
+        <div className="flex items-center gap-1">
+          <DieFace value={state.lastRivalFaces?.[0] ?? null} />
+          <DieFace value={state.lastRivalFaces?.[1] ?? null} />
+        </div>
+      </header>
+
+      {/* Bottom panel: totals, status and the next action. */}
+      <footer className="relative z-10 mt-auto space-y-2 rounded-t-[32px] bg-white/95 px-4 pb-[max(env(safe-area-inset-bottom),0.9rem)] pt-3 shadow-[0_-6px_20px_rgba(30,58,138,0.25)]">
+        <div className="flex items-center justify-between text-sm font-bold text-[#1E3A8A]">
+          <span>
+            ⚔️ 攻擊 <span className="text-xl tabular-nums">{attackTotal}</span>
+          </span>
+          <span className="text-[#3B5BA9]">對</span>
+          <span>
+            🛡️ 防守 <span className="text-xl tabular-nums">{defenseTotal}</span>
+          </span>
+        </div>
+        <p className="text-center text-base font-black text-[#E52521]" data-testid="attack-status">
+          {status}
+        </p>
+        {readout ? (
+          <p className="text-center text-sm font-bold text-[#1E3A8A]" data-testid="dst-pay">
+            得 {readout.pointsGained} 分 · {readout.dst > 0 ? `搬走 ${readout.dst} DST` : "DST 0"} · 今日 DST{" "}
+            {state.dstTakenToday}／5
+          </p>
+        ) : null}
+        {state.fightSettled ? (
+          <button
+            type="button"
+            onClick={onReturn}
+            className="h-14 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-[#049CD8] text-xl font-black text-white shadow-[0_5px_0_#1E3A8A] active:translate-y-1 active:shadow-[0_1px_0_#1E3A8A]"
+            data-testid="return-walk"
+          >
+            返回棋盤
+          </button>
+        ) : picking ? null : (
+          <button
+            type="button"
+            onClick={() => strike(null)}
+            className="h-16 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-[#E52521] text-2xl font-black text-white shadow-[0_6px_0_#8E1210] active:translate-y-1 active:shadow-[0_2px_0_#8E1210]"
+            data-testid="weapon"
+          >
+            🔨 {state.enemyShield ? "打個盾" : "攻擊"}
+          </button>
+        )}
+      </footer>
+
+      {/* Strike result pop-up. */}
+      {flash ? (
+        <div
+          key={flash.key}
+          className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center"
+          data-testid={`flash-${flash.kind}`}
+        >
+          {flash.kind === "shield" ? (
+            <div
+              className="flex aspect-square w-[88%] animate-[pop_0.45s_ease-out] items-end justify-center overflow-hidden rounded-[36px] border-4 border-[#FBD000] bg-cover bg-center shadow-2xl"
+              style={{ backgroundImage: `url(${SHIELD_ART})` }}
+            >
+              <p className="mb-4 rounded-full bg-white/95 px-5 py-2 text-xl font-black text-[#E52521]">
+                盾擋住！盾破咗 +1 分
+              </p>
+            </div>
+          ) : (
+            <p
+              className={cn(
+                "animate-[pop_0.45s_ease-out] rounded-3xl border-4 border-[#FBD000] px-8 py-4 text-4xl font-black text-white shadow-2xl",
+                flash.kind === "miss" ? "bg-[#3B5BA9]" : "bg-[#E52521]",
+              )}
+            >
+              {flash.kind === "smash" ? "💥 打爛咗！" : flash.kind === "hit" ? "打中！" : "打唔中"}
+            </p>
+          )}
+        </div>
+      ) : null}
+    </main>
+  );
+}

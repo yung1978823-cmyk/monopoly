@@ -1,48 +1,40 @@
 "use client";
 
+import { AttackScreen } from "@/components/attack-screen";
 import { BoardRing } from "@/components/board-ring";
 import { DieFace } from "@/components/die-face";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { LANDMARK_NAMES, TILES } from "@/lib/board";
+import { TILES } from "@/lib/board";
+import { CITIES } from "@/lib/cities";
 import {
   STORAGE_KEY,
+  builtIndexes,
+  canBuild,
   countBuilt,
   createGame,
+  nextBuildCost,
   parseSave,
   raiseTarget,
   reduce,
   type GameState,
-  type Landmark,
 } from "@/lib/game";
-import { DICE_CAP, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
-import { cn } from "cn";
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { DAILY_DST_CAP, DICE_CAP, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
+import { useCallback, useEffect, useState } from "react";
 
-const STEP_MS = 420;
+const STEP_MS = 240;
 
 type PendingWalk = {
-  face: number;
+  faces: [number, number];
+  steps: number;
   from: number;
   step: number;
   enemyDice: [number, number] | null;
+  rivalBuilt: number;
+  rivalCity: number;
   running: boolean;
   committed: boolean;
 };
-
-function artBackground(file: string, wash: number): CSSProperties {
-  return {
-    backgroundImage: `linear-gradient(rgba(255,250,243,${wash}), rgba(255,247,238,${wash})), url(/art/${file})`,
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-  };
-}
-
-function landmarkLabel(landmark: Landmark): string {
-  if (landmark === "built") return "已建成";
-  if (landmark === "ruined") return "已損";
-  return "未建";
-}
 
 function NftToggles({
   hasNft,
@@ -89,45 +81,13 @@ function NftToggles({
   );
 }
 
-function LandmarkStrip({
-  title,
-  landmarks,
-}: {
-  title: string;
-  landmarks: Landmark[];
-}) {
-  return (
-    <div>
-      <p className="mb-2 text-sm font-medium">{title}</p>
-      <ul className="grid grid-cols-4 gap-2">
-        {LANDMARK_NAMES.map((name, index) => {
-          const landmark = landmarks[index];
-          return (
-            <li
-              key={name}
-              className={cn(
-                "rounded-xl border px-1 py-2 text-center",
-                landmark === "built" && "border-[#1f6b4a] bg-[#e7f5ee]",
-                landmark === "ruined" && "border-[#6e332c] bg-[#f8e8e4]",
-                landmark === "empty" && "border-dashed border-[#d7c4aa] bg-[#fffaf3]",
-              )}
-            >
-              <span className="block text-sm font-semibold">{name}</span>
-              <span className="text-[11px] text-[#6f5b4b]">{landmarkLabel(landmark)}</span>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
 export function DailyGame() {
   const [state, setState] = useState<GameState>(() => createGame(0, "1970-01-01"));
   const [booted, setBooted] = useState(false);
   const [saveNote, setSaveNote] = useState<string | null>(null);
   const [now, setNow] = useState(0);
   const [resetArmed, setResetArmed] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [pending, setPending] = useState<PendingWalk | null>(null);
   const dispatch = useCallback((action: Parameters<typeof reduce>[1]) => {
     setState((current) => reduce(current, action));
@@ -186,14 +146,12 @@ export function DailyGame() {
     if (!booted || now === 0) return;
     const key = dayKeyOf(now);
     const playerDue = state.dice < DICE_CAP && now - state.lastRefillAt >= 30 * 60 * 1000;
-    const rivalDue =
-      state.rivalDice < DICE_CAP && now - state.rivalLastRefillAt >= 30 * 60 * 1000;
-    if (!playerDue && !rivalDue && key === state.dayKey) return;
+    if (!playerDue && key === state.dayKey) return;
     const id = window.setTimeout(() => {
       dispatch({ type: "tick", now, dayKey: key });
     }, 0);
     return () => window.clearTimeout(id);
-  }, [booted, dispatch, now, state.dice, state.dayKey, state.lastRefillAt, state.rivalDice, state.rivalLastRefillAt]);
+  }, [booted, dispatch, now, state.dice, state.dayKey, state.lastRefillAt]);
 
   useEffect(() => {
     if (!resetArmed) return;
@@ -206,10 +164,10 @@ export function DailyGame() {
   }
 
   useEffect(() => {
-    if (!pending?.running || pending.step >= pending.face) return;
+    if (!pending?.running || pending.step >= pending.steps) return;
     const id = window.setTimeout(() => {
       setPending((current) => {
-        if (!current?.running || current.step >= current.face) return current;
+        if (!current?.running || current.step >= current.steps) return current;
         return { ...current, step: current.step + 1 };
       });
     }, STEP_MS);
@@ -217,41 +175,56 @@ export function DailyGame() {
   }, [pending]);
 
   useEffect(() => {
-    if (!pending?.running || pending.committed || pending.step < pending.face) return;
+    if (!pending?.running || pending.committed || pending.step < pending.steps) return;
     const move = pending;
     const id = window.setTimeout(() => {
       setPending((current) => {
         if (!current?.running || current.committed) return current;
         return { ...current, running: false, committed: true };
       });
-      dispatch({ type: "move", face: move.face, enemyDice: move.enemyDice, now: Date.now() });
+      dispatch({
+        type: "move",
+        faces: move.faces,
+        enemyDice: move.enemyDice,
+        rivalBuilt: move.rivalBuilt,
+        rivalCity: move.rivalCity,
+        now: Date.now(),
+      });
     }, STEP_MS);
     return () => window.clearTimeout(id);
   }, [pending, dispatch]);
 
   function onWalk() {
     if (state.phase !== "walk" || state.dice < 1 || pending?.running) return;
-    const face = rollDie();
+    const faces = rollPair();
+    const steps = faces[0] + faces[1];
     const from = state.position;
-    const nextIndex = (from + face) % TILES.length;
+    const nextIndex = (from + steps) % TILES.length;
     const enemyDice = TILES[nextIndex]?.kind === "attack" ? rollPair() : null;
-    setPending({ face, from, step: 0, enemyDice, running: true, committed: false });
+    // Each 攻擊 square meets a rival with 0–4 landmarks standing.
+    const rivalBuilt = Math.floor(Math.random() * 5);
+    const rivalCity = Math.floor(Math.random() * CITIES.length);
+    setPending({ faces, steps, from, step: 0, enemyDice, rivalBuilt, rivalCity, running: true, committed: false });
   }
 
   function onBuild() {
-    if (raiseTarget(state) === null) return;
+    if (!canBuild(state)) return;
     dispatch({ type: "build" });
   }
 
-  function onWeapon() {
+  function onWeapon(target: number | null = null) {
     if (state.phase !== "search" || state.fightSettled) return;
-    dispatch({ type: "weapon" });
+    dispatch({ type: "weapon", target });
+  }
+
+  /** Test helper: the rival hits one of your standing landmarks. */
+  function onRaided() {
+    const standing = builtIndexes(state.landmarks);
+    if (standing.length === 0) return;
+    dispatch({ type: "raided", target: standing[Math.floor(Math.random() * standing.length)] });
   }
 
   const weapon = countBuilt(state.landmarks);
-  const rivalPower = countBuilt(state.rivalLandmarks);
-  const attackTotal = 10 + weapon * 5;
-  const defenseTotal = rivalPower * 5 + (state.enemyLuck ?? 0);
   const shownStep = pending?.step ?? 0;
   const tokenIndex = pending ? (pending.from + shownStep) % TILES.length : state.position;
   const trail = pending
@@ -260,197 +233,191 @@ export function DailyGame() {
   const here = TILES[tokenIndex]?.name ?? "起點";
   const arrived = pending !== null && shownStep > 0;
   const countdown = booted && now > 0 ? msUntilNextDie(state.dice, state.lastRefillAt, now) : null;
-  const readout = state.weaponReadout;
-  const bothNft = state.hasNft && state.rivalHasNft !== false;
+  const buildCost = nextBuildCost(state);
+  const buildable = canBuild(state);
+  const buildSlot = raiseTarget(state);
+  const repairing = buildSlot !== null && state.landmarks[buildSlot] === "ruined";
+
+  const resetBoard = () => {
+    if (!resetArmed) {
+      setResetArmed(true);
+      return;
+    }
+    const stamp = Date.now();
+    dispatch({ type: "reset", now: stamp, dayKey: dayKeyOf(stamp) });
+    setResetArmed(false);
+    setSaveNote(null);
+    setMenuOpen(false);
+  };
+
+  if (state.phase === "search") {
+    return (
+      <AttackScreen
+        state={state}
+        onStrike={(target) => onWeapon(target)}
+        onReturn={() => dispatch({ type: "return-walk" })}
+      />
+    );
+  }
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-4 py-6 sm:px-6 sm:py-8">
-      <header>
-        <p className="text-sm font-medium tracking-[0.22em] text-[#9e3428]">每日棋盤</p>
-        <h1 className="mt-1 text-4xl font-bold tracking-tight text-[#2a1c14]">
-          {state.phase === "search" ? "搜尋敵人" : "大富翁"}
-        </h1>
+    <main
+      className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-[#5EBDFD] text-[#1E3A8A]"
+      data-testid="walk"
+    >
+      {/* Top bar: points, dice, today's DST, menu. */}
+      <header className="z-30 flex items-center gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-full border-[3px] border-[#FBD000] bg-[#1E3A8A] text-lg font-black text-[#FFFFFF] shadow-md">
+          你
+        </div>
+        <div className="flex flex-1 items-center justify-between rounded-full border-2 border-[#FBD000] bg-[#FFFFFF] px-3 py-1.5 shadow-md">
+          <span className="text-sm font-black tabular-nums" data-testid="hud-points">
+            ⭐ {state.points}
+          </span>
+          <span className="text-sm font-bold tabular-nums text-[#2E8B3E]" data-testid="dst-today">
+            DST {state.dstTakenToday}／{DAILY_DST_CAP}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#E52521] text-xl text-[#FFFFFF] shadow-md"
+          aria-label="設定"
+          data-testid="menu"
+        >
+          ☰
+        </button>
       </header>
 
       {saveNote ? (
-        <p className="rounded-2xl border border-[#e0bf78] bg-[#fbf3df] px-4 py-3 text-sm text-[#6a4b12]" role="status">
+        <p className="mx-3 rounded-2xl bg-[#FFFFFF] px-4 py-2 text-xs text-[#1E3A8A]" role="status">
           {saveNote}
         </p>
       ) : null}
 
-      {state.phase === "search" ? (
-        <section
-          className="rounded-3xl border-2 border-[#9e3428] bg-[#fffaf3] p-4"
-          style={artBackground("enemy-city.jpg", 0.86)}
-          data-testid="search"
-        >
-          <p className="text-sm leading-6 text-[#6f5b4b]">配到街坊阿強。不用你選。</p>
-          <div className="mt-4">
-            <LandmarkStrip title="阿強的四座建築" landmarks={state.rivalLandmarks} />
-          </div>
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm text-[#6f5b4b]">幸運值</p>
-              <p className="text-4xl font-bold tabular-nums text-[#2a1c14]" data-testid="enemy-luck">
-                {state.enemyLuck ?? "–"}
-              </p>
-              <p className="mt-1 text-sm text-[#6f5b4b]">建築 {rivalPower}／4</p>
-            </div>
-            <div className="flex gap-2">
-              <DieFace value={state.lastRivalFaces?.[0] ?? null} />
-              <DieFace value={state.lastRivalFaces?.[1] ?? null} />
-            </div>
-          </div>
+      {/* The board fills the middle of the screen. */}
+      <section className="relative flex min-h-0 flex-1 items-center justify-center [container-type:size]">
+        <BoardRing
+          className="w-[min(100cqw,100cqh)]"
+          position={tokenIndex}
+          landmarks={state.landmarks}
+          points={state.points}
+          defense={weapon}
+          purseLabel={state.hasNft ? "有 NFT" : "沒有 NFT"}
+          placeLabel={arrived ? `行到第 ${shownStep} 格` : `停在${here}`}
+          trail={trail}
+          stopIndex={arrived ? tokenIndex : null}
+        />
+        {pending ? (
           <div
-            className="mt-4 overflow-hidden rounded-2xl border border-[#e0bf78] p-4"
-            style={artBackground(state.enemyShield ? "shield.jpg" : "attack.jpg", 0.72)}
-            data-testid={state.enemyShield ? "shield" : "attack-art"}
+            className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#1E3A8A]/85 px-4 py-2 shadow-lg"
+            data-testid="walk-result"
           >
-            <p className="text-sm text-[#6f5b4b]">{state.enemyShield ? "敵人有一面盾" : "盾已經破了"}</p>
-            <p className="mt-1 text-sm leading-6">
-              總攻擊 <span className="text-2xl font-bold tabular-nums">{attackTotal}</span>
-              <span className="text-[#6f5b4b]">（10＋武器 {weapon}×5）</span>
-            </p>
-            <p className="text-sm leading-6">
-              總防守 <span className="text-2xl font-bold tabular-nums">{defenseTotal}</span>
-              <span className="text-[#6f5b4b]">（建築 {rivalPower}×5＋幸運值 {state.enemyLuck ?? "–"}）</span>
+            <DieFace value={pending.faces[0]} />
+            <DieFace value={pending.faces[1]} />
+            <p className="text-xl font-black text-[#FFFFFF]" data-testid="last-walk">
+              {arrived ? `${shownStep}／${pending.steps}` : `擲出 ${pending.steps}`}
             </p>
           </div>
-          <p className="mt-2 text-3xl font-bold tabular-nums" data-testid="fight-points">
-            分數 {state.points}
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <Button className="h-10 cursor-pointer text-sm" variant="outline" onClick={onBuild} data-testid="raise">
-              起地標
-            </Button>
-            <p className="self-center text-xs leading-5 text-[#6f5b4b]" data-testid="dst-still">
-              {bothNft
-                ? "兩邊都有 NFT。盾破只得 1 分、0 DST。沒有盾才搬 DST，一日最多 5。"
-                : "有一邊沒有 NFT。只計分數，DST 0。"}
-            </p>
-          </div>
-          {readout ? (
-            <div className="mt-4 rounded-2xl bg-[#f6efe4] px-4 py-3" data-testid="verdict">
-              <p className="text-sm text-[#6f5b4b]">
-                總攻擊 {readout.attackTotal} · 總防守 {readout.defenseTotal}
-              </p>
-              <p className="mt-1 text-3xl font-bold text-[#9e3428]">
-                {readout.shieldBreak ? "盾破" : readout.hit ? "打中" : "打唔中"}
-              </p>
-              <p className="mt-1 text-sm leading-6" data-testid="dst-pay">
-                得 {readout.pointsGained} 分。
-                {readout.dst > 0 ? `搬走 ${readout.dst} DST。` : "DST 0。"}
-              </p>
+        ) : null}
+      </section>
+
+      {/* Bottom bar: build on the left, the big roll button in the middle. */}
+      <footer className="relative z-30 flex items-end justify-between gap-3 rounded-t-[32px] bg-[#FFFFFF] px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 shadow-[0_-6px_20px_rgba(30,58,138,0.25)]">
+        <button
+          type="button"
+          onClick={onBuild}
+          disabled={!buildable || pending?.running === true}
+          className="flex w-20 cursor-pointer flex-col items-center gap-1 text-xs font-bold disabled:cursor-default disabled:opacity-50"
+          data-testid="raise"
+        >
+          <span className="flex size-12 items-center justify-center rounded-2xl border-2 border-[#FBD000] bg-[#43B047] text-2xl shadow-md">
+            🏗️
+          </span>
+          {buildCost === null
+            ? "已建齊"
+            : `${repairing ? "修理" : "起地標"} ${buildCost}`}
+        </button>
+
+        <div className="-mt-12 flex flex-col items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onWalk}
+            disabled={state.dice < 1 || pending?.running === true}
+            className="flex size-28 cursor-pointer flex-col items-center justify-center rounded-[36px] border-[5px] border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-[#FFFFFF] shadow-[0_8px_0_#8E1210,0_14px_24px_rgba(30,58,138,0.45)] transition-transform active:translate-y-1.5 active:shadow-[0_2px_0_#8E1210] disabled:cursor-default disabled:opacity-60"
+            data-testid="roll-move"
+          >
+            <span className="text-4xl font-black leading-none tracking-wide">GO</span>
+            <span className="mt-1 text-xs font-bold">擲骰行棋</span>
+          </button>
+          <span className="rounded-full bg-[#1E3A8A] px-4 py-0.5 text-sm font-black tabular-nums text-[#FFFFFF]" data-testid="dice-count">
+            🎲 {state.dice}／{DICE_CAP}
+          </span>
+          <span className="h-4 text-[10px] font-semibold text-[#3B5BA9]" data-testid="need-two">
+            {state.dice < 1
+              ? "擲骰行棋要 1 顆"
+              : countdown
+                ? `下一顆 ${formatClock(countdown)}`
+                : null}
+          </span>
+        </div>
+
+        <div className="flex w-20 flex-col items-center gap-1 text-xs font-bold">
+          <span className="flex size-12 items-center justify-center rounded-2xl border-2 border-[#FBD000] bg-[#E52521] text-2xl text-[#FFFFFF] shadow-md">
+            ⚔️
+          </span>
+          武器 {weapon}／4
+        </div>
+      </footer>
+
+      {/* Settings sheet. */}
+      {menuOpen ? (
+        <div className="absolute inset-0 z-40 flex items-end bg-[#1E3A8A]/60" onClick={() => setMenuOpen(false)}>
+          <div
+            className="w-full space-y-3 rounded-t-[32px] bg-[#FFFFFF] p-5 pb-[max(env(safe-area-inset-bottom),1.25rem)]"
+            onClick={(event: { stopPropagation: () => void }) => event.stopPropagation()}
+            data-testid="menu-sheet"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-black">設定</h2>
+              <button type="button" className="cursor-pointer text-2xl" onClick={() => setMenuOpen(false)} aria-label="關閉">
+                ✕
+              </button>
             </div>
-          ) : null}
-          {state.fightSettled ? null : (
-            <Button
-              className="mt-4 h-24 w-full cursor-pointer text-3xl font-bold"
-              onClick={onWeapon}
-              data-testid="weapon"
-            >
-              {readout?.shieldBreak ? "再攻擊" : "用武器攻擊"}
-            </Button>
-          )}
-          <div className="mt-4">
+            <p className="text-xs leading-5 text-[#3B5BA9]">
+              擲兩粒骰行棋，只扣 1 顆。七格攻擊，踩中就搜尋敵人。起地標要用分數。
+            </p>
             <NftToggles
               hasNft={state.hasNft}
-              rivalHasNft={state.rivalHasNft !== false}
+              rivalHasNft={state.rivalHasNft}
               onPlayer={(value) => dispatch({ type: "set-nft", value })}
               onRival={(value) => dispatch({ type: "set-rival-nft", value })}
             />
-          </div>
-          {readout ? (
-            <Button
-              className="mt-4 h-10 w-full cursor-pointer"
-              variant="outline"
-              onClick={() => dispatch({ type: "return-walk" })}
-            >
-              返回棋盤
-            </Button>
-          ) : null}
-        </section>
-      ) : (
-        <section className="space-y-4 rounded-3xl p-3" style={artBackground("board.jpg", 0.9)} data-testid="walk">
-          <div
-            className="flex h-28 items-end rounded-2xl p-4"
-            style={artBackground("mission.jpg", 0.35)}
-          >
-            <p className="rounded-xl bg-[#fffaf3]/90 px-3 py-2 text-sm font-semibold text-[#2a1c14]">
-              每日：自己走。四格攻擊，踩到就搜尋敵人。
-            </p>
-          </div>
-          <NftToggles
-            hasNft={state.hasNft}
-            rivalHasNft={state.rivalHasNft !== false}
-            onPlayer={(value) => dispatch({ type: "set-nft", value })}
-            onRival={(value) => dispatch({ type: "set-rival-nft", value })}
-          />
-          <BoardRing
-            position={tokenIndex}
-            landmarks={state.landmarks}
-            points={state.points}
-            defense={weapon}
-            purseLabel={state.hasNft ? "有 NFT" : "沒有 NFT"}
-            placeLabel={arrived ? `行到第 ${shownStep} 格` : `停在${here}`}
-            trail={trail}
-            stopIndex={arrived ? tokenIndex : null}
-          />
-          {pending ? (
-            <div className="flex items-center gap-4" data-testid="walk-result">
-              <DieFace value={pending.face} />
-              <p className="text-2xl font-bold text-[#2a1c14]" data-testid="last-walk">
-                {arrived ? `行到第 ${shownStep} 格` : `擲出 ${pending.face}`}
-              </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                className="h-11 cursor-pointer"
+                variant="outline"
+                onClick={() => dispatch({ type: "add-test-die" })}
+                data-testid="test-die"
+              >
+                補一粒（測試）
+              </Button>
+              <Button
+                className="h-11 cursor-pointer"
+                variant="outline"
+                onClick={onRaided}
+                disabled={weapon === 0}
+                data-testid="raided"
+              >
+                被攻擊（測試）
+              </Button>
+              <Button className="h-11 cursor-pointer" variant="outline" onClick={resetBoard}>
+                {resetArmed ? "確定重開？" : "重開棋盤"}
+              </Button>
             </div>
-          ) : null}
-          <Button
-            className="h-24 w-full cursor-pointer text-3xl font-bold"
-            onClick={onWalk}
-            data-testid="roll-move"
-          >
-            擲骰行棋
-          </Button>
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-[#6f5b4b]">手上 {state.dice}／20 顆。</p>
-            <Button
-              className="h-10 cursor-pointer px-3 text-sm"
-              variant="outline"
-              onClick={() => dispatch({ type: "add-test-die" })}
-              data-testid="test-die"
-            >
-              補一粒（測試）
-            </Button>
           </div>
-          {state.dice < 1 ? (
-            <p className="text-sm leading-6 text-[#9e3428]" data-testid="need-two">
-              擲骰行棋要 1 顆。
-            </p>
-          ) : (
-            <p className="text-xs leading-5 text-[#6f5b4b]">
-              每 30 分鐘補 1 顆。
-              {countdown ? ` 下一顆 ${formatClock(countdown)}。` : null}
-            </p>
-          )}
-        </section>
-      )}
-
-      <Button
-        variant="ghost"
-        className="h-10 cursor-pointer text-[#6f5b4b]"
-        onClick={() => {
-          if (!resetArmed) {
-            setResetArmed(true);
-            return;
-          }
-          const stamp = Date.now();
-          dispatch({ type: "reset", now: stamp, dayKey: dayKeyOf(stamp) });
-          setResetArmed(false);
-          setSaveNote(null);
-        }}
-      >
-        {resetArmed ? "確定重開這塊棋盤？" : "重開這塊棋盤"}
-      </Button>
+        </div>
+      ) : null}
     </main>
   );
 }

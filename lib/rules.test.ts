@@ -1,56 +1,21 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  BUILD_COSTS,
   DICE_CAP,
   REFILL_MS,
   addTestDie,
   applyRefill,
-  dstTaken,
+  buildCost,
   formatClock,
-  landmarkIsSmashed,
   msUntilNextDie,
-  rawDst,
   spendDice,
-  spendDie,
 } from "./rules";
 
-describe("dst from combat power plus luck", () => {
-  it("equal totals take 1", () => {
-    assert.equal(rawDst(4, 4), 1);
-    assert.equal(dstTaken({ attack: 4, defense: 4, defenderHasNft: true, remainingPurse: 5, stolenToday: 0 }), 1);
-  });
-
-  it("a lower attack total takes 0", () => {
-    assert.equal(rawDst(3, 4), 0);
-    assert.equal(dstTaken({ attack: 3, defense: 4, defenderHasNft: true, remainingPurse: 5, stolenToday: 0 }), 0);
-  });
-
-  it("a higher total uses min(5, max(2, attack - defense + 1))", () => {
-    assert.equal(rawDst(6, 0), 5);
-    assert.equal(rawDst(5, 4), 2);
-    assert.equal(rawDst(6, 4), 3);
-    assert.equal(rawDst(12, 4), 5);
-    assert.equal(dstTaken({ attack: 12, defense: 0, defenderHasNft: true, remainingPurse: 5, stolenToday: 0 }), 5);
-  });
-
-  it("never exceeds the remaining purse or the daily 5", () => {
-    assert.equal(dstTaken({ attack: 12, defense: 0, defenderHasNft: true, remainingPurse: 1, stolenToday: 0 }), 1);
-    assert.equal(dstTaken({ attack: 12, defense: 0, defenderHasNft: true, remainingPurse: 5, stolenToday: 4 }), 1);
-    assert.equal(dstTaken({ attack: 12, defense: 0, defenderHasNft: true, remainingPurse: 5, stolenToday: 5 }), 0);
-    assert.equal(dstTaken({ attack: 4, defense: 4, defenderHasNft: true, remainingPurse: 0, stolenToday: 0 }), 0);
-  });
-
-  it("without an NFT purse, DST stays 0", () => {
-    assert.equal(dstTaken({ attack: 12, defense: 0, defenderHasNft: false, remainingPurse: 5, stolenToday: 0 }), 0);
-  });
-});
-
-describe("smashing a landmark", () => {
-  it("smashes a built landmark only when the roll meets defense", () => {
-    assert.equal(landmarkIsSmashed(4, 4, true), true);
-    assert.equal(landmarkIsSmashed(3, 4, true), false);
-    assert.equal(landmarkIsSmashed(6, 0, false), false);
-    assert.equal(landmarkIsSmashed(6, 2, false), false);
+describe("landmark cost", () => {
+  it("rises with each landmark and stops after four", () => {
+    assert.deepEqual([0, 1, 2, 3].map(buildCost), [...BUILD_COSTS]);
+    assert.equal(buildCost(4), null);
   });
 });
 
@@ -77,7 +42,7 @@ describe("dice refill", () => {
   });
 
   it("starts a fresh 30 minutes when dice are spent from a full stack", () => {
-    const spent = spendDie(20, 0, 50_000);
+    const spent = spendDice(20, 0, 50_000, 1);
     assert.deepEqual(spent, { dice: 19, lastRefillAt: 50_000 });
     const pair = spendDice(20, 0, 50_000, 2);
     assert.deepEqual(pair, { dice: 18, lastRefillAt: 50_000 });

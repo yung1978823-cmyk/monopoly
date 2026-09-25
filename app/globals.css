@@ -131,3 +131,21 @@
     @apply font-sans;
   }
 }
+/* Attack screen: result pop-up, hammer drop and smash shake. */
+@keyframes pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  70% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@keyframes hammer {
+  0% { transform: translateY(-60px) rotate(-40deg); opacity: 0; }
+  60% { transform: translateY(6px) rotate(10deg); opacity: 1; }
+  100% { transform: translateY(0) rotate(0); }
+}
+@keyframes smash {
+  0%, 100% { transform: translate(-50%, -50%); }
+  20% { transform: translate(calc(-50% - 6px), calc(-50% + 3px)) scale(1.1); }
+  40% { transform: translate(calc(-50% + 6px), calc(-50% - 3px)); }
+  60% { transform: translate(calc(-50% - 4px), -50%); }
+  80% { transform: translate(calc(-50% + 3px), -50%); }
+}
