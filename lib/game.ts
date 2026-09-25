@@ -59,6 +59,7 @@ export type GameState = {
   landmarks: Landmark[];
   rivalLandmarks: Landmark[];
   hasNft: boolean;
+  rivalHasNft: boolean;
   postedPurse: number;
   playerStolenToday: number;
   rivalStolenToday: number;
@@ -86,6 +87,7 @@ export type Action =
   | { type: "attack"; dice: DiePair; target: number | null; now: number }
   | { type: "rival"; dice: DiePair; now: number }
   | { type: "set-nft"; value: boolean }
+  | { type: "set-rival-nft"; value: boolean }
   | { type: "set-purse"; value: number }
   | { type: "reset"; now: number; dayKey: string }
   | { type: "hydrate"; state: GameState; now: number; dayKey: string };
@@ -108,6 +110,7 @@ export function createGame(now: number, dayKey: string): GameState {
     landmarks: emptyLandmarks(),
     rivalLandmarks: ["built", "built", "empty", "empty"],
     hasNft: true,
+    rivalHasNft: true,
     postedPurse: 5,
     playerStolenToday: 0,
     rivalStolenToday: 0,
@@ -228,6 +231,7 @@ export function sanitizeState(
     landmarks,
     rivalLandmarks,
     hasNft: value.hasNft === true,
+    rivalHasNft: value.rivalHasNft !== false,
     postedPurse: clampInt(value.postedPurse, 0, PURSE_MAX, 0),
     playerStolenToday: clampInt(value.playerStolenToday, 0, DAILY_DST_CAP, 0),
     rivalStolenToday: clampInt(value.rivalStolenToday, 0, DAILY_DST_CAP, 0),
@@ -535,8 +539,19 @@ export function reduce(state: GameState, action: Action): GameState {
         next,
         "rule",
         action.value
-          ? "試作開關打開：你有 NFT。可以放出最多 5 DST。阿強也是 NFT 防守方，錢包 5 DST。"
-          : "試作開關關掉：沒有 NFT。分數照計，DST 進出是 0。",
+          ? "你有 NFT。對手也有 NFT 時，打中才搬 DST，一日最多 5。"
+          : "你沒有 NFT。這一戰只計分數，DST 0。",
+      );
+    }
+    case "set-rival-nft": {
+      if (state.rivalHasNft === action.value) return state;
+      const next = { ...state, rivalHasNft: action.value };
+      return pushLog(
+        next,
+        "rule",
+        action.value
+          ? "對手有 NFT。你也有 NFT 時，打中才搬 DST，一日最多 5。"
+          : "對手沒有 NFT。這一戰只計分數，DST 0。",
       );
     }
     case "set-purse": {
@@ -599,24 +614,37 @@ export function reduce(state: GameState, action: Action): GameState {
           : state.rivalLandmarks.map((item, index) =>
               index === target ? ("ruined" as const) : item,
             );
+      const bothNft = state.hasNft && state.rivalHasNft !== false;
+      const dst =
+        hit && bothNft
+          ? dstTaken({
+              attack: weapon,
+              defense: rivalTotal,
+              defenderHasNft: true,
+              remainingPurse: remainingPurse(true, PURSE_MAX, state.rivalStolenToday),
+              stolenToday: state.rivalStolenToday,
+            })
+          : 0;
       const weaponReadout: WeaponReadout = {
         weapon,
         rivalPower,
         enemyLuck: state.enemyLuck,
         rivalTotal,
         hit,
-        dst: 0,
+        dst,
       };
       const verdict = hit ? "打中" : "打唔中";
       const damage = target === null ? "" : `砸了${LANDMARK_NAMES[target]}。`;
+      const pay = dst > 0 ? `搬走 ${dst} DST。` : "DST 0。";
       return pushLog(
         {
           ...state,
           rivalLandmarks,
+          rivalStolenToday: state.rivalStolenToday + dst,
           weaponReadout,
         },
         "you",
-        `武器 ${weapon}，敵人 ${rivalTotal}（戰鬥力 ${rivalPower} ＋ 幸運值 ${state.enemyLuck}）。${verdict}。${damage}分數 ${state.points}。DST 不動。`,
+        `武器 ${weapon}，敵人 ${rivalTotal}（戰鬥力 ${rivalPower} ＋ 幸運值 ${state.enemyLuck}）。${verdict}。${damage}分數 ${state.points}。${pay}`,
       );
     }
     case "return-walk": {

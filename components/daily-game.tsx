@@ -36,6 +36,51 @@ function landmarkLabel(landmark: Landmark): string {
   return "未建";
 }
 
+function NftToggles({
+  hasNft,
+  rivalHasNft,
+  onPlayer,
+  onRival,
+}: {
+  hasNft: boolean;
+  rivalHasNft: boolean;
+  onPlayer: (value: boolean) => void;
+  onRival: (value: boolean) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <label className="flex h-16 items-center justify-between rounded-2xl border-2 border-[#9e3428] bg-[#fffaf3] px-4">
+        <span className="text-lg font-bold" id="nft-label">
+          我有 NFT
+        </span>
+        <span className="flex items-center gap-3">
+          <span className="text-sm font-semibold text-[#9e3428]">{hasNft ? "開" : "關"}</span>
+          <Switch
+            checked={hasNft}
+            onCheckedChange={onPlayer}
+            aria-labelledby="nft-label"
+            data-testid="nft-switch"
+          />
+        </span>
+      </label>
+      <label className="flex h-16 items-center justify-between rounded-2xl border-2 border-[#9e3428] bg-[#fffaf3] px-4">
+        <span className="text-lg font-bold" id="rival-nft-label">
+          對手有 NFT
+        </span>
+        <span className="flex items-center gap-3">
+          <span className="text-sm font-semibold text-[#9e3428]">{rivalHasNft ? "開" : "關"}</span>
+          <Switch
+            checked={rivalHasNft}
+            onCheckedChange={onRival}
+            aria-labelledby="rival-nft-label"
+            data-testid="rival-nft-switch"
+          />
+        </span>
+      </label>
+    </div>
+  );
+}
+
 function LandmarkStrip({
   title,
   landmarks,
@@ -206,6 +251,7 @@ export function DailyGame() {
   const arrived = pending !== null && shownStep > 0;
   const countdown = booted && now > 0 ? msUntilNextDie(state.dice, state.lastRefillAt, now) : null;
   const readout = state.weaponReadout;
+  const bothNft = state.hasNft && state.rivalHasNft !== false;
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-4 py-6 sm:px-6 sm:py-8">
@@ -253,7 +299,7 @@ export function DailyGame() {
               起地標
             </Button>
             <p className="self-center text-xs leading-5 text-[#6f5b4b]" data-testid="dst-still">
-              這一戰只計分數。DST 不動。
+              {bothNft ? "兩邊都有 NFT。打中才搬 DST，一日最多 5。" : "有一邊沒有 NFT。只計分數，DST 0。"}
             </p>
           </div>
           {readout ? (
@@ -262,9 +308,9 @@ export function DailyGame() {
                 武器 {readout.weapon} · 敵人 {readout.rivalTotal}
               </p>
               <p className="mt-1 text-3xl font-bold text-[#9e3428]">{readout.hit ? "打中" : "打唔中"}</p>
-              <p className="mt-1 text-sm leading-6">
+              <p className="mt-1 text-sm leading-6" data-testid="dst-pay">
                 {readout.hit ? "砸了一座建築。" : "沒有損傷。"}
-                DST 不動。
+                {readout.dst > 0 ? `搬走 ${readout.dst} DST。` : "DST 0。"}
               </p>
             </div>
           ) : (
@@ -276,17 +322,12 @@ export function DailyGame() {
               用武器攻擊
             </Button>
           )}
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium" id="nft-label">
-                我有 NFT
-              </p>
-            </div>
-            <Switch
-              checked={state.hasNft}
-              onCheckedChange={(checked) => dispatch({ type: "set-nft", value: checked })}
-              aria-labelledby="nft-label"
-              data-testid="nft-switch"
+          <div className="mt-4">
+            <NftToggles
+              hasNft={state.hasNft}
+              rivalHasNft={state.rivalHasNft !== false}
+              onPlayer={(value) => dispatch({ type: "set-nft", value })}
+              onRival={(value) => dispatch({ type: "set-rival-nft", value })}
             />
           </div>
           {readout ? (
@@ -304,6 +345,12 @@ export function DailyGame() {
           <p className="text-sm leading-6 text-[#6f5b4b]">
             自己一個人走。棋盤有四格攻擊，踩到任何一格就搜尋敵人。
           </p>
+          <NftToggles
+            hasNft={state.hasNft}
+            rivalHasNft={state.rivalHasNft !== false}
+            onPlayer={(value) => dispatch({ type: "set-nft", value })}
+            onRival={(value) => dispatch({ type: "set-rival-nft", value })}
+          />
           <BoardRing
             position={tokenIndex}
             landmarks={state.landmarks}

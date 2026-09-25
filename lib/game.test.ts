@@ -18,6 +18,7 @@ describe("daily board", () => {
     assert.equal(state.points, 0);
     assert.equal(state.rollCount, 0);
     assert.equal(state.hasNft, true);
+    assert.equal(state.rivalHasNft, true);
     assert.equal(state.postedPurse, 5);
     assert.deepEqual(state.landmarks, ["empty", "empty", "empty", "empty"]);
     assert.equal(countBuilt(state.landmarks), 0);
@@ -80,15 +81,26 @@ describe("daily board", () => {
     assert.equal(hit.weaponReadout?.rivalTotal, 3);
     assert.equal(hit.weaponReadout?.hit, true);
     assert.equal(hit.rivalLandmarks[0], "ruined");
-    assert.equal(hit.weaponReadout?.dst, 0);
-    assert.equal(hit.rivalStolenToday, state.rivalStolenToday);
     assert.equal(hit.points, state.points);
-    assert.match(hit.log[0]?.text ?? "", /DST 不動/);
+    assert.ok((hit.weaponReadout?.dst ?? 0) > 0);
+    assert.ok((hit.weaponReadout?.dst ?? 0) <= 5);
+    assert.equal(hit.rivalStolenToday, state.rivalStolenToday + (hit.weaponReadout?.dst ?? 0));
+    assert.match(hit.log[0]?.text ?? "", /搬走/);
 
-    const quiet = reduce({ ...state, hasNft: false }, { type: "weapon" });
-    assert.equal(quiet.weaponReadout?.hit, true);
-    assert.equal(quiet.weaponReadout?.dst, 0);
-    assert.equal(quiet.rivalLandmarks[0], "ruined");
+    const noPlayer = reduce({ ...state, hasNft: false }, { type: "weapon" });
+    assert.equal(noPlayer.weaponReadout?.hit, true);
+    assert.equal(noPlayer.weaponReadout?.dst, 0);
+    assert.match(noPlayer.log[0]?.text ?? "", /DST 0/);
+
+    const noRival = reduce({ ...state, rivalHasNft: false }, { type: "weapon" });
+    assert.equal(noRival.weaponReadout?.hit, true);
+    assert.equal(noRival.weaponReadout?.dst, 0);
+
+    const capped = reduce({ ...state, rivalStolenToday: 5 }, { type: "weapon" });
+    assert.equal(capped.weaponReadout?.dst, 0);
+    const room = reduce({ ...state, rivalStolenToday: 4 }, { type: "weapon" });
+    assert.equal(room.weaponReadout?.dst, 1);
+    assert.equal(noPlayer.rivalLandmarks[0], "ruined");
   });
 
   it("raises the first open landmark before any roll", () => {
