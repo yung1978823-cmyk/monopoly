@@ -36,7 +36,19 @@ export type StrikeReadout = {
   dst: number;
 };
 
+export type Phase = "walk" | "search";
+
+export type WeaponReadout = {
+  weapon: number;
+  rivalPower: number;
+  enemyLuck: number;
+  rivalTotal: number;
+  hit: boolean;
+  dst: number;
+};
+
 export type GameState = {
+  phase: Phase;
   position: number;
   dice: number;
   lastRefillAt: number;
@@ -57,13 +69,17 @@ export type GameState = {
   dayKey: string;
   lastPlayerFaces: DiePair | null;
   lastRivalFaces: DiePair | null;
+  enemyLuck: number | null;
+  weaponReadout: WeaponReadout | null;
   lastStrike: StrikeReadout | null;
 };
 
 export type Action =
   | { type: "tick"; now: number; dayKey: string }
   | { type: "add-test-die" }
-  | { type: "move"; dice: DiePair; now: number }
+  | { type: "move"; dice: DiePair; enemyDice?: DiePair | null; now: number }
+  | { type: "weapon" }
+  | { type: "return-walk" }
   | { type: "build" }
   | { type: "skip-build" }
   | { type: "attack"; dice: DiePair; target: number | null; now: number }
@@ -73,13 +89,14 @@ export type Action =
   | { type: "reset"; now: number; dayKey: string }
   | { type: "hydrate"; state: GameState; now: number; dayKey: string };
 
-export const STORAGE_KEY = "dafuweng-daily-board-v2";
-export const STARTING_DICE = 6;
+export const STORAGE_KEY = "dafuweng-daily-board-v3";
+export const STARTING_DICE = 2;
 
 const emptyLandmarks = (): Landmark[] => ["empty", "empty", "empty", "empty"];
 
 export function createGame(now: number, dayKey: string): GameState {
   return {
+    phase: "walk",
     position: 0,
     dice: STARTING_DICE,
     lastRefillAt: now,
@@ -100,6 +117,8 @@ export function createGame(now: number, dayKey: string): GameState {
     dayKey,
     lastPlayerFaces: null,
     lastRivalFaces: null,
+    enemyLuck: null,
+    weaponReadout: null,
     lastStrike: null,
   };
 }
@@ -235,12 +254,32 @@ export function sanitizeState(
     dayKey: typeof value.dayKey === "string" && value.dayKey ? value.dayKey : dayKey,
     lastPlayerFaces: readPair(value.lastPlayerFaces),
     lastRivalFaces: readPair(value.lastRivalFaces),
+    enemyLuck: inRange(value.enemyLuck, 2, 12) ? value.enemyLuck : null,
+    weaponReadout: readWeapon(value.weaponReadout),
     lastStrike: readStrike(value.lastStrike),
+    phase: value.phase === "search" && inRange(value.enemyLuck, 2, 12) ? "search" : "walk",
   };
 }
 
 function inRange(value: unknown, min: number, max: number): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
+}
+
+function readWeapon(value: unknown): WeaponReadout | null {
+  if (!value || typeof value !== "object") return null;
+  const readout = value as Partial<WeaponReadout>;
+  const { weapon, rivalPower, enemyLuck, rivalTotal, hit, dst } = readout;
+  if (
+    !inRange(weapon, 0, 4) ||
+    !inRange(rivalPower, 0, 4) ||
+    !inRange(enemyLuck, 2, 12) ||
+    !inRange(rivalTotal, 2, 16) ||
+    typeof hit !== "boolean" ||
+    !inRange(dst, 0, DAILY_DST_CAP)
+  ) {
+    return null;
+  }
+  return { weapon, rivalPower, enemyLuck, rivalTotal, hit, dst };
 }
 
 function readStrike(value: unknown): StrikeReadout | null {
@@ -517,34 +556,81 @@ export function reduce(state: GameState, action: Action): GameState {
       const luck = luckOf(faces);
       const moved = movePoints(state.position, luck);
       const tile = TILES[moved.position];
-      let pending: number | null = null;
-      let extra = "";
-      if (tile.kind === "landmark" && tile.landmarkIndex !== null) {
-        const landmark = state.landmarks[tile.landmarkIndex];
-        if (landmark === "built") {
-          extra = "這座還在，戰鬥力算它。";
-        } else {
-          pending = tile.landmarkIndex;
-          extra = landmark === "ruined" ? "這裡是廢墟，可以再蓋。" : "這一格還沒蓋。";
-        }
-      }
+      const enemyFaces = tile?.kind === "attack" ? readPair(action.enemyDice) : null;
+      const searching = enemyFaces !== null;
+      const enemyLuck = searching ? luckOf(enemyFaces) : null;
       const passed = moved.passedStart ? "經過起點。" : "";
+      const searchText = searching
+        ? `這格是攻擊。搜尋敵人，配到阿強。敵人擲出 ${enemyFaces[0]} 和 ${enemyFaces[1]}。敵人幸運值 ${enemyLuck}。`
+        : "這格只加分數。";
       const next: GameState = {
         ...state,
+        phase: searching ? "search" : "walk",
         dice: spent.dice,
         lastRefillAt: spent.lastRefillAt,
         position: moved.position,
         points: state.points + moved.gained,
         rollCount: state.rollCount + 1,
-        pendingBuildIndex: pending,
+        pendingBuildIndex: null,
         lastPlayerFaces: faces,
+        lastRivalFaces: searching ? enemyFaces : null,
+        enemyLuck,
+        weaponReadout: null,
         lastStrike: null,
       };
       return pushLog(
         next,
         "you",
-        `你花 2 顆，擲出 ${faces[0]} 和 ${faces[1]}。幸運值 ${luck}，走 ${luck} 格。${passed}走到${tile.name}。分數 +${moved.gained}，合計 ${next.points}。${extra}`,
+        `你花 2 顆，擲出 ${faces[0]} 和 ${faces[1]}。走 ${luck} 格。${passed}走到${tile?.name ?? "這一格"}。分數 +${moved.gained}，合計 ${next.points}。${searchText}`,
       );
+    }
+    case "weapon": {
+      if (state.phase !== "search" || state.enemyLuck === null || state.weaponReadout) return state;
+      const weapon = countBuilt(state.landmarks);
+      const rivalPower = countBuilt(state.rivalLandmarks);
+      const rivalTotal = rivalPower + state.enemyLuck;
+      const hit = weapon > rivalTotal;
+      const target = hit ? firstBuilt(state.rivalLandmarks) : null;
+      const rivalLandmarks =
+        target === null
+          ? state.rivalLandmarks
+          : state.rivalLandmarks.map((item, index) =>
+              index === target ? ("ruined" as const) : item,
+            );
+      const remaining = remainingPurse(state.hasNft, PURSE_MAX, state.rivalStolenToday);
+      const dst = hit
+        ? dstTaken({
+            attack: weapon,
+            defense: rivalTotal,
+            defenderHasNft: state.hasNft,
+            remainingPurse: remaining,
+            stolenToday: state.rivalStolenToday,
+          })
+        : 0;
+      const weaponReadout: WeaponReadout = {
+        weapon,
+        rivalPower,
+        enemyLuck: state.enemyLuck,
+        rivalTotal,
+        hit,
+        dst,
+      };
+      const verdict = hit ? "打中" : "打唔中";
+      const damage = target === null ? "" : `砸了${LANDMARK_NAMES[target]}。`;
+      return pushLog(
+        {
+          ...state,
+          rivalLandmarks,
+          rivalStolenToday: state.rivalStolenToday + dst,
+          weaponReadout,
+        },
+        "you",
+        `武器 ${weapon}，敵人 ${rivalTotal}（戰鬥力 ${rivalPower} ＋ 幸運值 ${state.enemyLuck}）。${verdict}。${damage}拿走 ${dst} DST。`,
+      );
+    }
+    case "return-walk": {
+      if (state.phase !== "search") return state;
+      return { ...state, phase: "walk" };
     }
     case "build": {
       const index = raiseTarget(state);
@@ -564,7 +650,7 @@ export function reduce(state: GameState, action: Action): GameState {
       return pushLog(
         next,
         "you",
-        `你起了${LANDMARK_NAMES[index]}。戰鬥力變成 ${defense}。分數 +${POINTS.build}，合計 ${next.points}。`,
+        `你起了${LANDMARK_NAMES[index]}。武器變成 ${defense}。分數 +${POINTS.build}，合計 ${next.points}。`,
       );
     }
     case "skip-build": {

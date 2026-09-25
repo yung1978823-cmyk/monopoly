@@ -1,6 +1,6 @@
 export const BOARD_SIZE = 12;
 
-export type TileKind = "start" | "street" | "landmark";
+export type TileKind = "start" | "street" | "landmark" | "attack";
 
 export type Tile = {
   id: string;
@@ -18,7 +18,7 @@ export const TILES: readonly Tile[] = [
   { id: "tea", name: "茶檔", kind: "street", landmarkIndex: null },
   { id: "park", name: "公園", kind: "street", landmarkIndex: null },
   { id: "east", name: "東市", kind: "landmark", landmarkIndex: 1 },
-  { id: "pier", name: "碼頭", kind: "street", landmarkIndex: null },
+  { id: "attack", name: "攻擊", kind: "attack", landmarkIndex: null },
   { id: "south", name: "南岸", kind: "landmark", landmarkIndex: 2 },
   { id: "market", name: "市集", kind: "street", landmarkIndex: null },
   { id: "west", name: "西街", kind: "landmark", landmarkIndex: 3 },

@@ -45,7 +45,8 @@ export function BoardRing({
                 built && "border-[#174f36] bg-[#1f6b4a] text-[#f4fff8]",
                 ruined && "border-[#4e221e] bg-[#6e332c] text-[#fff4ef]",
                 !built && !ruined && tile.kind === "start" && "border-[#e0bf78] bg-[#f0d7a2] text-[#3a2714]",
-                !built && !ruined && tile.kind !== "start" && "border-[#e4d3ba] bg-[#f7efe2] text-[#2a1c14]",
+                !built && !ruined && tile.kind === "street" && "border-[#e4d3ba] bg-[#f7efe2] text-[#2a1c14]",
+                tile.kind === "attack" && "border-[#9e3428] bg-[#9e3428] text-[#fff7ee]",
                 tile.kind === "landmark" && !built && !ruined && "border-dashed",
                 current && "z-10 ring-2 ring-[#f0d7a2] ring-offset-2 ring-offset-[#3b2a1f]",
               )}
@@ -66,7 +67,7 @@ export function BoardRing({
           <p className="text-4xl font-bold tabular-nums text-[#f0d7a2] sm:text-5xl" data-testid="points">
             {points}
           </p>
-          <p className="mt-1 text-xs text-[#d9cbb8]">戰鬥力 {defense}／4</p>
+          <p className="mt-1 text-xs text-[#d9cbb8]">武器 {defense}／4</p>
           <p className="text-xs text-[#8fd0be]">{purseLabel}</p>
           <p className="mt-1 text-[10px] text-[#b5a594]">{placeLabel}</p>
         </div>
