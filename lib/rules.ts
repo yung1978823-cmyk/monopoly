@@ -1,55 +1,19 @@
 export const DICE_CAP = 20;
-export const ROLL_COST = 2;
 export const REFILL_MS = 30 * 60 * 1000;
 export const DAILY_DST_CAP = 5;
-export const PURSE_MAX = 5;
 export const LANDMARK_SLOTS = 4;
 
 export const POINTS = {
   land: 1,
   start: 2,
-  build: 3,
-  attackMissAttacker: 1,
-  attackMissDefender: 1,
-  attackHitAttacker: 2,
-  attackHitDefender: 1,
 } as const;
 
-export type AttackBand = "below" | "equal" | "above";
+/** Points spent to raise the 1st, 2nd, 3rd and 4th landmark. Tunable. */
+export const BUILD_COSTS = [5, 10, 15, 20] as const;
 
-export function attackBand(attack: number, defense: number): AttackBand {
-  if (attack < defense) return "below";
-  if (attack === defense) return "equal";
-  return "above";
-}
-
-/** Uncapped-by-purse amount. Attack is combat power plus luck. Still clamped to 5. */
-export function rawDst(attack: number, defense: number): number {
-  if (attack < defense) return 0;
-  if (attack === defense) return 1;
-  return Math.min(DAILY_DST_CAP, Math.max(2, attack - defense + 1));
-}
-
-export function dstTaken(args: {
-  attack: number;
-  defense: number;
-  defenderHasNft: boolean;
-  remainingPurse: number;
-  stolenToday: number;
-}): number {
-  if (!args.defenderHasNft) return 0;
-  const room = Math.max(0, DAILY_DST_CAP - args.stolenToday);
-  const purse = Math.max(0, args.remainingPurse);
-  if (room === 0 || purse === 0) return 0;
-  return Math.min(rawDst(args.attack, args.defense), purse, room);
-}
-
-export function landmarkIsSmashed(
-  attack: number,
-  defense: number,
-  targetIsBuilt: boolean,
-): boolean {
-  return targetIsBuilt && defense > 0 && attack >= defense;
+/** Cost of the next landmark given how many are already built, or null when all four stand. */
+export function buildCost(built: number): number | null {
+  return BUILD_COSTS[built] ?? null;
 }
 
 export function applyRefill(
@@ -90,14 +54,6 @@ export function spendDice(
     dice: dice - count,
     lastRefillAt: dice >= DICE_CAP ? now : lastRefillAt,
   };
-}
-
-export function spendDie(
-  dice: number,
-  lastRefillAt: number,
-  now: number,
-): { dice: number; lastRefillAt: number } | null {
-  return spendDice(dice, lastRefillAt, now, 1);
 }
 
 export function addTestDie(dice: number): number {

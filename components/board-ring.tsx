@@ -38,11 +38,10 @@ export function BoardRing({
           const landmark = landmarkOf(landmarks, tile.landmarkIndex);
           const current = index === position;
           const built = landmark === "built";
-          const ruined = landmark === "ruined";
           const trailOrder = trail.indexOf(index);
           const onTrail = trailOrder >= 0;
           const stopped = stopIndex === index;
-          const status = built ? "已建成" : ruined ? "廢墟" : tile.kind === "landmark" ? "未建" : null;
+          const status = built ? "已建成" : tile.kind === "landmark" ? "未建" : null;
           return (
             <div
               key={tile.id}
@@ -50,11 +49,10 @@ export function BoardRing({
                 "relative flex h-full flex-col items-center justify-center rounded-xl border px-1 text-center",
                 TILE_PLACEMENT[index],
                 built && "border-[#174f36] bg-[#1f6b4a] text-[#f4fff8]",
-                ruined && "border-[#4e221e] bg-[#6e332c] text-[#fff4ef]",
-                !built && !ruined && tile.kind === "start" && "border-[#e0bf78] bg-[#f0d7a2] text-[#3a2714]",
-                !built && !ruined && tile.kind === "street" && "border-[#e4d3ba] bg-[#f7efe2] text-[#2a1c14]",
+                !built && tile.kind === "start" && "border-[#e0bf78] bg-[#f0d7a2] text-[#3a2714]",
+                !built && tile.kind === "street" && "border-[#e4d3ba] bg-[#f7efe2] text-[#2a1c14]",
                 tile.kind === "attack" && "border-[#9e3428] bg-[#9e3428] text-[#fff7ee]",
-                tile.kind === "landmark" && !built && !ruined && "border-dashed",
+                tile.kind === "landmark" && !built && "border-dashed",
                 onTrail && "z-10 ring-2 ring-[#f0d7a2] ring-offset-2 ring-offset-[#3b2a1f]",
                 stopped && "z-20 ring-4 ring-[#e2b657]",
               )}

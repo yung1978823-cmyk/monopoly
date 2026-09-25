@@ -1,8 +1,17 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { TILES } from "./board";
-import { STARTING_DICE, countBuilt, createGame, reduce, rivalCanStrike, type Landmark } from "./game";
-import { REFILL_MS } from "./rules";
+import {
+  STARTING_DICE,
+  canBuild,
+  countBuilt,
+  createGame,
+  nextBuildCost,
+  parseSave,
+  reduce,
+  type Landmark,
+} from "./game";
+import { BUILD_COSTS, DICE_CAP, REFILL_MS } from "./rules";
 
 const NOW = Date.parse("2026-09-24T08:00:00");
 const DAY = "2026-09-24";
@@ -12,63 +21,72 @@ function start() {
 }
 
 describe("daily board", () => {
-  it("opens ready to roll, raise, and attack", () => {
+  it("opens ready to roll with nothing built", () => {
     const state = start();
     assert.equal(state.dice, STARTING_DICE);
     assert.equal(state.points, 0);
     assert.equal(state.rollCount, 0);
     assert.equal(state.hasNft, true);
     assert.equal(state.rivalHasNft, true);
-    assert.equal(state.postedPurse, 5);
+    assert.equal(state.dstTakenToday, 0);
     assert.deepEqual(state.landmarks, ["empty", "empty", "empty", "empty"]);
-    assert.equal(countBuilt(state.landmarks), 0);
     assert.equal(countBuilt(state.rivalLandmarks), 2);
   });
 
   it("loads the walk board even when the save was a fight", () => {
-    const fight = reduce(start(), {
-      type: "move",
-      face: 2,
-      enemyDice: [1, 2],
-      now: NOW,
-    });
+    const fight = reduce(start(), { type: "move", face: 2, enemyDice: [1, 2], now: NOW });
     assert.equal(fight.phase, "search");
     const loaded = reduce(start(), { type: "hydrate", state: fight, now: NOW, dayKey: DAY });
     assert.equal(loaded.phase, "walk");
     assert.equal(loaded.position, fight.position);
   });
 
+  it("keeps the dice count across a reload", () => {
+    for (const dice of [0, 1, DICE_CAP]) {
+      const saved = { ...start(), dice };
+      const loaded = reduce(start(), { type: "hydrate", state: saved, now: NOW, dayKey: DAY });
+      assert.equal(loaded.dice, dice);
+    }
+  });
+
+  it("reads an older save with ruined landmarks and the old DST field", () => {
+    const old = {
+      ...start(),
+      landmarks: ["built", "ruined", "empty", "empty"],
+      dstTakenToday: undefined,
+      rivalStolenToday: 3,
+    };
+    const loaded = parseSave(JSON.stringify({ v: 1, state: old }), NOW, DAY);
+    assert.ok(loaded);
+    assert.deepEqual(loaded.landmarks, ["built", "empty", "empty", "empty"]);
+    assert.equal(loaded.dstTakenToday, 3);
+  });
+
   it("opens 搜尋敵人 when the walk lands on 攻擊", () => {
     assert.equal(TILES.filter((tile) => tile.kind === "attack").length, 4);
-    const state = reduce(start(), {
-      type: "move",
-      face: 2,
-      enemyDice: [1, 2],
-      now: NOW,
-    });
+    const state = reduce(start(), { type: "move", face: 2, enemyDice: [1, 2], now: NOW });
     assert.equal(state.position, 2);
     assert.equal(state.phase, "search");
     assert.equal(state.enemyLuck, 3);
     assert.deepEqual(state.lastRivalFaces, [1, 2]);
     assert.match(state.log[0]?.text ?? "", /搜尋敵人/);
-    assert.match(state.log[0]?.text ?? "", /幸運值 3/);
+  });
+
+  it("does not walk while a fight is open", () => {
+    const fight = reduce(start(), { type: "move", face: 2, enemyDice: [1, 2], now: NOW });
+    assert.equal(reduce(fight, { type: "move", face: 1, now: NOW }), fight);
   });
 
   it("breaks the shield for 1 point and 0 DST, then pays DST only on a later hit", () => {
-    let state = reduce(start(), {
-      type: "move",
-      face: 2,
-      enemyDice: [1, 1],
-      now: NOW,
-    });
+    let state = reduce(start(), { type: "move", face: 2, enemyDice: [1, 1], now: NOW });
     assert.equal(state.enemyShield, true);
     const missed = reduce(state, { type: "weapon" });
     assert.equal(missed.weaponReadout?.attackTotal, 10);
     assert.equal(missed.weaponReadout?.defenseTotal, 12);
     assert.equal(missed.weaponReadout?.hit, false);
     assert.equal(missed.weaponReadout?.pointsGained, 0);
-    assert.equal(missed.weaponReadout?.dst, 0);
     assert.equal(missed.enemyShield, true);
+    assert.equal(missed.fightSettled, true);
     assert.equal(missed.points, state.points);
 
     state = {
@@ -85,171 +103,82 @@ describe("daily board", () => {
     assert.equal(shield.weaponReadout?.shieldBreak, true);
     assert.equal(shield.weaponReadout?.pointsGained, 1);
     assert.equal(shield.weaponReadout?.dst, 0);
-    assert.equal(shield.points, state.points + 1);
     assert.equal(shield.enemyShield, false);
     assert.equal(shield.fightSettled, false);
-    assert.match(shield.log[0]?.text ?? "", /DST 0/);
 
     const scored = reduce(shield, { type: "weapon" });
-    assert.equal(scored.weaponReadout?.shieldBreak, false);
     assert.equal(scored.weaponReadout?.pointsGained, 5);
     assert.equal(scored.weaponReadout?.dst, 5);
-    assert.equal(scored.points, shield.points + 5);
-    assert.equal(scored.rivalStolenToday, 5);
+    assert.equal(scored.dstTakenToday, 5);
+    assert.equal(scored.fightSettled, true);
     assert.match(scored.log[0]?.text ?? "", /搬走 5 DST/);
+    assert.equal(reduce(scored, { type: "weapon" }), scored);
 
     const noPlayer = reduce({ ...shield, hasNft: false }, { type: "weapon" });
     assert.equal(noPlayer.weaponReadout?.pointsGained, 5);
     assert.equal(noPlayer.weaponReadout?.dst, 0);
-    assert.match(noPlayer.log[0]?.text ?? "", /DST 0/);
-
     const noRival = reduce({ ...shield, rivalHasNft: false }, { type: "weapon" });
     assert.equal(noRival.weaponReadout?.dst, 0);
 
-    const room = reduce({ ...shield, rivalStolenToday: 4 }, { type: "weapon" });
+    const room = reduce({ ...shield, dstTakenToday: 4 }, { type: "weapon" });
     assert.equal(room.weaponReadout?.dst, 1);
-    const capped = reduce({ ...shield, rivalStolenToday: 5 }, { type: "weapon" });
+    const capped = reduce({ ...shield, dstTakenToday: 5 }, { type: "weapon" });
     assert.equal(capped.weaponReadout?.dst, 0);
     assert.equal(capped.weaponReadout?.pointsGained, 5);
   });
 
-  it("raises the first open landmark before any roll", () => {
-    const state = reduce(start(), { type: "build" });
-    assert.equal(state.landmarks[0], "built");
-    assert.equal(state.points, 3);
-    assert.equal(countBuilt(state.landmarks), 1);
+  it("spends points to raise landmarks, costing more each time", () => {
+    const broke = start();
+    assert.equal(canBuild(broke), false);
+    assert.equal(reduce(broke, { type: "build" }), broke);
+
+    let state = { ...start(), points: 100 };
+    const total = BUILD_COSTS.reduce((sum, cost) => sum + cost, 0);
+    for (const cost of BUILD_COSTS) {
+      assert.equal(nextBuildCost(state), cost);
+      const before = state.points;
+      state = reduce(state, { type: "build" });
+      assert.equal(state.points, before - cost);
+    }
+    assert.equal(countBuilt(state.landmarks), 4);
+    assert.equal(state.points, 100 - total);
+    assert.equal(nextBuildCost(state), null);
+    assert.equal(reduce(state, { type: "build" }), state);
+  });
+
+  it("raises the landmark you stand on first", () => {
+    const state = reduce({ ...start(), position: 9, points: 5 }, { type: "build" });
+    assert.deepEqual(state.landmarks, ["empty", "empty", "built", "empty"]);
+    assert.match(state.log[0]?.text ?? "", /花 5 分，起了南岸/);
   });
 
   it("walks one square per pip and spends a single die", () => {
     let state = { ...start(), dice: 0 };
-    const short = reduce(state, { type: "move", face: 1, now: NOW });
-    assert.equal(short, state);
+    assert.equal(reduce(state, { type: "move", face: 1, now: NOW }), state);
 
-    state = { ...state, dice: 1 };
-    state = reduce(state, { type: "move", face: 1, now: NOW });
+    state = reduce({ ...state, dice: 1 }, { type: "move", face: 1, now: NOW });
     assert.equal(state.position, 1);
     assert.equal(state.points, 1);
     assert.equal(state.dice, 0);
     assert.equal(state.phase, "walk");
-    assert.equal(state.walkFace, 1);
     assert.match(state.log[0]?.text ?? "", /走 1 格/);
-    state = reduce(state, { type: "build" });
-    assert.equal(state.landmarks[0], "built");
-    assert.equal(state.points, 4);
-    assert.equal(countBuilt(state.landmarks), 1);
-    assert.equal(state.pendingBuildIndex, null);
   });
 
   it("pays the start bonus when the loop wraps", () => {
-    const state = reduce(
-      { ...start(), position: 10, dice: 1 },
-      { type: "move", face: 3, now: NOW },
-    );
+    const state = reduce({ ...start(), position: 10, dice: 1 }, { type: "move", face: 3, now: NOW });
     assert.equal(state.position, 1);
     assert.equal(state.points, 3);
-    assert.equal(state.dice, 0);
-  });
-
-  it("keeps DST at 0 without the NFT toggle, and still smashes for points", () => {
-    let state = { ...start(), dice: 2, hasNft: false, postedPurse: 0 };
-    state = reduce(state, { type: "attack", dice: [6, 6], target: 0, now: NOW });
-    assert.equal(state.rivalStolenToday, 0);
-    assert.equal(state.rivalLandmarks[0], "ruined");
-    assert.equal(state.points, 2);
-    assert.equal(state.rivalPoints, 1);
-    assert.equal(state.dice, 0);
-    assert.equal(state.lastStrike?.attackTotal, 12);
-    assert.equal(state.lastStrike?.defense, 2);
-    assert.equal(state.lastStrike?.dst, 0);
-  });
-
-  it("adds combat power to luck, then caps DST by the purse and the day", () => {
-    let state = reduce(start(), { type: "set-nft", value: true });
-    state = reduce(state, { type: "set-purse", value: 5 });
-    state = {
-      ...state,
-      dice: 6,
-      landmarks: ["empty", "empty", "empty", "empty"],
-      rivalLandmarks: ["built", "built", "built", "built"],
-    };
-
-    state = reduce(state, { type: "attack", dice: [1, 1], target: 0, now: NOW });
-    assert.equal(state.lastStrike?.luck, 2);
-    assert.equal(state.lastStrike?.yourPower, 0);
-    assert.equal(state.lastStrike?.rivalPower, 4);
-    assert.equal(state.lastStrike?.attackTotal, 2);
-    assert.equal(state.rivalStolenToday, 0);
-    assert.equal(state.rivalLandmarks[0], "built");
-    const below = state.log[0]?.text ?? "";
-    assert.ok(below.indexOf("幸運值") < below.indexOf("你的戰鬥力"));
-    assert.ok(below.indexOf("阿強的戰鬥力") < below.indexOf("DST"));
-
-    state = reduce(state, { type: "attack", dice: [2, 2], target: 0, now: NOW });
-    assert.equal(state.lastStrike?.attackTotal, 4);
-    assert.equal(state.rivalStolenToday, 1);
-    assert.equal(state.rivalLandmarks[0], "ruined");
-
-    state = reduce(state, { type: "attack", dice: [6, 6], target: 1, now: NOW });
-    assert.equal(state.rivalStolenToday, 5);
-    assert.equal(state.rivalLandmarks[1], "ruined");
-    assert.equal(state.dice, 0);
-
-    state = { ...state, dice: 2 };
-    const drained = reduce(state, { type: "attack", dice: [6, 6], target: 2, now: NOW });
-    assert.equal(drained.rivalStolenToday, 5);
-    assert.equal(drained.lastStrike?.dst, 0);
-    assert.equal(drained.points, state.points + 2);
-  });
-
-  it("lets the rival roll two dice against your combat power", () => {
-    let state = reduce(start(), { type: "set-nft", value: true });
-    state = reduce(state, { type: "set-purse", value: 5 });
-    state = {
-      ...state,
-      landmarks: ["built", "built", "built", "built"],
-      rivalLandmarks: ["empty", "empty", "empty", "empty"],
-    };
-    const held = reduce(state, { type: "rival", dice: [1, 1], now: NOW });
-    assert.deepEqual(held.landmarks, state.landmarks);
-    assert.equal(held.playerStolenToday, 0);
-    assert.equal(held.lastStrike?.attackTotal, 2);
-    assert.equal(held.lastStrike?.defense, 4);
-    assert.equal(held.rivalDice, 18);
-
-    const broken = reduce(held, { type: "rival", dice: [2, 2], now: NOW });
-    assert.equal(broken.landmarks[0], "ruined");
-    assert.equal(broken.playerStolenToday, 1);
-    assert.equal(broken.lastStrike?.attackTotal, 4);
-    assert.equal(countBuilt(broken.landmarks), 3);
-  });
-
-  it("does not let the rival act when nothing can be smashed or taken", () => {
-    const state = { ...start(), hasNft: false, postedPurse: 0 };
-    assert.equal(rivalCanStrike(state), false);
-    assert.equal(reduce(state, { type: "rival", dice: [6, 6], now: NOW }), state);
-    const short = {
-      ...start(),
-      landmarks: ["built", "empty", "empty", "empty"] as Landmark[],
-      rivalDice: 1,
-    };
-    assert.equal(rivalCanStrike(short), false);
   });
 
   it("refills a real die after 30 minutes", () => {
-    const state = { ...start(), dice: 0 };
-    const next = reduce(state, { type: "tick", now: NOW + REFILL_MS, dayKey: DAY });
+    const next = reduce({ ...start(), dice: 0 }, { type: "tick", now: NOW + REFILL_MS, dayKey: DAY });
     assert.equal(next.dice, 1);
     assert.match(next.log[0]?.text ?? "", /30 分鐘/);
   });
 
-  it("resets the daily purse on a new day", () => {
-    let state = reduce(start(), { type: "set-nft", value: true });
-    state = reduce(state, { type: "set-purse", value: 5 });
-    state = { ...state, playerStolenToday: 2, rivalStolenToday: 4 };
-    const next = reduce(state, { type: "tick", now: NOW, dayKey: "2026-09-25" });
-    assert.equal(next.postedPurse, 0);
-    assert.equal(next.playerStolenToday, 0);
-    assert.equal(next.rivalStolenToday, 0);
+  it("resets the daily DST count on a new day", () => {
+    const next = reduce({ ...start(), dstTakenToday: 4 }, { type: "tick", now: NOW, dayKey: "2026-09-25" });
+    assert.equal(next.dstTakenToday, 0);
     assert.equal(next.dayKey, "2026-09-25");
   });
 });

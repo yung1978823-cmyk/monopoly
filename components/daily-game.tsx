@@ -7,15 +7,16 @@ import { Switch } from "@/components/ui/switch";
 import { LANDMARK_NAMES, TILES } from "@/lib/board";
 import {
   STORAGE_KEY,
+  canBuild,
   countBuilt,
   createGame,
+  nextBuildCost,
   parseSave,
-  raiseTarget,
   reduce,
   type GameState,
   type Landmark,
 } from "@/lib/game";
-import { DICE_CAP, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
+import { DAILY_DST_CAP, DICE_CAP, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
 import { cn } from "cn";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 
@@ -39,9 +40,35 @@ function artBackground(file: string, wash: number): CSSProperties {
 }
 
 function landmarkLabel(landmark: Landmark): string {
-  if (landmark === "built") return "已建成";
-  if (landmark === "ruined") return "已損";
-  return "未建";
+  return landmark === "built" ? "已建成" : "未建";
+}
+
+function BuildButton({
+  cost,
+  enabled,
+  points,
+  onBuild,
+  className,
+}: {
+  cost: number | null;
+  enabled: boolean;
+  points: number;
+  onBuild: () => void;
+  className?: string;
+}) {
+  const label =
+    cost === null ? "四座地標已建成" : enabled ? `起地標（花 ${cost} 分）` : `起地標要 ${cost} 分（差 ${cost - points}）`;
+  return (
+    <Button
+      className={cn("h-12 cursor-pointer text-base", className)}
+      variant="outline"
+      onClick={onBuild}
+      disabled={!enabled}
+      data-testid="raise"
+    >
+      {label}
+    </Button>
+  );
 }
 
 function NftToggles({
@@ -108,7 +135,6 @@ function LandmarkStrip({
               className={cn(
                 "rounded-xl border px-1 py-2 text-center",
                 landmark === "built" && "border-[#1f6b4a] bg-[#e7f5ee]",
-                landmark === "ruined" && "border-[#6e332c] bg-[#f8e8e4]",
                 landmark === "empty" && "border-dashed border-[#d7c4aa] bg-[#fffaf3]",
               )}
             >
@@ -186,14 +212,12 @@ export function DailyGame() {
     if (!booted || now === 0) return;
     const key = dayKeyOf(now);
     const playerDue = state.dice < DICE_CAP && now - state.lastRefillAt >= 30 * 60 * 1000;
-    const rivalDue =
-      state.rivalDice < DICE_CAP && now - state.rivalLastRefillAt >= 30 * 60 * 1000;
-    if (!playerDue && !rivalDue && key === state.dayKey) return;
+    if (!playerDue && key === state.dayKey) return;
     const id = window.setTimeout(() => {
       dispatch({ type: "tick", now, dayKey: key });
     }, 0);
     return () => window.clearTimeout(id);
-  }, [booted, dispatch, now, state.dice, state.dayKey, state.lastRefillAt, state.rivalDice, state.rivalLastRefillAt]);
+  }, [booted, dispatch, now, state.dice, state.dayKey, state.lastRefillAt]);
 
   useEffect(() => {
     if (!resetArmed) return;
@@ -239,7 +263,7 @@ export function DailyGame() {
   }
 
   function onBuild() {
-    if (raiseTarget(state) === null) return;
+    if (!canBuild(state)) return;
     dispatch({ type: "build" });
   }
 
@@ -261,7 +285,10 @@ export function DailyGame() {
   const arrived = pending !== null && shownStep > 0;
   const countdown = booted && now > 0 ? msUntilNextDie(state.dice, state.lastRefillAt, now) : null;
   const readout = state.weaponReadout;
-  const bothNft = state.hasNft && state.rivalHasNft !== false;
+  const bothNft = state.hasNft && state.rivalHasNft;
+  const buildCost = nextBuildCost(state);
+  const buildable = canBuild(state);
+  const dstLabel = `今日 DST ${state.dstTakenToday}／${DAILY_DST_CAP}`;
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-4 py-6 sm:px-6 sm:py-8">
@@ -319,10 +346,11 @@ export function DailyGame() {
           <p className="mt-2 text-3xl font-bold tabular-nums" data-testid="fight-points">
             分數 {state.points}
           </p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <Button className="h-10 cursor-pointer text-sm" variant="outline" onClick={onBuild} data-testid="raise">
-              起地標
-            </Button>
+          <p className="text-sm font-semibold text-[#1f6b4a]" data-testid="dst-today">
+            {dstLabel}
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <BuildButton cost={buildCost} enabled={buildable} points={state.points} onBuild={onBuild} />
             <p className="self-center text-xs leading-5 text-[#6f5b4b]" data-testid="dst-still">
               {bothNft
                 ? "兩邊都有 NFT。盾破只得 1 分、0 DST。沒有盾才搬 DST，一日最多 5。"
@@ -355,7 +383,7 @@ export function DailyGame() {
           <div className="mt-4">
             <NftToggles
               hasNft={state.hasNft}
-              rivalHasNft={state.rivalHasNft !== false}
+              rivalHasNft={state.rivalHasNft}
               onPlayer={(value) => dispatch({ type: "set-nft", value })}
               onRival={(value) => dispatch({ type: "set-rival-nft", value })}
             />
@@ -382,7 +410,7 @@ export function DailyGame() {
           </div>
           <NftToggles
             hasNft={state.hasNft}
-            rivalHasNft={state.rivalHasNft !== false}
+            rivalHasNft={state.rivalHasNft}
             onPlayer={(value) => dispatch({ type: "set-nft", value })}
             onRival={(value) => dispatch({ type: "set-rival-nft", value })}
           />
@@ -391,7 +419,7 @@ export function DailyGame() {
             landmarks={state.landmarks}
             points={state.points}
             defense={weapon}
-            purseLabel={state.hasNft ? "有 NFT" : "沒有 NFT"}
+            purseLabel={`${state.hasNft ? "有 NFT" : "沒有 NFT"} · ${dstLabel}`}
             placeLabel={arrived ? `行到第 ${shownStep} 格` : `停在${here}`}
             trail={trail}
             stopIndex={arrived ? tokenIndex : null}
@@ -407,10 +435,18 @@ export function DailyGame() {
           <Button
             className="h-24 w-full cursor-pointer text-3xl font-bold"
             onClick={onWalk}
+            disabled={state.dice < 1 || pending?.running === true}
             data-testid="roll-move"
           >
             擲骰行棋
           </Button>
+          <BuildButton
+            cost={buildCost}
+            enabled={buildable && !pending?.running}
+            points={state.points}
+            onBuild={onBuild}
+            className="w-full"
+          />
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-[#6f5b4b]">手上 {state.dice}／20 顆。</p>
             <Button
