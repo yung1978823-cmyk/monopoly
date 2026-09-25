@@ -50,7 +50,8 @@ export type GameState = {
   log: LogEntry[];
   nextLogId: number;
   dayKey: string;
-  walkFace: number | null;
+  /** The two dice of the last walk. */
+  walkFaces: DiePair | null;
   lastRivalFaces: DiePair | null;
   enemyLuck: number | null;
   enemyShield: boolean;
@@ -61,7 +62,7 @@ export type GameState = {
 export type Action =
   | { type: "tick"; now: number; dayKey: string }
   | { type: "add-test-die" }
-  | { type: "move"; face: number; enemyDice?: DiePair | null; now: number }
+  | { type: "move"; faces: DiePair; enemyDice?: DiePair | null; now: number }
   | { type: "weapon" }
   | { type: "return-walk" }
   | { type: "build" }
@@ -91,7 +92,7 @@ export function createGame(now: number, dayKey: string): GameState {
     log: [],
     nextLogId: 1,
     dayKey,
-    walkFace: null,
+    walkFaces: null,
     lastRivalFaces: null,
     enemyLuck: null,
     enemyShield: false,
@@ -222,7 +223,7 @@ export function sanitizeState(
     log,
     nextLogId: clampInt(value.nextLogId, 1, 1_000_000, 1),
     dayKey: typeof value.dayKey === "string" && value.dayKey ? value.dayKey : dayKey,
-    walkFace: inRange(value.walkFace, 1, 6) ? value.walkFace : null,
+    walkFaces: readPair(value.walkFaces),
     lastRivalFaces: readPair(value.lastRivalFaces),
     enemyLuck: inRange(value.enemyLuck, 2, 12) ? value.enemyLuck : null,
     enemyShield: value.enemyShield === true,
@@ -317,11 +318,12 @@ export function reduce(state: GameState, action: Action): GameState {
       );
     }
     case "move": {
-      const face = action.face;
-      if (state.phase !== "walk" || !isFace(face)) return state;
+      const faces = readPair(action.faces);
+      if (state.phase !== "walk" || !faces) return state;
+      const steps = luckOf(faces);
       const spent = spendDice(state.dice, state.lastRefillAt, action.now, 1);
       if (!spent) return state;
-      const moved = movePoints(state.position, face);
+      const moved = movePoints(state.position, steps);
       const tile = TILES[moved.position];
       const enemyFaces = tile?.kind === "attack" ? readPair(action.enemyDice) : null;
       const searching = enemyFaces !== null;
@@ -338,7 +340,7 @@ export function reduce(state: GameState, action: Action): GameState {
         position: moved.position,
         points: state.points + moved.gained,
         rollCount: state.rollCount + 1,
-        walkFace: face,
+        walkFaces: faces,
         lastRivalFaces: searching ? enemyFaces : null,
         enemyLuck,
         enemyShield: searching,
@@ -348,7 +350,7 @@ export function reduce(state: GameState, action: Action): GameState {
       return pushLog(
         next,
         "you",
-        `你花 1 顆，擲出 ${face}。走 ${face} 格。${passed}走到${tile?.name ?? "這一格"}。分數 +${moved.gained}，合計 ${next.points}。${searchText}`,
+        `你花 1 顆，擲出 ${faces[0]} 和 ${faces[1]}。走 ${steps} 格。${passed}走到${tile?.name ?? "這一格"}。分數 +${moved.gained}，合計 ${next.points}。${searchText}`,
       );
     }
     case "weapon": {

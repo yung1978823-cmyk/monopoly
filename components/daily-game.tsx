@@ -20,10 +20,11 @@ import { DAILY_DST_CAP, DICE_CAP, dayKeyOf, formatClock, msUntilNextDie, rollDie
 import { cn } from "cn";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 
-const STEP_MS = 420;
+const STEP_MS = 240;
 
 type PendingWalk = {
-  face: number;
+  faces: [number, number];
+  steps: number;
   from: number;
   step: number;
   enemyDice: [number, number] | null;
@@ -230,10 +231,10 @@ export function DailyGame() {
   }
 
   useEffect(() => {
-    if (!pending?.running || pending.step >= pending.face) return;
+    if (!pending?.running || pending.step >= pending.steps) return;
     const id = window.setTimeout(() => {
       setPending((current) => {
-        if (!current?.running || current.step >= current.face) return current;
+        if (!current?.running || current.step >= current.steps) return current;
         return { ...current, step: current.step + 1 };
       });
     }, STEP_MS);
@@ -241,25 +242,26 @@ export function DailyGame() {
   }, [pending]);
 
   useEffect(() => {
-    if (!pending?.running || pending.committed || pending.step < pending.face) return;
+    if (!pending?.running || pending.committed || pending.step < pending.steps) return;
     const move = pending;
     const id = window.setTimeout(() => {
       setPending((current) => {
         if (!current?.running || current.committed) return current;
         return { ...current, running: false, committed: true };
       });
-      dispatch({ type: "move", face: move.face, enemyDice: move.enemyDice, now: Date.now() });
+      dispatch({ type: "move", faces: move.faces, enemyDice: move.enemyDice, now: Date.now() });
     }, STEP_MS);
     return () => window.clearTimeout(id);
   }, [pending, dispatch]);
 
   function onWalk() {
     if (state.phase !== "walk" || state.dice < 1 || pending?.running) return;
-    const face = rollDie();
+    const faces = rollPair();
+    const steps = faces[0] + faces[1];
     const from = state.position;
-    const nextIndex = (from + face) % TILES.length;
+    const nextIndex = (from + steps) % TILES.length;
     const enemyDice = TILES[nextIndex]?.kind === "attack" ? rollPair() : null;
-    setPending({ face, from, step: 0, enemyDice, running: true, committed: false });
+    setPending({ faces, steps, from, step: 0, enemyDice, running: true, committed: false });
   }
 
   function onBuild() {
@@ -405,7 +407,7 @@ export function DailyGame() {
             style={artBackground("mission.jpg", 0.35)}
           >
             <p className="rounded-xl bg-[#fffaf3]/90 px-3 py-2 text-sm font-semibold text-[#2a1c14]">
-              每日：自己走。四格攻擊，踩到就搜尋敵人。
+              每日：擲兩粒骰自己走。八格攻擊，踩到就搜尋敵人。
             </p>
           </div>
           <NftToggles
@@ -426,9 +428,10 @@ export function DailyGame() {
           />
           {pending ? (
             <div className="flex items-center gap-4" data-testid="walk-result">
-              <DieFace value={pending.face} />
+              <DieFace value={pending.faces[0]} />
+              <DieFace value={pending.faces[1]} />
               <p className="text-2xl font-bold text-[#2a1c14]" data-testid="last-walk">
-                {arrived ? `行到第 ${shownStep} 格` : `擲出 ${pending.face}`}
+                {arrived ? `行到第 ${shownStep} 格` : `擲出 ${pending.steps}`}
               </p>
             </div>
           ) : null}

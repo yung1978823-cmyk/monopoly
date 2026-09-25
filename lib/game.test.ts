@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { TILES } from "./board";
+import { BOARD_SIDE, TILES, TILE_PLACEMENT } from "./board";
 import {
   STARTING_DICE,
   canBuild,
@@ -34,7 +34,7 @@ describe("daily board", () => {
   });
 
   it("loads the walk board even when the save was a fight", () => {
-    const fight = reduce(start(), { type: "move", face: 2, enemyDice: [1, 2], now: NOW });
+    const fight = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 2], now: NOW });
     assert.equal(fight.phase, "search");
     const loaded = reduce(start(), { type: "hydrate", state: fight, now: NOW, dayKey: DAY });
     assert.equal(loaded.phase, "walk");
@@ -63,22 +63,49 @@ describe("daily board", () => {
   });
 
   it("opens 搜尋敵人 when the walk lands on 攻擊", () => {
-    assert.equal(TILES.filter((tile) => tile.kind === "attack").length, 4);
-    const state = reduce(start(), { type: "move", face: 2, enemyDice: [1, 2], now: NOW });
+    assert.equal(TILES.length, 40);
+    assert.equal(TILES.filter((tile) => tile.kind === "attack").length, 8);
+    assert.equal(TILES.filter((tile) => tile.kind === "landmark").length, 4);
+    const state = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 2], now: NOW });
     assert.equal(state.position, 2);
+    assert.equal(TILES[2]?.kind, "attack");
     assert.equal(state.phase, "search");
     assert.equal(state.enemyLuck, 3);
     assert.deepEqual(state.lastRivalFaces, [1, 2]);
     assert.match(state.log[0]?.text ?? "", /搜尋敵人/);
   });
 
+  it("places the 40 squares on distinct cells around the 11 × 11 edge", () => {
+    const cells = new Set(TILE_PLACEMENT.map(({ col, row }) => `${col},${row}`));
+    assert.equal(cells.size, TILES.length);
+    for (const { col, row } of TILE_PLACEMENT) {
+      assert.ok(col === 1 || col === BOARD_SIDE || row === 1 || row === BOARD_SIDE);
+    }
+    TILE_PLACEMENT.forEach((cell, index) => {
+      const next = TILE_PLACEMENT[(index + 1) % TILE_PLACEMENT.length];
+      assert.equal(Math.abs(cell.col - next.col) + Math.abs(cell.row - next.row), 1, `gap after ${index}`);
+    });
+  });
+
+  it("lands on 攻擊 about one roll in five from any square", () => {
+    for (let from = 0; from < TILES.length; from += 1) {
+      let hits = 0;
+      for (let a = 1; a <= 6; a += 1) {
+        for (let b = 1; b <= 6; b += 1) {
+          if (TILES[(from + a + b) % TILES.length]?.kind === "attack") hits += 1;
+        }
+      }
+      assert.ok(hits / 36 >= 7 / 36 && hits / 36 <= 8 / 36, `square ${from}: ${hits}/36`);
+    }
+  });
+
   it("does not walk while a fight is open", () => {
-    const fight = reduce(start(), { type: "move", face: 2, enemyDice: [1, 2], now: NOW });
-    assert.equal(reduce(fight, { type: "move", face: 1, now: NOW }), fight);
+    const fight = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 2], now: NOW });
+    assert.equal(reduce(fight, { type: "move", faces: [1, 2], now: NOW }), fight);
   });
 
   it("breaks the shield for 1 point and 0 DST, then pays DST only on a later hit", () => {
-    let state = reduce(start(), { type: "move", face: 2, enemyDice: [1, 1], now: NOW });
+    let state = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], now: NOW });
     assert.equal(state.enemyShield, true);
     const missed = reduce(state, { type: "weapon" });
     assert.equal(missed.weaponReadout?.attackTotal, 10);
@@ -147,25 +174,26 @@ describe("daily board", () => {
   });
 
   it("raises the landmark you stand on first", () => {
-    const state = reduce({ ...start(), position: 9, points: 5 }, { type: "build" });
+    const state = reduce({ ...start(), position: 28, points: 5 }, { type: "build" });
     assert.deepEqual(state.landmarks, ["empty", "empty", "built", "empty"]);
     assert.match(state.log[0]?.text ?? "", /花 5 分，起了南岸/);
   });
 
-  it("walks one square per pip and spends a single die", () => {
+  it("walks the sum of two dice and spends a single die", () => {
     let state = { ...start(), dice: 0 };
-    assert.equal(reduce(state, { type: "move", face: 1, now: NOW }), state);
+    assert.equal(reduce(state, { type: "move", faces: [1, 2], now: NOW }), state);
 
-    state = reduce({ ...state, dice: 1 }, { type: "move", face: 1, now: NOW });
-    assert.equal(state.position, 1);
+    state = reduce({ ...state, dice: 1 }, { type: "move", faces: [1, 2], now: NOW });
+    assert.equal(state.position, 3);
     assert.equal(state.points, 1);
     assert.equal(state.dice, 0);
     assert.equal(state.phase, "walk");
-    assert.match(state.log[0]?.text ?? "", /走 1 格/);
+    assert.deepEqual(state.walkFaces, [1, 2]);
+    assert.match(state.log[0]?.text ?? "", /擲出 1 和 2。走 3 格/);
   });
 
   it("pays the start bonus when the loop wraps", () => {
-    const state = reduce({ ...start(), position: 10, dice: 1 }, { type: "move", face: 3, now: NOW });
+    const state = reduce({ ...start(), position: 38, dice: 1 }, { type: "move", faces: [1, 2], now: NOW });
     assert.equal(state.position, 1);
     assert.equal(state.points, 3);
   });
