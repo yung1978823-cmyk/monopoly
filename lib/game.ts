@@ -336,12 +336,14 @@ export function reduce(state: GameState, action: Action): GameState {
     }
     case "set-rival-nft": {
       if (state.rivalHasNft === action.value) return state;
+      // Before the first strike of a fight, the rival's shield follows their NFT.
+      const fresh = state.phase === "search" && state.weaponReadout === null;
       return pushLog(
-        { ...state, rivalHasNft: action.value },
+        { ...state, rivalHasNft: action.value, enemyShield: fresh ? action.value : state.enemyShield },
         "rule",
         action.value
-          ? "對手有 NFT。你也有 NFT 時，打中才搬 DST，一日最多 5。"
-          : "對手沒有 NFT。這一戰只計分數，DST 0。",
+          ? "對手有 NFT，開打時有一面盾。你也有 NFT 時，打中才搬 DST，一日最多 5。"
+          : "對手沒有 NFT，冇盾。這一戰只計分數，DST 0。",
       );
     }
     case "move": {
@@ -375,7 +377,8 @@ export function reduce(state: GameState, action: Action): GameState {
         lastRivalFaces: searching ? enemyFaces : null,
         rivalLandmarks,
         enemyLuck,
-        enemyShield: searching,
+        // Only a rival holding an NFT has a shield.
+        enemyShield: searching && state.rivalHasNft,
         fightSettled: false,
         weaponReadout: null,
       };

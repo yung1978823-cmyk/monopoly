@@ -105,6 +105,25 @@ describe("daily board", () => {
     assert.match(three.log[0]?.text ?? "", /佢有 3 座建築/);
   });
 
+  it("gives a shield only to a rival holding an NFT", () => {
+    const nft = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 2, now: NOW });
+    assert.equal(nft.enemyShield, true);
+    const plain = reduce(
+      { ...start(), rivalHasNft: false },
+      { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 2, now: NOW },
+    );
+    assert.equal(plain.enemyShield, false);
+    // No shield: the first hit already needs a target and smashes it, for points only.
+    const strong = { ...plain, landmarks: ["built", "built", "built", "built"] as Landmark[] };
+    assert.equal(reduce(strong, { type: "weapon" }), strong);
+    const hit = reduce(strong, { type: "weapon", target: 1 });
+    assert.equal(hit.weaponReadout?.shieldBreak, false);
+    assert.equal(hit.weaponReadout?.smashed, 1);
+    assert.equal(hit.weaponReadout?.dst, 0);
+    // Flipping the rival's NFT before the first strike brings the shield with it.
+    assert.equal(reduce(plain, { type: "set-rival-nft", value: true }).enemyShield, true);
+  });
+
   it("scores without smashing when the rival has nothing standing", () => {
     const fight = {
       ...reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 0, now: NOW }),

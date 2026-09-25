@@ -360,7 +360,7 @@ export function DailyGame() {
             style={artBackground(state.enemyShield ? "shield.jpg" : "attack.jpg", 0.72)}
             data-testid={state.enemyShield ? "shield" : "attack-art"}
           >
-            <p className="text-sm text-[#6f5b4b]">{state.enemyShield ? "敵人有一面盾" : "盾已經破了"}</p>
+            <p className="text-sm text-[#6f5b4b]">{state.enemyShield ? "阿強有 NFT，有一面盾" : state.rivalHasNft ? "盾已經破了" : "阿強冇 NFT，冇盾"}</p>
             <p className="mt-1 text-sm leading-6">
               總攻擊 <span className="text-2xl font-bold tabular-nums">{attackTotal}</span>
               <span className="text-[#6f5b4b]">（10＋武器 {weapon}×5）</span>
@@ -413,7 +413,7 @@ export function DailyGame() {
             </Button>
           ) : (
             <div className="mt-4" data-testid="pick-target">
-              <p className="mb-2 text-center text-sm font-bold text-[#411314]">盾已經破咗，揀一座建築打落去：</p>
+              <p className="mb-2 text-center text-sm font-bold text-[#411314]">{state.rivalHasNft ? "盾已經破咗，" : "冇盾，"}揀一座建築打落去：</p>
               <div className="grid grid-cols-2 gap-2">
                 {rivalStanding.map((index) => (
                   <Button
