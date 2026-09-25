@@ -407,7 +407,7 @@ export function DailyGame() {
             style={artBackground("mission.jpg", 0.35)}
           >
             <p className="rounded-xl bg-[#fffaf3]/90 px-3 py-2 text-sm font-semibold text-[#2a1c14]">
-              每日：擲兩粒骰自己走。八格攻擊，踩到就搜尋敵人。
+              每日：擲兩粒骰自己走。七格攻擊，踩到就搜尋敵人。
             </p>
           </div>
           <NftToggles

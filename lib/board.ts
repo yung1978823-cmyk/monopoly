@@ -1,6 +1,6 @@
-export const BOARD_SIZE = 40;
-/** Squares per side of the square ring, corners included. 4 × (11 − 1) = 40. */
-export const BOARD_SIDE = 11;
+export const BOARD_SIZE = 28;
+/** Squares per side of the square ring, corners included. 4 × (8 − 1) = 28: six squares between each pair of corners. */
+export const BOARD_SIDE = 8;
 
 export type TileKind = "start" | "street" | "landmark" | "attack";
 
@@ -13,16 +13,15 @@ export type Tile = {
 
 export const LANDMARK_NAMES = ["北門", "東市", "南岸", "西街"] as const;
 
-/** Every fifth square is 攻擊 (2, 7, 12 … 37), so each roll of two dice lands on one about 20% of the time. */
-export const ATTACK_EVERY = 5;
+/** Every fourth square is 攻擊 (2, 6, 10 … 26), so each roll of two dice lands on one 22–28% of the time. */
+export const ATTACK_EVERY = 4;
 export const ATTACK_OFFSET = 2;
-/** One landmark per side of the board. */
-export const LANDMARK_SQUARES = [8, 18, 28, 38] as const;
+/** One landmark per side of the board, clear of the corners and the 攻擊 squares. */
+export const LANDMARK_SQUARES = [4, 11, 17, 25] as const;
 
 const STREET_NAMES = [
-  "巷口", "茶檔", "公園", "碼頭", "花墟", "書局", "魚市", "戲院", "電車站",
-  "涼茶鋪", "雀館", "米舖", "當舖", "照相館", "糖水店", "麵包舖", "布行", "金舖",
-  "藥房", "鐘樓", "渡輪站", "海旁", "山頂", "球場", "廟街", "夜市", "燈塔",
+  "巷口", "茶檔", "公園", "碼頭", "花墟", "書局", "魚市", "戲院",
+  "電車站", "涼茶鋪", "糖水店", "麵包舖", "鐘樓", "海旁", "夜市", "燈塔",
 ];
 
 function buildTiles(): Tile[] {
@@ -52,7 +51,7 @@ function buildTiles(): Tile[] {
 export const TILES: readonly Tile[] = buildTiles();
 
 /**
- * Grid cell (1-based column and row on an 11 × 11 grid) for each square.
+ * Grid cell (1-based column and row on an 8 × 8 grid) for each square.
  * Start sits in the bottom-right corner and play runs clockwise: left along the bottom,
  * up the left side, right along the top, down the right side.
  */

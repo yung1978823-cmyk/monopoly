@@ -63,8 +63,8 @@ describe("daily board", () => {
   });
 
   it("opens 搜尋敵人 when the walk lands on 攻擊", () => {
-    assert.equal(TILES.length, 40);
-    assert.equal(TILES.filter((tile) => tile.kind === "attack").length, 8);
+    assert.equal(TILES.length, 28);
+    assert.equal(TILES.filter((tile) => tile.kind === "attack").length, 7);
     assert.equal(TILES.filter((tile) => tile.kind === "landmark").length, 4);
     const state = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 2], now: NOW });
     assert.equal(state.position, 2);
@@ -75,7 +75,7 @@ describe("daily board", () => {
     assert.match(state.log[0]?.text ?? "", /搜尋敵人/);
   });
 
-  it("places the 40 squares on distinct cells around the 11 × 11 edge", () => {
+  it("places the 28 squares on distinct cells around the 8 × 8 edge", () => {
     const cells = new Set(TILE_PLACEMENT.map(({ col, row }) => `${col},${row}`));
     assert.equal(cells.size, TILES.length);
     for (const { col, row } of TILE_PLACEMENT) {
@@ -87,7 +87,7 @@ describe("daily board", () => {
     });
   });
 
-  it("lands on 攻擊 about one roll in five from any square", () => {
+  it("lands on 攻擊 about one roll in four from any square", () => {
     for (let from = 0; from < TILES.length; from += 1) {
       let hits = 0;
       for (let a = 1; a <= 6; a += 1) {
@@ -95,7 +95,7 @@ describe("daily board", () => {
           if (TILES[(from + a + b) % TILES.length]?.kind === "attack") hits += 1;
         }
       }
-      assert.ok(hits / 36 >= 7 / 36 && hits / 36 <= 8 / 36, `square ${from}: ${hits}/36`);
+      assert.ok(hits >= 8 && hits <= 10, `square ${from}: ${hits}/36`);
     }
   });
 
@@ -174,7 +174,7 @@ describe("daily board", () => {
   });
 
   it("raises the landmark you stand on first", () => {
-    const state = reduce({ ...start(), position: 28, points: 5 }, { type: "build" });
+    const state = reduce({ ...start(), position: 17, points: 5 }, { type: "build" });
     assert.deepEqual(state.landmarks, ["empty", "empty", "built", "empty"]);
     assert.match(state.log[0]?.text ?? "", /花 5 分，起了南岸/);
   });
@@ -193,7 +193,7 @@ describe("daily board", () => {
   });
 
   it("pays the start bonus when the loop wraps", () => {
-    const state = reduce({ ...start(), position: 38, dice: 1 }, { type: "move", faces: [1, 2], now: NOW });
+    const state = reduce({ ...start(), position: 26, dice: 1 }, { type: "move", faces: [1, 2], now: NOW });
     assert.equal(state.position, 1);
     assert.equal(state.points, 3);
   });
