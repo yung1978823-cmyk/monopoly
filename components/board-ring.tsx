@@ -14,10 +14,11 @@ function depthScale(y: number): number {
 }
 
 /** Tint and label laid over a square of the art. Plain streets stay bare. */
-function overlayOf(tile: Tile, built: boolean): { tint: string; label: string } | null {
+function overlayOf(tile: Tile, built: boolean, ruined: boolean): { tint: string; label: string } | null {
   if (tile.kind === "attack") return { tint: "rgba(199,51,49,0.82)", label: "🔨" };
   if (tile.kind === "start") return { tint: "rgba(242,181,58,0.88)", label: "起點" };
   if (tile.kind === "landmark") {
+    if (ruined) return { tint: "rgba(90,60,55,0.85)", label: `💥${tile.name}` };
     return { tint: built ? "rgba(47,166,106,0.9)" : "rgba(47,166,106,0.55)", label: tile.name };
   }
   return null;
@@ -56,7 +57,7 @@ export function BoardRing({
         const spot = TILE_POSITIONS[index];
         const landmark = landmarkOf(landmarks, tile.landmarkIndex);
         const built = landmark === "built";
-        const overlay = overlayOf(tile, built);
+        const overlay = overlayOf(tile, built, landmark === "ruined");
         const onTrail = trail.includes(index);
         const stopped = stopIndex === index;
         const scale = depthScale(spot.y);
@@ -71,7 +72,7 @@ export function BoardRing({
             key={tile.id}
             className="absolute -translate-x-1/2 -translate-y-1/2"
             style={place}
-            title={`${tile.name}${built ? "（已建成）" : tile.kind === "landmark" ? "（未建）" : ""}`}
+            title={`${tile.name}${built ? "（已建成）" : landmark === "ruined" ? "（已打爛）" : tile.kind === "landmark" ? "（未建）" : ""}`}
             data-square={index}
             data-trail={onTrail ? "true" : undefined}
           >

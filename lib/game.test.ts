@@ -49,7 +49,7 @@ describe("daily board", () => {
     }
   });
 
-  it("reads an older save with ruined landmarks and the old DST field", () => {
+  it("reads a save with a smashed landmark and the old DST field", () => {
     const old = {
       ...start(),
       landmarks: ["built", "ruined", "empty", "empty"],
@@ -58,7 +58,7 @@ describe("daily board", () => {
     };
     const loaded = parseSave(JSON.stringify({ v: 1, state: old }), NOW, DAY);
     assert.ok(loaded);
-    assert.deepEqual(loaded.landmarks, ["built", "empty", "empty", "empty"]);
+    assert.deepEqual(loaded.landmarks, ["built", "ruined", "empty", "empty"]);
     assert.equal(loaded.dstTakenToday, 3);
   });
 
@@ -97,6 +97,58 @@ describe("daily board", () => {
     }
   });
 
+  it("meets a rival with the given number of standing landmarks on each 攻擊 square", () => {
+    const none = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 0, now: NOW });
+    assert.deepEqual(none.rivalLandmarks, ["empty", "empty", "empty", "empty"]);
+    const three = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 3, now: NOW });
+    assert.deepEqual(three.rivalLandmarks, ["built", "built", "built", "empty"]);
+    assert.match(three.log[0]?.text ?? "", /佢有 3 座建築/);
+  });
+
+  it("scores without smashing when the rival has nothing standing", () => {
+    const fight = {
+      ...reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 0, now: NOW }),
+      enemyShield: false,
+    };
+    const hit = reduce(fight, { type: "weapon" });
+    assert.equal(hit.weaponReadout?.hit, true);
+    assert.equal(hit.weaponReadout?.smashed, null);
+  });
+
+  it("does not smash on a miss", () => {
+    const fight = {
+      ...reduce(start(), { type: "move", faces: [1, 1], enemyDice: [6, 6], rivalBuilt: 4, now: NOW }),
+      enemyShield: false,
+    };
+    const miss = reduce(fight, { type: "weapon", target: 2 });
+    assert.equal(miss.weaponReadout?.hit, false);
+    assert.equal(miss.weaponReadout?.smashed, null);
+    assert.equal(miss.rivalLandmarks[2], "built");
+  });
+
+  it("repairs a smashed landmark for half price, before building a new one", () => {
+    let state: ReturnType<typeof start> = {
+      ...start(),
+      points: 100,
+      landmarks: ["built", "built", "built", "empty"] as Landmark[],
+    };
+    state = reduce(state, { type: "raided", target: 1 });
+    assert.deepEqual(state.landmarks, ["built", "ruined", "built", "empty"]);
+    assert.equal(state.points, 100, "being hit earns nothing");
+    assert.match(state.log[0]?.text ?? "", /被打冇分/);
+    assert.equal(nextBuildCost(state), 8, "half of the 15 a third landmark costs, rounded up");
+    state = reduce(state, { type: "build" });
+    assert.deepEqual(state.landmarks, ["built", "built", "built", "empty"]);
+    assert.equal(state.points, 92);
+    assert.match(state.log[0]?.text ?? "", /修好東市/);
+    assert.equal(nextBuildCost(state), 20);
+  });
+
+  it("ignores a raid on a landmark that is not standing", () => {
+    const state = start();
+    assert.equal(reduce(state, { type: "raided", target: 0 }), state);
+  });
+
   it("does not walk while a fight is open", () => {
     const fight = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 2], now: NOW });
     assert.equal(reduce(fight, { type: "move", faces: [1, 2], now: NOW }), fight);
@@ -131,23 +183,26 @@ describe("daily board", () => {
     assert.equal(shield.enemyShield, false);
     assert.equal(shield.fightSettled, false);
 
-    const scored = reduce(shield, { type: "weapon" });
+    assert.equal(reduce(shield, { type: "weapon" }), shield, "must pick a standing landmark once the shield is down");
+    const scored = reduce(shield, { type: "weapon", target: 0 });
     assert.equal(scored.weaponReadout?.pointsGained, 5);
     assert.equal(scored.weaponReadout?.dst, 5);
     assert.equal(scored.dstTakenToday, 5);
     assert.equal(scored.fightSettled, true);
+    assert.equal(scored.weaponReadout?.smashed, 0);
+    assert.equal(scored.rivalLandmarks[0], "ruined");
     assert.match(scored.log[0]?.text ?? "", /搬走 5 DST/);
-    assert.equal(reduce(scored, { type: "weapon" }), scored);
+    assert.equal(reduce(scored, { type: "weapon", target: 0 }), scored);
 
-    const noPlayer = reduce({ ...shield, hasNft: false }, { type: "weapon" });
+    const noPlayer = reduce({ ...shield, hasNft: false }, { type: "weapon", target: 0 });
     assert.equal(noPlayer.weaponReadout?.pointsGained, 5);
     assert.equal(noPlayer.weaponReadout?.dst, 0);
-    const noRival = reduce({ ...shield, rivalHasNft: false }, { type: "weapon" });
+    const noRival = reduce({ ...shield, rivalHasNft: false }, { type: "weapon", target: 0 });
     assert.equal(noRival.weaponReadout?.dst, 0);
 
-    const room = reduce({ ...shield, dstTakenToday: 4 }, { type: "weapon" });
+    const room = reduce({ ...shield, dstTakenToday: 4 }, { type: "weapon", target: 0 });
     assert.equal(room.weaponReadout?.dst, 1);
-    const capped = reduce({ ...shield, dstTakenToday: 5 }, { type: "weapon" });
+    const capped = reduce({ ...shield, dstTakenToday: 5 }, { type: "weapon", target: 0 });
     assert.equal(capped.weaponReadout?.dst, 0);
     assert.equal(capped.weaponReadout?.pointsGained, 5);
   });

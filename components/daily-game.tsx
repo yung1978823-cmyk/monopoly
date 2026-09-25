@@ -7,11 +7,13 @@ import { Switch } from "@/components/ui/switch";
 import { LANDMARK_NAMES, TILES } from "@/lib/board";
 import {
   STORAGE_KEY,
+  builtIndexes,
   canBuild,
   countBuilt,
   createGame,
   nextBuildCost,
   parseSave,
+  raiseTarget,
   reduce,
   type GameState,
   type Landmark,
@@ -28,6 +30,7 @@ type PendingWalk = {
   from: number;
   step: number;
   enemyDice: [number, number] | null;
+  rivalBuilt: number;
   running: boolean;
   committed: boolean;
 };
@@ -41,7 +44,9 @@ function artBackground(file: string, wash: number): CSSProperties {
 }
 
 function landmarkLabel(landmark: Landmark): string {
-  return landmark === "built" ? "已建成" : "未建";
+  if (landmark === "built") return "已建成";
+  if (landmark === "ruined") return "已打爛";
+  return "未建";
 }
 
 function BuildButton({
@@ -137,6 +142,7 @@ function LandmarkStrip({
                 "rounded-xl border px-1 py-2 text-center",
                 landmark === "built" && "border-[#1f6b4a] bg-[#e7f5ee]",
                 landmark === "empty" && "border-dashed border-[#d7c4aa] bg-[#fffaf3]",
+                landmark === "ruined" && "border-[#6e332c] bg-[#e9d3cc] line-through",
               )}
             >
               <span className="block text-sm font-semibold">{name}</span>
@@ -250,7 +256,13 @@ export function DailyGame() {
         if (!current?.running || current.committed) return current;
         return { ...current, running: false, committed: true };
       });
-      dispatch({ type: "move", faces: move.faces, enemyDice: move.enemyDice, now: Date.now() });
+      dispatch({
+        type: "move",
+        faces: move.faces,
+        enemyDice: move.enemyDice,
+        rivalBuilt: move.rivalBuilt,
+        now: Date.now(),
+      });
     }, STEP_MS);
     return () => window.clearTimeout(id);
   }, [pending, dispatch]);
@@ -262,7 +274,9 @@ export function DailyGame() {
     const from = state.position;
     const nextIndex = (from + steps) % TILES.length;
     const enemyDice = TILES[nextIndex]?.kind === "attack" ? rollPair() : null;
-    setPending({ faces, steps, from, step: 0, enemyDice, running: true, committed: false });
+    // Each 攻擊 square meets a rival with 0–4 landmarks standing.
+    const rivalBuilt = Math.floor(Math.random() * 5);
+    setPending({ faces, steps, from, step: 0, enemyDice, rivalBuilt, running: true, committed: false });
   }
 
   function onBuild() {
@@ -270,13 +284,21 @@ export function DailyGame() {
     dispatch({ type: "build" });
   }
 
-  function onWeapon() {
+  function onWeapon(target: number | null = null) {
     if (state.phase !== "search" || state.fightSettled) return;
-    dispatch({ type: "weapon" });
+    dispatch({ type: "weapon", target });
+  }
+
+  /** Test helper: the rival hits one of your standing landmarks. */
+  function onRaided() {
+    const standing = builtIndexes(state.landmarks);
+    if (standing.length === 0) return;
+    dispatch({ type: "raided", target: standing[Math.floor(Math.random() * standing.length)] });
   }
 
   const weapon = countBuilt(state.landmarks);
   const rivalPower = countBuilt(state.rivalLandmarks);
+  const rivalStanding = builtIndexes(state.rivalLandmarks);
   const attackTotal = 10 + weapon * 5;
   const defenseTotal = rivalPower * 5 + (state.enemyLuck ?? 0);
   const shownStep = pending?.step ?? 0;
@@ -291,6 +313,8 @@ export function DailyGame() {
   const bothNft = state.hasNft && state.rivalHasNft;
   const buildCost = nextBuildCost(state);
   const buildable = canBuild(state);
+  const buildSlot = raiseTarget(state);
+  const repairing = buildSlot !== null && state.landmarks[buildSlot] === "ruined";
   const dstLabel = `今日 DST ${state.dstTakenToday}／${DAILY_DST_CAP}`;
 
   const resetBoard = () => {
@@ -374,14 +398,35 @@ export function DailyGame() {
               </p>
             </div>
           ) : null}
-          {state.fightSettled ? null : (
+          {readout?.smashed != null ? (
+            <p className="mt-3 rounded-2xl bg-[#411314] px-4 py-3 text-center text-xl font-black text-[#fee0ba]" data-testid="smashed">
+              💥 打爛咗阿強嘅{LANDMARK_NAMES[readout.smashed]}！
+            </p>
+          ) : null}
+          {state.fightSettled ? null : state.enemyShield || rivalStanding.length === 0 ? (
             <Button
               className="mt-4 h-24 w-full cursor-pointer text-3xl font-bold"
-              onClick={onWeapon}
+              onClick={() => onWeapon(null)}
               data-testid="weapon"
             >
               {readout?.shieldBreak ? "再攻擊" : "用武器攻擊"}
             </Button>
+          ) : (
+            <div className="mt-4" data-testid="pick-target">
+              <p className="mb-2 text-center text-sm font-bold text-[#411314]">盾已經破咗，揀一座建築打落去：</p>
+              <div className="grid grid-cols-2 gap-2">
+                {rivalStanding.map((index) => (
+                  <Button
+                    key={index}
+                    className="h-16 cursor-pointer text-xl font-black"
+                    onClick={() => onWeapon(index)}
+                    data-testid={`target-${index}`}
+                  >
+                    🔨 {LANDMARK_NAMES[index]}
+                  </Button>
+                ))}
+              </div>
+            </div>
           )}
           <div className="mt-4">
             <NftToggles
@@ -479,7 +524,9 @@ export function DailyGame() {
           <span className="flex size-12 items-center justify-center rounded-2xl border-2 border-[#f2b53a] bg-[#2fa66a] text-2xl shadow-md">
             🏗️
           </span>
-          {buildCost === null ? "已建齊" : `起地標 ${buildCost}`}
+          {buildCost === null
+            ? "已建齊"
+            : `${repairing ? "修理" : "起地標"} ${buildCost}`}
         </button>
 
         <div className="-mt-12 flex flex-col items-center gap-1.5">
@@ -544,6 +591,15 @@ export function DailyGame() {
                 data-testid="test-die"
               >
                 補一粒（測試）
+              </Button>
+              <Button
+                className="h-11 cursor-pointer"
+                variant="outline"
+                onClick={onRaided}
+                disabled={weapon === 0}
+                data-testid="raided"
+              >
+                被攻擊（測試）
               </Button>
               <Button className="h-11 cursor-pointer" variant="outline" onClick={resetBoard}>
                 {resetArmed ? "確定重開？" : "重開棋盤"}

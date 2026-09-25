@@ -6,10 +6,12 @@ import {
   addTestDie,
   applyRefill,
   buildCost,
+  repairCost,
   spendDice,
 } from "./rules";
 
-export type Landmark = "empty" | "built";
+/** A landmark slot: never built, standing, or smashed by an attacker and waiting for repair. */
+export type Landmark = "empty" | "built" | "ruined";
 
 export type LogTone = "you" | "rule";
 
@@ -32,6 +34,8 @@ export type WeaponReadout = {
   dst: number;
   pointsGained: number;
   shieldBreak: boolean;
+  /** The rival landmark this attack smashed, if any. */
+  smashed: number | null;
 };
 
 export type GameState = {
@@ -62,8 +66,16 @@ export type GameState = {
 export type Action =
   | { type: "tick"; now: number; dayKey: string }
   | { type: "add-test-die" }
-  | { type: "move"; faces: DiePair; enemyDice?: DiePair | null; now: number }
-  | { type: "weapon" }
+  | {
+      type: "move";
+      faces: DiePair;
+      enemyDice?: DiePair | null;
+      /** How many landmarks the rival met on an 攻擊 square has standing (0–4). */
+      rivalBuilt?: number;
+      now: number;
+    }
+  | { type: "weapon"; target?: number | null }
+  | { type: "raided"; target: number }
   | { type: "return-walk" }
   | { type: "build" }
   | { type: "set-nft"; value: boolean }
@@ -105,19 +117,34 @@ export function countBuilt(landmarks: readonly Landmark[]): number {
   return landmarks.filter((landmark) => landmark === "built").length;
 }
 
-/** Which landmark the next build raises: the one under you, else the first open one. */
+export function builtIndexes(landmarks: readonly Landmark[]): number[] {
+  return landmarks.flatMap((landmark, index) => (landmark === "built" ? [index] : []));
+}
+
+/**
+ * Which landmark the next build raises: the one under you, else a smashed one (cheaper to
+ * repair), else the first empty one.
+ */
 export function raiseTarget(state: GameState): number | null {
   const here = TILES[state.position];
   if (here && here.landmarkIndex !== null && state.landmarks[here.landmarkIndex] !== "built") {
     return here.landmarkIndex;
   }
-  const open = state.landmarks.findIndex((landmark) => landmark !== "built");
+  const ruined = state.landmarks.indexOf("ruined");
+  if (ruined !== -1) return ruined;
+  const open = state.landmarks.indexOf("empty");
   return open === -1 ? null : open;
 }
 
-/** Points needed for the next landmark, or null when all four stand. */
+/**
+ * Points needed for the next build, or null when all four stand. A new landmark costs the
+ * next step of BUILD_COSTS; repairing a smashed one costs half of that.
+ */
 export function nextBuildCost(state: GameState): number | null {
-  return buildCost(countBuilt(state.landmarks));
+  const index = raiseTarget(state);
+  const full = buildCost(countBuilt(state.landmarks));
+  if (index === null || full === null) return null;
+  return state.landmarks[index] === "ruined" ? repairCost(full) : full;
 }
 
 export function canBuild(state: GameState): boolean {
@@ -149,13 +176,12 @@ export function luckOf(dice: DiePair): number {
   return dice[0] + dice[1];
 }
 
-/** Older saves may hold "ruined"; the current rules have no smashing, so it reads as empty. */
 function readLandmarks(value: unknown): Landmark[] | null {
   if (!Array.isArray(value) || value.length !== 4) return null;
   if (!value.every((item) => item === "empty" || item === "built" || item === "ruined")) {
     return null;
   }
-  return value.map((item) => (item === "built" ? "built" : "empty"));
+  return [...value];
 }
 
 function inRange(value: unknown, min: number, max: number): value is number {
@@ -166,6 +192,7 @@ function readWeapon(value: unknown): WeaponReadout | null {
   if (!value || typeof value !== "object") return null;
   const readout = value as Partial<WeaponReadout>;
   const { weapon, attackTotal, defenseTotal, enemyLuck, hit, dst, pointsGained, shieldBreak } = readout;
+  const smashed = inRange(readout.smashed, 0, 3) ? readout.smashed : null;
   if (
     !inRange(weapon, 0, 4) ||
     !inRange(attackTotal, 10, 30) ||
@@ -178,7 +205,7 @@ function readWeapon(value: unknown): WeaponReadout | null {
   ) {
     return null;
   }
-  return { weapon, attackTotal, defenseTotal, enemyLuck, hit, dst, pointsGained, shieldBreak };
+  return { weapon, attackTotal, defenseTotal, enemyLuck, hit, dst, pointsGained, shieldBreak, smashed };
 }
 
 export function sanitizeState(
@@ -328,9 +355,13 @@ export function reduce(state: GameState, action: Action): GameState {
       const enemyFaces = tile?.kind === "attack" ? readPair(action.enemyDice) : null;
       const searching = enemyFaces !== null;
       const enemyLuck = searching ? luckOf(enemyFaces) : null;
+      const rivalBuilt = inRange(action.rivalBuilt, 0, 4) ? action.rivalBuilt : countBuilt(state.rivalLandmarks);
+      const rivalLandmarks: Landmark[] = searching
+        ? [0, 1, 2, 3].map((slot) => (slot < rivalBuilt ? "built" : "empty"))
+        : state.rivalLandmarks;
       const passed = moved.passedStart ? "經過起點。" : "";
       const searchText = searching
-        ? `這格是攻擊。搜尋敵人，配到阿強。敵人擲出 ${enemyFaces[0]} 和 ${enemyFaces[1]}。幸運值 ${enemyLuck}。`
+        ? `這格是攻擊。搜尋敵人，配到阿強，佢有 ${rivalBuilt} 座建築。敵人擲出 ${enemyFaces[0]} 和 ${enemyFaces[1]}。幸運值 ${enemyLuck}。`
         : "這格只加分數。";
       const next: GameState = {
         ...state,
@@ -342,6 +373,7 @@ export function reduce(state: GameState, action: Action): GameState {
         rollCount: state.rollCount + 1,
         walkFaces: faces,
         lastRivalFaces: searching ? enemyFaces : null,
+        rivalLandmarks,
         enemyLuck,
         enemyShield: searching,
         fightSettled: false,
@@ -355,6 +387,12 @@ export function reduce(state: GameState, action: Action): GameState {
     }
     case "weapon": {
       if (state.phase !== "search" || state.enemyLuck === null || state.fightSettled) return state;
+      // Once the shield is down, a hit smashes a landmark, so the attacker must pick a standing one.
+      const standing = builtIndexes(state.rivalLandmarks);
+      const target = action.target ?? null;
+      if (!state.enemyShield && standing.length > 0 && (target === null || !standing.includes(target))) {
+        return state;
+      }
       const weapon = countBuilt(state.landmarks);
       const attackTotal = 10 + weapon * 5;
       const defenseTotal = countBuilt(state.rivalLandmarks) * 5 + state.enemyLuck;
@@ -365,6 +403,7 @@ export function reduce(state: GameState, action: Action): GameState {
       let shieldBreak = false;
       let enemyShield = state.enemyShield;
       let fightSettled = true;
+      let smashed: number | null = null;
       if (hit && state.enemyShield) {
         pointsGained = 1;
         shieldBreak = true;
@@ -374,7 +413,12 @@ export function reduce(state: GameState, action: Action): GameState {
         pointsGained = Math.min(5, Math.max(1, attackTotal - defenseTotal));
         const room = Math.max(0, DAILY_DST_CAP - state.dstTakenToday);
         dst = bothNft ? Math.min(pointsGained, room) : 0;
+        if (standing.length > 0) smashed = target;
       }
+      const rivalLandmarks =
+        smashed === null
+          ? state.rivalLandmarks
+          : state.rivalLandmarks.map((item, index) => (index === smashed ? ("ruined" as const) : item));
       const weaponReadout: WeaponReadout = {
         weapon,
         attackTotal,
@@ -384,21 +428,24 @@ export function reduce(state: GameState, action: Action): GameState {
         dst,
         pointsGained,
         shieldBreak,
+        smashed,
       };
       const verdict = shieldBreak ? "盾破" : hit ? "打中" : "打唔中";
       const pay = dst > 0 ? `搬走 ${dst} DST。` : "DST 0。";
+      const smashText = smashed === null ? "" : `打爛咗阿強嘅${LANDMARK_NAMES[smashed]}。`;
       const nextPoints = state.points + pointsGained;
       return pushLog(
         {
           ...state,
           points: nextPoints,
           dstTakenToday: state.dstTakenToday + dst,
+          rivalLandmarks,
           enemyShield,
           fightSettled,
           weaponReadout,
         },
         "you",
-        `總攻擊 ${attackTotal}，總防守 ${defenseTotal}。${verdict}。得 ${pointsGained} 分，合計 ${nextPoints}。${pay}`,
+        `總攻擊 ${attackTotal}，總防守 ${defenseTotal}。${verdict}。${smashText}得 ${pointsGained} 分，合計 ${nextPoints}。${pay}`,
       );
     }
     case "return-walk": {
@@ -409,6 +456,7 @@ export function reduce(state: GameState, action: Action): GameState {
       const index = raiseTarget(state);
       const cost = nextBuildCost(state);
       if (index === null || cost === null || state.points < cost) return state;
+      const repairing = state.landmarks[index] === "ruined";
       const landmarks = state.landmarks.map((item, itemIndex) =>
         itemIndex === index ? ("built" as const) : item,
       );
@@ -416,7 +464,21 @@ export function reduce(state: GameState, action: Action): GameState {
       return pushLog(
         next,
         "you",
-        `你花 ${cost} 分，起了${LANDMARK_NAMES[index]}。武器變成 ${countBuilt(landmarks)}。分數剩 ${next.points}。`,
+        `你花 ${cost} 分，${repairing ? "修好" : "起了"}${LANDMARK_NAMES[index]}。武器變成 ${countBuilt(landmarks)}。分數剩 ${next.points}。`,
+      );
+    }
+    case "raided": {
+      // Another player's hit lands on one of your standing landmarks.
+      if (state.landmarks[action.target] !== "built") return state;
+      const landmarks = state.landmarks.map((item, index) =>
+        index === action.target ? ("ruined" as const) : item,
+      );
+      // Being hit earns nothing; the loss is the repair bill.
+      const next: GameState = { ...state, landmarks };
+      return pushLog(
+        next,
+        "rule",
+        `阿強攻擊你，打爛咗你嘅${LANDMARK_NAMES[action.target]}。被打冇分，修返要半價。`,
       );
     }
     default:

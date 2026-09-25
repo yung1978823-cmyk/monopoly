@@ -16,6 +16,11 @@ export function buildCost(built: number): number | null {
   return BUILD_COSTS[built] ?? null;
 }
 
+/** A smashed landmark comes back for half its build price, rounded up. */
+export function repairCost(fullCost: number): number {
+  return Math.ceil(fullCost / 2);
+}
+
 export function applyRefill(
   dice: number,
   lastRefillAt: number,
