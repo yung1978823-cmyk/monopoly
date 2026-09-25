@@ -12,11 +12,10 @@ import {
   parseSave,
   raiseTarget,
   reduce,
-  remainingPurse,
   type GameState,
   type Landmark,
 } from "@/lib/game";
-import { DICE_CAP, PURSE_MAX, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
+import { DICE_CAP, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
 import { cn } from "cn";
 import { useCallback, useEffect, useState } from "react";
 
@@ -206,7 +205,6 @@ export function DailyGame() {
   const here = TILES[tokenIndex]?.name ?? "起點";
   const arrived = pending !== null && shownStep > 0;
   const countdown = booted && now > 0 ? msUntilNextDie(state.dice, state.lastRefillAt, now) : null;
-  const rivalPurse = remainingPurse(state.hasNft, PURSE_MAX, state.rivalStolenToday);
   const readout = state.weaponReadout;
 
   return (
@@ -247,12 +245,15 @@ export function DailyGame() {
             你的武器 <span className="text-2xl font-bold tabular-nums">{weapon}</span>／4
             <span className="text-[#6f5b4b]">。武器是你已建成的地標。</span>
           </p>
+          <p className="mt-2 text-3xl font-bold tabular-nums" data-testid="fight-points">
+            分數 {state.points}
+          </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Button className="h-10 cursor-pointer text-sm" variant="outline" onClick={onBuild} data-testid="raise">
               起地標
             </Button>
-            <p className="self-center text-xs leading-5 text-[#6f5b4b]">
-              {state.hasNft ? `阿強錢包剩 ${rivalPurse} DST。一日最多 5。` : "沒有 NFT，打中也不拿 DST。"}
+            <p className="self-center text-xs leading-5 text-[#6f5b4b]" data-testid="dst-still">
+              這一戰只計分數。DST 不動。
             </p>
           </div>
           {readout ? (
@@ -263,7 +264,7 @@ export function DailyGame() {
               <p className="mt-1 text-3xl font-bold text-[#9e3428]">{readout.hit ? "打中" : "打唔中"}</p>
               <p className="mt-1 text-sm leading-6">
                 {readout.hit ? "砸了一座建築。" : "沒有損傷。"}
-                拿走 {readout.dst} DST。
+                DST 不動。
               </p>
             </div>
           ) : (

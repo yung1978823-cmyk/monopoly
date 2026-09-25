@@ -80,8 +80,10 @@ describe("daily board", () => {
     assert.equal(hit.weaponReadout?.rivalTotal, 3);
     assert.equal(hit.weaponReadout?.hit, true);
     assert.equal(hit.rivalLandmarks[0], "ruined");
-    assert.ok((hit.weaponReadout?.dst ?? 0) > 0);
-    assert.ok((hit.weaponReadout?.dst ?? 0) <= 5);
+    assert.equal(hit.weaponReadout?.dst, 0);
+    assert.equal(hit.rivalStolenToday, state.rivalStolenToday);
+    assert.equal(hit.points, state.points);
+    assert.match(hit.log[0]?.text ?? "", /DST 不動/);
 
     const quiet = reduce({ ...state, hasNft: false }, { type: "weapon" });
     assert.equal(quiet.weaponReadout?.hit, true);

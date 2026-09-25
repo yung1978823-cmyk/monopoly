@@ -599,23 +599,13 @@ export function reduce(state: GameState, action: Action): GameState {
           : state.rivalLandmarks.map((item, index) =>
               index === target ? ("ruined" as const) : item,
             );
-      const remaining = remainingPurse(state.hasNft, PURSE_MAX, state.rivalStolenToday);
-      const dst = hit
-        ? dstTaken({
-            attack: weapon,
-            defense: rivalTotal,
-            defenderHasNft: state.hasNft,
-            remainingPurse: remaining,
-            stolenToday: state.rivalStolenToday,
-          })
-        : 0;
       const weaponReadout: WeaponReadout = {
         weapon,
         rivalPower,
         enemyLuck: state.enemyLuck,
         rivalTotal,
         hit,
-        dst,
+        dst: 0,
       };
       const verdict = hit ? "打中" : "打唔中";
       const damage = target === null ? "" : `砸了${LANDMARK_NAMES[target]}。`;
@@ -623,11 +613,10 @@ export function reduce(state: GameState, action: Action): GameState {
         {
           ...state,
           rivalLandmarks,
-          rivalStolenToday: state.rivalStolenToday + dst,
           weaponReadout,
         },
         "you",
-        `武器 ${weapon}，敵人 ${rivalTotal}（戰鬥力 ${rivalPower} ＋ 幸運值 ${state.enemyLuck}）。${verdict}。${damage}拿走 ${dst} DST。`,
+        `武器 ${weapon}，敵人 ${rivalTotal}（戰鬥力 ${rivalPower} ＋ 幸運值 ${state.enemyLuck}）。${verdict}。${damage}分數 ${state.points}。DST 不動。`,
       );
     }
     case "return-walk": {
