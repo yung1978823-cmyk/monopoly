@@ -40,13 +40,13 @@ export function TitleScreen({ onStart }: { onStart: () => void }) {
         className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-[breathe_6s_ease-in-out_infinite] bg-contain bg-center bg-no-repeat"
         style={{
           backgroundImage: "url(/art/title.jpg)",
-          width: "min(100cqw, calc(100cqh * 1122 / 1402))",
-          aspectRatio: "1122 / 1402",
+          width: "min(100cqw, calc(100cqh * 941 / 1672))",
+          aspectRatio: "941 / 1672",
           maskImage: "linear-gradient(transparent, black 10%, black 90%, transparent)",
           WebkitMaskImage: "linear-gradient(transparent, black 10%, black 90%, transparent)",
         }}
         role="img"
-        aria-label="Dice Tycoon 主角同朋友"
+        aria-label="吸血鬼、中國殭屍、木乃伊同殭屍喺大棋盤上衝出嚟"
       />
       <div className="absolute inset-x-0 top-0 h-[40%] bg-gradient-to-b from-[#0f2a6b]/80 via-[#0f2a6b]/35 to-transparent" />
       <div className="absolute inset-x-0 bottom-0 h-[35%] bg-gradient-to-t from-[#0f2a6b]/85 via-[#0f2a6b]/35 to-transparent" />
