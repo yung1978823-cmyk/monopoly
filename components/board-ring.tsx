@@ -14,6 +14,8 @@ export function BoardRing({
   defense,
   purseLabel,
   placeLabel,
+  trail = [],
+  stopIndex = null,
 }: {
   position: number;
   landmarks: Landmark[];
@@ -21,6 +23,8 @@ export function BoardRing({
   defense: number;
   purseLabel: string;
   placeLabel: string;
+  trail?: number[];
+  stopIndex?: number | null;
 }) {
   return (
     <div
@@ -35,6 +39,9 @@ export function BoardRing({
           const current = index === position;
           const built = landmark === "built";
           const ruined = landmark === "ruined";
+          const trailOrder = trail.indexOf(index);
+          const onTrail = trailOrder >= 0;
+          const stopped = stopIndex === index;
           const status = built ? "已建成" : ruined ? "廢墟" : tile.kind === "landmark" ? "未建" : null;
           return (
             <div
@@ -48,15 +55,35 @@ export function BoardRing({
                 !built && !ruined && tile.kind === "street" && "border-[#e4d3ba] bg-[#f7efe2] text-[#2a1c14]",
                 tile.kind === "attack" && "border-[#9e3428] bg-[#9e3428] text-[#fff7ee]",
                 tile.kind === "landmark" && !built && !ruined && "border-dashed",
-                current && "z-10 ring-2 ring-[#f0d7a2] ring-offset-2 ring-offset-[#3b2a1f]",
+                onTrail && "z-10 ring-2 ring-[#f0d7a2] ring-offset-2 ring-offset-[#3b2a1f]",
+                stopped && "z-20 ring-4 ring-[#e2b657]",
               )}
+              data-square={index}
+              data-trail={onTrail ? "true" : undefined}
+              data-trail-step={onTrail ? trailOrder + 1 : undefined}
               aria-current={current ? "true" : undefined}
             >
+              {onTrail ? (
+                <span className="absolute left-1 top-1 rounded bg-[#f0d7a2] px-1 text-[10px] font-bold text-[#3a2714]">
+                  {trailOrder + 1}
+                </span>
+              ) : null}
               <span className="text-xs font-semibold sm:text-sm">{tile.name}</span>
               {status ? <span className="mt-0.5 text-[10px] tracking-wide opacity-90">{status}</span> : null}
               {current ? (
-                <span className={cn("text-[10px] font-bold", built || ruined ? "text-[#f0d7a2]" : "text-[#9e3428]")}>
+                <span
+                  className="rounded-full bg-[#f0d7a2] px-1.5 text-[10px] font-bold text-[#3a2714]"
+                  data-testid="token"
+                >
                   你
+                </span>
+              ) : null}
+              {stopped ? (
+                <span
+                  className="mt-0.5 rounded bg-[#e2b657] px-1 text-[10px] font-bold text-[#3a2714]"
+                  data-testid="stop-marker"
+                >
+                  停
                 </span>
               ) : null}
             </div>

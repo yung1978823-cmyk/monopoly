@@ -517,7 +517,7 @@ export function reduce(state: GameState, action: Action): GameState {
     case "hydrate": {
       const clean = sanitizeState(action.state, action.now, action.dayKey);
       if (!clean) return createGame(action.now, action.dayKey);
-      return ensureHand(rollDay(clean, action.now, action.dayKey));
+      return ensureHand(rollDay({ ...clean, phase: "walk" }, action.now, action.dayKey));
     }
     case "reset":
       return createGame(action.now, action.dayKey);

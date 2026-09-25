@@ -20,6 +20,17 @@ import { DICE_CAP, PURSE_MAX, dayKeyOf, formatClock, msUntilNextDie, rollDie } f
 import { cn } from "cn";
 import { useCallback, useEffect, useState } from "react";
 
+const STEP_MS = 420;
+
+type PendingWalk = {
+  face: number;
+  from: number;
+  step: number;
+  enemyDice: [number, number] | null;
+  running: boolean;
+  committed: boolean;
+};
+
 function landmarkLabel(landmark: Landmark): string {
   if (landmark === "built") return "已建成";
   if (landmark === "ruined") return "已損";
@@ -65,6 +76,7 @@ export function DailyGame() {
   const [saveNote, setSaveNote] = useState<string | null>(null);
   const [now, setNow] = useState(0);
   const [resetArmed, setResetArmed] = useState(false);
+  const [pending, setPending] = useState<PendingWalk | null>(null);
   const dispatch = useCallback((action: Parameters<typeof reduce>[1]) => {
     setState((current) => reduce(current, action));
   }, []);
@@ -141,12 +153,37 @@ export function DailyGame() {
     return [rollDie(), rollDie()];
   }
 
+  useEffect(() => {
+    if (!pending?.running || pending.step >= pending.face) return;
+    const id = window.setTimeout(() => {
+      setPending((current) => {
+        if (!current?.running || current.step >= current.face) return current;
+        return { ...current, step: current.step + 1 };
+      });
+    }, STEP_MS);
+    return () => window.clearTimeout(id);
+  }, [pending]);
+
+  useEffect(() => {
+    if (!pending?.running || pending.committed || pending.step < pending.face) return;
+    const move = pending;
+    const id = window.setTimeout(() => {
+      setPending((current) => {
+        if (!current?.running || current.committed) return current;
+        return { ...current, running: false, committed: true };
+      });
+      dispatch({ type: "move", face: move.face, enemyDice: move.enemyDice, now: Date.now() });
+    }, STEP_MS);
+    return () => window.clearTimeout(id);
+  }, [pending, dispatch]);
+
   function onWalk() {
-    if (state.phase !== "walk" || state.dice < 1) return;
+    if (state.phase !== "walk" || state.dice < 1 || pending?.running) return;
     const face = rollDie();
-    const nextIndex = (state.position + face) % TILES.length;
+    const from = state.position;
+    const nextIndex = (from + face) % TILES.length;
     const enemyDice = TILES[nextIndex]?.kind === "attack" ? rollPair() : null;
-    dispatch({ type: "move", face, enemyDice, now: Date.now() });
+    setPending({ face, from, step: 0, enemyDice, running: true, committed: false });
   }
 
   function onBuild() {
@@ -161,7 +198,13 @@ export function DailyGame() {
 
   const weapon = countBuilt(state.landmarks);
   const rivalPower = countBuilt(state.rivalLandmarks);
-  const here = TILES[state.position]?.name ?? "起點";
+  const shownStep = pending?.step ?? 0;
+  const tokenIndex = pending ? (pending.from + shownStep) % TILES.length : state.position;
+  const trail = pending
+    ? Array.from({ length: shownStep }, (_, index) => (pending.from + index + 1) % TILES.length)
+    : [];
+  const here = TILES[tokenIndex]?.name ?? "起點";
+  const arrived = pending !== null && shownStep > 0;
   const countdown = booted && now > 0 ? msUntilNextDie(state.dice, state.lastRefillAt, now) : null;
   const rivalPurse = remainingPurse(state.hasNft, PURSE_MAX, state.rivalStolenToday);
   const readout = state.weaponReadout;
@@ -261,17 +304,22 @@ export function DailyGame() {
             自己一個人走。棋盤有四格攻擊，踩到任何一格就搜尋敵人。
           </p>
           <BoardRing
-            position={state.position}
+            position={tokenIndex}
             landmarks={state.landmarks}
             points={state.points}
             defense={weapon}
             purseLabel={state.hasNft ? "有 NFT" : "沒有 NFT"}
-            placeLabel={`停在${here}`}
+            placeLabel={arrived ? `行到第 ${shownStep} 格` : `停在${here}`}
+            trail={trail}
+            stopIndex={arrived ? tokenIndex : null}
           />
-          {state.walkFace ? (
-            <p className="text-sm leading-6" data-testid="last-walk">
-              擲出 {state.walkFace}，走了 {state.walkFace} 格。
-            </p>
+          {pending ? (
+            <div className="flex items-center gap-4" data-testid="walk-result">
+              <DieFace value={pending.face} />
+              <p className="text-2xl font-bold text-[#2a1c14]" data-testid="last-walk">
+                {arrived ? `行到第 ${shownStep} 格` : `擲出 ${pending.face}`}
+              </p>
+            </div>
           ) : null}
           <Button
             className="h-24 w-full cursor-pointer text-3xl font-bold"

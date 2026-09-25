@@ -24,6 +24,19 @@ describe("daily board", () => {
     assert.equal(countBuilt(state.rivalLandmarks), 2);
   });
 
+  it("loads the walk board even when the save was a fight", () => {
+    const fight = reduce(start(), {
+      type: "move",
+      face: 2,
+      enemyDice: [1, 2],
+      now: NOW,
+    });
+    assert.equal(fight.phase, "search");
+    const loaded = reduce(start(), { type: "hydrate", state: fight, now: NOW, dayKey: DAY });
+    assert.equal(loaded.phase, "walk");
+    assert.equal(loaded.position, fight.position);
+  });
+
   it("opens 搜尋敵人 when the walk lands on 攻擊", () => {
     assert.equal(TILES.filter((tile) => tile.kind === "attack").length, 4);
     const state = reduce(start(), {
