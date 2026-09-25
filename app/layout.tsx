@@ -26,13 +26,13 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#411314",
+  themeColor: "#049CD8",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="zh-Hant" className="h-full antialiased">
-      <body className="flex min-h-full flex-col overscroll-none bg-[#411314] select-none">
+      <body className="flex min-h-full flex-col overscroll-none bg-[#1E3A8A] select-none">
         {children}
         <RegisterServiceWorker />
       </body>

@@ -331,8 +331,8 @@ export function DailyGame() {
 
   if (state.phase === "search") {
     return (
-      <main className="mx-auto flex h-dvh w-full max-w-md flex-col overflow-y-auto bg-[#411314] px-3 pb-[max(env(safe-area-inset-bottom),1rem)] pt-[max(env(safe-area-inset-top),0.75rem)]">
-        <h1 className="mb-3 text-center text-3xl font-black text-[#fee0ba]">搜尋敵人</h1>
+      <main className="mx-auto flex h-dvh w-full max-w-md flex-col overflow-y-auto bg-[#1E3A8A] px-3 pb-[max(env(safe-area-inset-bottom),1rem)] pt-[max(env(safe-area-inset-top),0.75rem)]">
+        <h1 className="mb-3 text-center text-3xl font-black text-[#FFFFFF]">搜尋敵人</h1>
         <section
           className="rounded-3xl border-2 border-[#9e3428] bg-[#fffaf3] p-4"
           style={artBackground("enemy-city.jpg", 0.86)}
@@ -399,7 +399,7 @@ export function DailyGame() {
             </div>
           ) : null}
           {readout?.smashed != null ? (
-            <p className="mt-3 rounded-2xl bg-[#411314] px-4 py-3 text-center text-xl font-black text-[#fee0ba]" data-testid="smashed">
+            <p className="mt-3 rounded-2xl bg-[#1E3A8A] px-4 py-3 text-center text-xl font-black text-[#FFFFFF]" data-testid="smashed">
               💥 打爛咗阿強嘅{LANDMARK_NAMES[readout.smashed]}！
             </p>
           ) : null}
@@ -413,7 +413,7 @@ export function DailyGame() {
             </Button>
           ) : (
             <div className="mt-4" data-testid="pick-target">
-              <p className="mb-2 text-center text-sm font-bold text-[#411314]">{state.rivalHasNft ? "盾已經破咗，" : "冇盾，"}揀一座建築打落去：</p>
+              <p className="mb-2 text-center text-sm font-bold text-[#1E3A8A]">{state.rivalHasNft ? "盾已經破咗，" : "冇盾，"}揀一座建築打落去：</p>
               <div className="grid grid-cols-2 gap-2">
                 {rivalStanding.map((index) => (
                   <Button
@@ -452,26 +452,26 @@ export function DailyGame() {
 
   return (
     <main
-      className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-[#fdb7b8] text-[#411314]"
+      className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-[#4FBBFD] text-[#1E3A8A]"
       data-testid="walk"
     >
       {/* Top bar: points, dice, today's DST, menu. */}
       <header className="z-30 flex items-center gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-full border-[3px] border-[#f2b53a] bg-[#411314] text-lg font-black text-[#fee0ba] shadow-md">
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-full border-[3px] border-[#FBD000] bg-[#1E3A8A] text-lg font-black text-[#FFFFFF] shadow-md">
           你
         </div>
-        <div className="flex flex-1 items-center justify-between rounded-full border-2 border-[#f2b53a] bg-[#fee0ba] px-3 py-1.5 shadow-md">
+        <div className="flex flex-1 items-center justify-between rounded-full border-2 border-[#FBD000] bg-[#FFFFFF] px-3 py-1.5 shadow-md">
           <span className="text-sm font-black tabular-nums" data-testid="hud-points">
             ⭐ {state.points}
           </span>
-          <span className="text-sm font-bold tabular-nums text-[#2f7a50]" data-testid="dst-today">
+          <span className="text-sm font-bold tabular-nums text-[#2E8B3E]" data-testid="dst-today">
             DST {state.dstTakenToday}／{DAILY_DST_CAP}
           </span>
         </div>
         <button
           type="button"
           onClick={() => setMenuOpen(true)}
-          className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-[#f2b53a] bg-[#c73331] text-xl text-[#fee0ba] shadow-md"
+          className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#E52521] text-xl text-[#FFFFFF] shadow-md"
           aria-label="設定"
           data-testid="menu"
         >
@@ -480,7 +480,7 @@ export function DailyGame() {
       </header>
 
       {saveNote ? (
-        <p className="mx-3 rounded-2xl bg-[#fee0ba] px-4 py-2 text-xs text-[#411314]" role="status">
+        <p className="mx-3 rounded-2xl bg-[#FFFFFF] px-4 py-2 text-xs text-[#1E3A8A]" role="status">
           {saveNote}
         </p>
       ) : null}
@@ -500,12 +500,12 @@ export function DailyGame() {
         />
         {pending ? (
           <div
-            className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#411314]/85 px-4 py-2 shadow-lg"
+            className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#1E3A8A]/85 px-4 py-2 shadow-lg"
             data-testid="walk-result"
           >
             <DieFace value={pending.faces[0]} />
             <DieFace value={pending.faces[1]} />
-            <p className="text-xl font-black text-[#fee0ba]" data-testid="last-walk">
+            <p className="text-xl font-black text-[#FFFFFF]" data-testid="last-walk">
               {arrived ? `${shownStep}／${pending.steps}` : `擲出 ${pending.steps}`}
             </p>
           </div>
@@ -513,7 +513,7 @@ export function DailyGame() {
       </section>
 
       {/* Bottom bar: build on the left, the big roll button in the middle. */}
-      <footer className="relative z-30 flex items-end justify-between gap-3 rounded-t-[32px] bg-[#fee0ba] px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 shadow-[0_-6px_20px_rgba(65,19,20,0.25)]">
+      <footer className="relative z-30 flex items-end justify-between gap-3 rounded-t-[32px] bg-[#FFFFFF] px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 shadow-[0_-6px_20px_rgba(30,58,138,0.25)]">
         <button
           type="button"
           onClick={onBuild}
@@ -521,7 +521,7 @@ export function DailyGame() {
           className="flex w-20 cursor-pointer flex-col items-center gap-1 text-xs font-bold disabled:cursor-default disabled:opacity-50"
           data-testid="raise"
         >
-          <span className="flex size-12 items-center justify-center rounded-2xl border-2 border-[#f2b53a] bg-[#2fa66a] text-2xl shadow-md">
+          <span className="flex size-12 items-center justify-center rounded-2xl border-2 border-[#FBD000] bg-[#43B047] text-2xl shadow-md">
             🏗️
           </span>
           {buildCost === null
@@ -534,16 +534,16 @@ export function DailyGame() {
             type="button"
             onClick={onWalk}
             disabled={state.dice < 1 || pending?.running === true}
-            className="flex size-28 cursor-pointer flex-col items-center justify-center rounded-[36px] border-[5px] border-[#f2b53a] bg-gradient-to-b from-[#e0453f] to-[#a82524] text-[#fee0ba] shadow-[0_8px_0_#6b1a1b,0_14px_24px_rgba(65,19,20,0.45)] transition-transform active:translate-y-1.5 active:shadow-[0_2px_0_#6b1a1b] disabled:cursor-default disabled:opacity-60"
+            className="flex size-28 cursor-pointer flex-col items-center justify-center rounded-[36px] border-[5px] border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-[#FFFFFF] shadow-[0_8px_0_#8E1210,0_14px_24px_rgba(30,58,138,0.45)] transition-transform active:translate-y-1.5 active:shadow-[0_2px_0_#8E1210] disabled:cursor-default disabled:opacity-60"
             data-testid="roll-move"
           >
             <span className="text-4xl font-black leading-none tracking-wide">GO</span>
             <span className="mt-1 text-xs font-bold">擲骰行棋</span>
           </button>
-          <span className="rounded-full bg-[#411314] px-4 py-0.5 text-sm font-black tabular-nums text-[#fee0ba]" data-testid="dice-count">
+          <span className="rounded-full bg-[#1E3A8A] px-4 py-0.5 text-sm font-black tabular-nums text-[#FFFFFF]" data-testid="dice-count">
             🎲 {state.dice}／{DICE_CAP}
           </span>
-          <span className="h-4 text-[10px] font-semibold text-[#8a4a3c]" data-testid="need-two">
+          <span className="h-4 text-[10px] font-semibold text-[#3B5BA9]" data-testid="need-two">
             {state.dice < 1
               ? "擲骰行棋要 1 顆"
               : countdown
@@ -553,7 +553,7 @@ export function DailyGame() {
         </div>
 
         <div className="flex w-20 flex-col items-center gap-1 text-xs font-bold">
-          <span className="flex size-12 items-center justify-center rounded-2xl border-2 border-[#f2b53a] bg-[#c73331] text-2xl text-[#fee0ba] shadow-md">
+          <span className="flex size-12 items-center justify-center rounded-2xl border-2 border-[#FBD000] bg-[#E52521] text-2xl text-[#FFFFFF] shadow-md">
             ⚔️
           </span>
           武器 {weapon}／4
@@ -562,9 +562,9 @@ export function DailyGame() {
 
       {/* Settings sheet. */}
       {menuOpen ? (
-        <div className="absolute inset-0 z-40 flex items-end bg-[#411314]/60" onClick={() => setMenuOpen(false)}>
+        <div className="absolute inset-0 z-40 flex items-end bg-[#1E3A8A]/60" onClick={() => setMenuOpen(false)}>
           <div
-            className="w-full space-y-3 rounded-t-[32px] bg-[#fee0ba] p-5 pb-[max(env(safe-area-inset-bottom),1.25rem)]"
+            className="w-full space-y-3 rounded-t-[32px] bg-[#FFFFFF] p-5 pb-[max(env(safe-area-inset-bottom),1.25rem)]"
             onClick={(event: { stopPropagation: () => void }) => event.stopPropagation()}
             data-testid="menu-sheet"
           >
@@ -574,7 +574,7 @@ export function DailyGame() {
                 ✕
               </button>
             </div>
-            <p className="text-xs leading-5 text-[#8a4a3c]">
+            <p className="text-xs leading-5 text-[#3B5BA9]">
               擲兩粒骰行棋，只扣 1 顆。七格攻擊，踩中就搜尋敵人。起地標要用分數。
             </p>
             <NftToggles
