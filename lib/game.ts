@@ -1,6 +1,7 @@
 import { LANDMARK_NAMES, TILES } from "./board";
 import {
   DAILY_DST_CAP,
+  DICE_CAP,
   POINTS,
   PURSE_MAX,
   ROLL_COST,
@@ -110,6 +111,11 @@ export function countBuilt(landmarks: readonly Landmark[]): number {
 export function firstBuilt(landmarks: readonly Landmark[]): number | null {
   const index = landmarks.findIndex((landmark) => landmark === "built");
   return index === -1 ? null : index;
+}
+
+function ensureHand(state: GameState): GameState {
+  if (state.dice >= 2 && state.dice < DICE_CAP) return state;
+  return { ...state, dice: STARTING_DICE };
 }
 
 export function raiseTarget(state: GameState): number | null {
@@ -469,7 +475,7 @@ export function reduce(state: GameState, action: Action): GameState {
     case "hydrate": {
       const clean = sanitizeState(action.state, action.now, action.dayKey);
       if (!clean) return createGame(action.now, action.dayKey);
-      return rollDay(clean, action.now, action.dayKey);
+      return ensureHand(rollDay(clean, action.now, action.dayKey));
     }
     case "reset":
       return createGame(action.now, action.dayKey);

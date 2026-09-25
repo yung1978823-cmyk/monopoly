@@ -90,13 +90,11 @@ export function DailyGame() {
   const [booted, setBooted] = useState(false);
   const [saveNote, setSaveNote] = useState<string | null>(null);
   const [now, setNow] = useState(0);
-  const [busy, setBusy] = useState(false);
   const [spinning, setSpinning] = useState(false);
   const [spinFaces, setSpinFaces] = useState<[number, number] | null>(null);
   const [spinWho, setSpinWho] = useState<"you" | "rival" | null>(null);
   const [target, setTarget] = useState(0);
   const [resetArmed, setResetArmed] = useState(false);
-  const lock = useRef(false);
   const alive = useRef(true);
   const timers = useRef<number[]>([]);
 
@@ -215,18 +213,6 @@ export function DailyGame() {
     dispatch({ type: "rival", dice, now: Date.now() });
   }
 
-  async function withLock(task: () => Promise<void>) {
-    if (lock.current) return;
-    lock.current = true;
-    setBusy(true);
-    try {
-      await task();
-    } finally {
-      lock.current = false;
-      if (alive.current) setBusy(false);
-    }
-  }
-
   function onTestDie() {
     dispatch({ type: "add-test-die" });
   }
@@ -234,30 +220,24 @@ export function DailyGame() {
   function onRoll() {
     const current = state;
     if (current.dice < 2) return;
-    void withLock(async () => {
-      const dice = rollPair();
-      const stamp = Date.now();
-      setSpinWho("you");
-      await spin(dice);
-      if (!alive.current) return;
-      const next = previewMove(current, dice, stamp);
-      dispatch({ type: "move", dice, now: stamp });
-      if (next.pendingBuildIndex !== null) return;
-      await pause(420);
-      await playRival(next);
-    });
+    const dice = rollPair();
+    const stamp = Date.now();
+    setSpinWho("you");
+    setSpinFaces(dice);
+    setSpinning(false);
+    const next = previewMove(current, dice, stamp);
+    dispatch({ type: "move", dice, now: stamp });
+    if (next.pendingBuildIndex !== null) return;
+    void playRival(next);
   }
 
   function onBuild(skip: boolean) {
     const current = state;
     if (!skip && raiseTarget(current) === null) return;
     if (skip && current.pendingBuildIndex === null) return;
-    void withLock(async () => {
-      const next = reduce(current, skip ? { type: "skip-build" } : { type: "build" });
-      dispatch(skip ? { type: "skip-build" } : { type: "build" });
-      await pause(360);
-      await playRival(next);
-    });
+    const next = reduce(current, skip ? { type: "skip-build" } : { type: "build" });
+    dispatch(skip ? { type: "skip-build" } : { type: "build" });
+    void playRival(next);
   }
 
   function onAttack() {
@@ -271,18 +251,15 @@ export function DailyGame() {
       const purse = remainingPurse(current.hasNft, PURSE_MAX, current.rivalStolenToday);
       if (!current.hasNft || purse <= 0 || current.rivalStolenToday >= 5) return;
     }
-    void withLock(async () => {
-      const dice = rollPair();
-      const stamp = Date.now();
-      setSpinWho("you");
-      await spin(dice);
-      if (!alive.current) return;
-      const next = reduce(current, { type: "attack", dice, target: chosen, now: stamp });
-      dispatch({ type: "attack", dice, target: chosen, now: stamp });
-      if (next === current) return;
-      await pause(420);
-      await playRival(next);
-    });
+    const dice = rollPair();
+    const stamp = Date.now();
+    setSpinWho("you");
+    setSpinFaces(dice);
+    setSpinning(false);
+    const next = reduce(current, { type: "attack", dice, target: chosen, now: stamp });
+    dispatch({ type: "attack", dice, target: chosen, now: stamp });
+    if (next === current) return;
+    void playRival(next);
   }
 
   const playerDefense = countBuilt(state.landmarks);
@@ -294,12 +271,6 @@ export function DailyGame() {
   const here = TILES[state.position]?.name ?? "起點";
   const pendingName =
     state.pendingBuildIndex === null ? null : LANDMARK_NAMES[state.pendingBuildIndex];
-  const attackName =
-    builtTargets.length > 0 ? LANDMARK_NAMES[selectedTarget] : null;
-  const canAttackPurse =
-    state.hasNft && rivalPurse > 0 && state.rivalStolenToday < 5 && builtTargets.length === 0;
-  const canRaise = raiseTarget(state) !== null;
-  const canAttack = state.dice >= 2 && (attackName !== null || canAttackPurse);
   const faces = spinning
     ? spinFaces
     : spinWho === "rival"
@@ -367,13 +338,13 @@ export function DailyGame() {
           <div>
             <p className="text-sm text-[#6f5b4b]">分數</p>
             <p className="text-4xl font-bold tabular-nums text-[#2a1c14]" data-testid="score-now">
-              {booted ? state.points : "–"}
+              {state.points}
             </p>
           </div>
           <div>
             <p className="text-sm text-[#6f5b4b]">DST</p>
             <p className="text-4xl font-bold tabular-nums text-[#1e7a62]" data-testid="dst-now">
-              {booted ? state.rivalStolenToday : "–"}
+              {state.rivalStolenToday}
             </p>
             <p className="text-xs text-[#6f5b4b]">阿強被拿走</p>
           </div>
@@ -389,37 +360,16 @@ export function DailyGame() {
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
-          <Button
-            className={actionButton}
-            disabled={!booted || busy || state.dice < 2}
-            onClick={onRoll}
-            data-testid="roll-move"
-          >
+          <Button className={actionButton} onClick={onRoll} data-testid="roll-move">
             擲兩粒骰
           </Button>
-          <Button
-            className={actionButton}
-            disabled={!booted || busy || !canRaise}
-            onClick={() => onBuild(false)}
-            data-testid="raise"
-          >
+          <Button className={actionButton} onClick={() => onBuild(false)} data-testid="raise">
             起地標
           </Button>
-          <Button
-            className={actionButton}
-            disabled={!booted || busy || !canAttack}
-            onClick={onAttack}
-            data-testid="attack"
-          >
+          <Button className={actionButton} onClick={onAttack} data-testid="attack">
             攻擊
           </Button>
-          <Button
-            className={actionButton}
-            variant="outline"
-            disabled={!booted || busy || state.dice >= DICE_CAP}
-            onClick={onTestDie}
-            data-testid="test-die"
-          >
+          <Button className={actionButton} variant="outline" onClick={onTestDie} data-testid="test-die">
             補一粒（測試）
           </Button>
         </div>
@@ -429,7 +379,7 @@ export function DailyGame() {
           </p>
         ) : (
           <p className="mt-2 text-sm leading-6 text-[#6f5b4b]">
-            手上 {booted ? state.dice : "–"}／20 顆。走一步和攻擊各花 2 顆。
+            手上 {state.dice}／20 顆。走一步和攻擊各花 2 顆。
           </p>
         )}
       </section>
@@ -500,7 +450,6 @@ export function DailyGame() {
               <Button
                 className={cn(actionButton, "mt-3")}
                 variant="outline"
-                disabled={!booted || busy}
                 onClick={() => onBuild(true)}
               >
                 先不蓋
@@ -571,7 +520,6 @@ export function DailyGame() {
               <Switch
                 checked={state.hasNft}
                 onCheckedChange={(checked) => dispatch({ type: "set-nft", value: checked })}
-                disabled={!booted || busy}
                 aria-labelledby="nft-label"
                 aria-describedby="nft-help"
                 data-testid="nft-switch"
@@ -587,7 +535,6 @@ export function DailyGame() {
                       key={amount}
                       variant={state.postedPurse === amount ? "default" : "outline"}
                       className="h-10 cursor-pointer px-0 tabular-nums"
-                      disabled={busy}
                       onClick={() => dispatch({ type: "set-purse", value: amount })}
                       aria-pressed={state.postedPurse === amount}
                     >
@@ -644,7 +591,6 @@ export function DailyGame() {
                       key={index}
                       variant={selectedTarget === index ? "default" : "outline"}
                       className="h-10 cursor-pointer"
-                      disabled={busy}
                       aria-pressed={selectedTarget === index}
                       onClick={() => setTarget(index)}
                     >
@@ -683,7 +629,6 @@ export function DailyGame() {
           <Button
             variant="ghost"
             className="order-7 h-10 w-full cursor-pointer text-[#6f5b4b] lg:order-none"
-            disabled={!booted || busy}
             onClick={() => {
               if (!resetArmed) {
                 setResetArmed(true);
