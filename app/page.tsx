@@ -1,5 +1,5 @@
-import { DailyGame } from "@/components/daily-game";
+import { GameApp } from "@/components/game-app";
 
 export default function Home() {
-  return <DailyGame />;
+  return <GameApp />;
 }

@@ -32,6 +32,7 @@ export function BoardRing({
   placeLabel,
   trail = [],
   stopIndex = null,
+  className,
 }: {
   position: number;
   landmarks: Landmark[];
@@ -41,10 +42,11 @@ export function BoardRing({
   placeLabel: string;
   trail?: number[];
   stopIndex?: number | null;
+  className?: string;
 }) {
   return (
     <div
-      className="relative aspect-square w-full overflow-hidden rounded-[28px] bg-[#f7b8b8] bg-cover bg-center"
+      className={cn("relative aspect-square w-full shrink-0 overflow-hidden bg-[#fdb7b8] bg-cover bg-center", className)}
       style={{ backgroundImage: `url(${BOARD_ART})` }}
       data-testid="board"
       role="group"

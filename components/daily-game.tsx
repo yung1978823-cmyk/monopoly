@@ -155,6 +155,7 @@ export function DailyGame() {
   const [saveNote, setSaveNote] = useState<string | null>(null);
   const [now, setNow] = useState(0);
   const [resetArmed, setResetArmed] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [pending, setPending] = useState<PendingWalk | null>(null);
   const dispatch = useCallback((action: Parameters<typeof reduce>[1]) => {
     setState((current) => reduce(current, action));
@@ -292,22 +293,22 @@ export function DailyGame() {
   const buildable = canBuild(state);
   const dstLabel = `今日 DST ${state.dstTakenToday}／${DAILY_DST_CAP}`;
 
-  return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-4 py-6 sm:px-6 sm:py-8">
-      <header>
-        <p className="text-sm font-medium tracking-[0.22em] text-[#9e3428]">每日棋盤</p>
-        <h1 className="mt-1 text-4xl font-bold tracking-tight text-[#2a1c14]">
-          {state.phase === "search" ? "搜尋敵人" : "大富翁"}
-        </h1>
-      </header>
+  const resetBoard = () => {
+    if (!resetArmed) {
+      setResetArmed(true);
+      return;
+    }
+    const stamp = Date.now();
+    dispatch({ type: "reset", now: stamp, dayKey: dayKeyOf(stamp) });
+    setResetArmed(false);
+    setSaveNote(null);
+    setMenuOpen(false);
+  };
 
-      {saveNote ? (
-        <p className="rounded-2xl border border-[#e0bf78] bg-[#fbf3df] px-4 py-3 text-sm text-[#6a4b12]" role="status">
-          {saveNote}
-        </p>
-      ) : null}
-
-      {state.phase === "search" ? (
+  if (state.phase === "search") {
+    return (
+      <main className="mx-auto flex h-dvh w-full max-w-md flex-col overflow-y-auto bg-[#411314] px-3 pb-[max(env(safe-area-inset-bottom),1rem)] pt-[max(env(safe-area-inset-top),0.75rem)]">
+        <h1 className="mb-3 text-center text-3xl font-black text-[#fee0ba]">搜尋敵人</h1>
         <section
           className="rounded-3xl border-2 border-[#9e3428] bg-[#fffaf3] p-4"
           style={artBackground("enemy-city.jpg", 0.86)}
@@ -400,96 +401,157 @@ export function DailyGame() {
             </Button>
           ) : null}
         </section>
-      ) : (
-        <section className="space-y-4 rounded-3xl p-3" style={artBackground("board.jpg", 0.9)} data-testid="walk">
+      </main>
+    );
+  }
+
+  return (
+    <main
+      className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-[#fdb7b8] text-[#411314]"
+      data-testid="walk"
+    >
+      {/* Top bar: points, dice, today's DST, menu. */}
+      <header className="z-30 flex items-center gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-full border-[3px] border-[#f2b53a] bg-[#411314] text-lg font-black text-[#fee0ba] shadow-md">
+          你
+        </div>
+        <div className="flex flex-1 items-center justify-between rounded-full border-2 border-[#f2b53a] bg-[#fee0ba] px-3 py-1.5 shadow-md">
+          <span className="text-sm font-black tabular-nums" data-testid="hud-points">
+            ⭐ {state.points}
+          </span>
+          <span className="text-sm font-bold tabular-nums text-[#2f7a50]" data-testid="dst-today">
+            DST {state.dstTakenToday}／{DAILY_DST_CAP}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-[#f2b53a] bg-[#c73331] text-xl text-[#fee0ba] shadow-md"
+          aria-label="設定"
+          data-testid="menu"
+        >
+          ☰
+        </button>
+      </header>
+
+      {saveNote ? (
+        <p className="mx-3 rounded-2xl bg-[#fee0ba] px-4 py-2 text-xs text-[#411314]" role="status">
+          {saveNote}
+        </p>
+      ) : null}
+
+      {/* The board fills the middle of the screen. */}
+      <section className="relative flex min-h-0 flex-1 items-center justify-center [container-type:size]">
+        <BoardRing
+          className="w-[min(100cqw,100cqh)]"
+          position={tokenIndex}
+          landmarks={state.landmarks}
+          points={state.points}
+          defense={weapon}
+          purseLabel={state.hasNft ? "有 NFT" : "沒有 NFT"}
+          placeLabel={arrived ? `行到第 ${shownStep} 格` : `停在${here}`}
+          trail={trail}
+          stopIndex={arrived ? tokenIndex : null}
+        />
+        {pending ? (
           <div
-            className="flex h-28 items-end rounded-2xl p-4"
-            style={artBackground("mission.jpg", 0.35)}
+            className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#411314]/85 px-4 py-2 shadow-lg"
+            data-testid="walk-result"
           >
-            <p className="rounded-xl bg-[#fffaf3]/90 px-3 py-2 text-sm font-semibold text-[#2a1c14]">
-              每日：擲兩粒骰自己走。七格攻擊，踩到就搜尋敵人。
+            <DieFace value={pending.faces[0]} />
+            <DieFace value={pending.faces[1]} />
+            <p className="text-xl font-black text-[#fee0ba]" data-testid="last-walk">
+              {arrived ? `${shownStep}／${pending.steps}` : `擲出 ${pending.steps}`}
             </p>
           </div>
-          <NftToggles
-            hasNft={state.hasNft}
-            rivalHasNft={state.rivalHasNft}
-            onPlayer={(value) => dispatch({ type: "set-nft", value })}
-            onRival={(value) => dispatch({ type: "set-rival-nft", value })}
-          />
-          <BoardRing
-            position={tokenIndex}
-            landmarks={state.landmarks}
-            points={state.points}
-            defense={weapon}
-            purseLabel={`${state.hasNft ? "有 NFT" : "沒有 NFT"} · ${dstLabel}`}
-            placeLabel={arrived ? `行到第 ${shownStep} 格` : `停在${here}`}
-            trail={trail}
-            stopIndex={arrived ? tokenIndex : null}
-          />
-          {pending ? (
-            <div className="flex items-center gap-4" data-testid="walk-result">
-              <DieFace value={pending.faces[0]} />
-              <DieFace value={pending.faces[1]} />
-              <p className="text-2xl font-bold text-[#2a1c14]" data-testid="last-walk">
-                {arrived ? `行到第 ${shownStep} 格` : `擲出 ${pending.steps}`}
-              </p>
-            </div>
-          ) : null}
-          <Button
-            className="h-24 w-full cursor-pointer text-3xl font-bold"
+        ) : null}
+      </section>
+
+      {/* Bottom bar: build on the left, the big roll button in the middle. */}
+      <footer className="relative z-30 flex items-end justify-between gap-3 rounded-t-[32px] bg-[#fee0ba] px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 shadow-[0_-6px_20px_rgba(65,19,20,0.25)]">
+        <button
+          type="button"
+          onClick={onBuild}
+          disabled={!buildable || pending?.running === true}
+          className="flex w-20 cursor-pointer flex-col items-center gap-1 text-xs font-bold disabled:cursor-default disabled:opacity-50"
+          data-testid="raise"
+        >
+          <span className="flex size-12 items-center justify-center rounded-2xl border-2 border-[#f2b53a] bg-[#2fa66a] text-2xl shadow-md">
+            🏗️
+          </span>
+          {buildCost === null ? "已建齊" : `起地標 ${buildCost}`}
+        </button>
+
+        <div className="-mt-12 flex flex-col items-center gap-1.5">
+          <button
+            type="button"
             onClick={onWalk}
             disabled={state.dice < 1 || pending?.running === true}
+            className="flex size-28 cursor-pointer flex-col items-center justify-center rounded-[36px] border-[5px] border-[#f2b53a] bg-gradient-to-b from-[#e0453f] to-[#a82524] text-[#fee0ba] shadow-[0_8px_0_#6b1a1b,0_14px_24px_rgba(65,19,20,0.45)] transition-transform active:translate-y-1.5 active:shadow-[0_2px_0_#6b1a1b] disabled:cursor-default disabled:opacity-60"
             data-testid="roll-move"
           >
-            擲骰行棋
-          </Button>
-          <BuildButton
-            cost={buildCost}
-            enabled={buildable && !pending?.running}
-            points={state.points}
-            onBuild={onBuild}
-            className="w-full"
-          />
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-[#6f5b4b]">手上 {state.dice}／20 顆。</p>
-            <Button
-              className="h-10 cursor-pointer px-3 text-sm"
-              variant="outline"
-              onClick={() => dispatch({ type: "add-test-die" })}
-              data-testid="test-die"
-            >
-              補一粒（測試）
-            </Button>
-          </div>
-          {state.dice < 1 ? (
-            <p className="text-sm leading-6 text-[#9e3428]" data-testid="need-two">
-              擲骰行棋要 1 顆。
-            </p>
-          ) : (
-            <p className="text-xs leading-5 text-[#6f5b4b]">
-              每 30 分鐘補 1 顆。
-              {countdown ? ` 下一顆 ${formatClock(countdown)}。` : null}
-            </p>
-          )}
-        </section>
-      )}
+            <span className="text-4xl font-black leading-none tracking-wide">GO</span>
+            <span className="mt-1 text-xs font-bold">擲骰行棋</span>
+          </button>
+          <span className="rounded-full bg-[#411314] px-4 py-0.5 text-sm font-black tabular-nums text-[#fee0ba]" data-testid="dice-count">
+            🎲 {state.dice}／{DICE_CAP}
+          </span>
+          <span className="h-4 text-[10px] font-semibold text-[#8a4a3c]" data-testid="need-two">
+            {state.dice < 1
+              ? "擲骰行棋要 1 顆"
+              : countdown
+                ? `下一顆 ${formatClock(countdown)}`
+                : null}
+          </span>
+        </div>
 
-      <Button
-        variant="ghost"
-        className="h-10 cursor-pointer text-[#6f5b4b]"
-        onClick={() => {
-          if (!resetArmed) {
-            setResetArmed(true);
-            return;
-          }
-          const stamp = Date.now();
-          dispatch({ type: "reset", now: stamp, dayKey: dayKeyOf(stamp) });
-          setResetArmed(false);
-          setSaveNote(null);
-        }}
-      >
-        {resetArmed ? "確定重開這塊棋盤？" : "重開這塊棋盤"}
-      </Button>
+        <div className="flex w-20 flex-col items-center gap-1 text-xs font-bold">
+          <span className="flex size-12 items-center justify-center rounded-2xl border-2 border-[#f2b53a] bg-[#c73331] text-2xl text-[#fee0ba] shadow-md">
+            ⚔️
+          </span>
+          武器 {weapon}／4
+        </div>
+      </footer>
+
+      {/* Settings sheet. */}
+      {menuOpen ? (
+        <div className="absolute inset-0 z-40 flex items-end bg-[#411314]/60" onClick={() => setMenuOpen(false)}>
+          <div
+            className="w-full space-y-3 rounded-t-[32px] bg-[#fee0ba] p-5 pb-[max(env(safe-area-inset-bottom),1.25rem)]"
+            onClick={(event: { stopPropagation: () => void }) => event.stopPropagation()}
+            data-testid="menu-sheet"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-black">設定</h2>
+              <button type="button" className="cursor-pointer text-2xl" onClick={() => setMenuOpen(false)} aria-label="關閉">
+                ✕
+              </button>
+            </div>
+            <p className="text-xs leading-5 text-[#8a4a3c]">
+              擲兩粒骰行棋，只扣 1 顆。七格攻擊，踩中就搜尋敵人。起地標要用分數。
+            </p>
+            <NftToggles
+              hasNft={state.hasNft}
+              rivalHasNft={state.rivalHasNft}
+              onPlayer={(value) => dispatch({ type: "set-nft", value })}
+              onRival={(value) => dispatch({ type: "set-rival-nft", value })}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                className="h-11 cursor-pointer"
+                variant="outline"
+                onClick={() => dispatch({ type: "add-test-die" })}
+                data-testid="test-die"
+              >
+                補一粒（測試）
+              </Button>
+              <Button className="h-11 cursor-pointer" variant="outline" onClick={resetBoard}>
+                {resetArmed ? "確定重開？" : "重開棋盤"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

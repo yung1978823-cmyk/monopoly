@@ -29,6 +29,17 @@ npm run dev
 - 棋盤中間同搜尋畫面都顯示「今日 DST x／5」。
 - 「我有 NFT」和「對手有 NFT」開局都開著。
 
+## 裝落手機（PWA）
+
+呢個遊戲係 PWA：放上網之後，可以加到手機主畫面，全屏打開，好似 App 咁。
+
+- 打開先見主畫面（`public/art/title.jpg`），載入完撳「開始遊戲」。
+- 遊戲畫面固定一版：頂部分數同今日 DST，中間棋盤，底部 GO 掣同起地標。☰ 入面有 NFT 開關、補骰（測試）同重開棋盤。
+- `public/manifest.webmanifest`：App 名、圖示、全屏、直向。
+- `public/sw.js`：離線快取，只喺 `npm run build` 之後嘅正式版啟用，開發模式唔會用。
+- iPhone：用 Safari 打開網址 → 分享 → 加入主畫面。Android：Chrome 會彈「安裝」，或者喺選單揀「加到主畫面」。
+- 要喺手機裝，一定要放上 https 網址；本機 `127.0.0.1` 只可以喺電腦試。
+
 ## 測試
 
 ```bash
