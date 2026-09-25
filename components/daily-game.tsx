@@ -12,10 +12,8 @@ import {
   firstBuilt,
   parseSave,
   raiseTarget,
-  previewMove,
   reduce,
   remainingPurse,
-  rivalCanStrike,
   type GameState,
   type Landmark,
 } from "@/lib/game";
@@ -28,10 +26,7 @@ import {
   rollDie,
 } from "@/lib/rules";
 import { cn } from "cn";
-import { useCallback, useEffect, useRef, useState } from "react";
-
-const actionButton =
-  "h-12 w-full cursor-pointer px-4 text-base disabled:cursor-not-allowed";
+import { useCallback, useEffect, useState } from "react";
 
 function landmarkLabel(landmark: Landmark): string {
   if (landmark === "built") return "已建成";
@@ -90,21 +85,13 @@ export function DailyGame() {
   const [booted, setBooted] = useState(false);
   const [saveNote, setSaveNote] = useState<string | null>(null);
   const [now, setNow] = useState(0);
-  const [spinning, setSpinning] = useState(false);
-  const [spinFaces, setSpinFaces] = useState<[number, number] | null>(null);
-  const [spinWho, setSpinWho] = useState<"you" | "rival" | null>(null);
   const [target, setTarget] = useState(0);
   const [resetArmed, setResetArmed] = useState(false);
-  const alive = useRef(true);
-  const timers = useRef<number[]>([]);
-
   const dispatch = useCallback((action: Parameters<typeof reduce>[1]) => {
     setState((current) => reduce(current, action));
   }, []);
 
   useEffect(() => {
-    alive.current = true;
-    const pending = timers.current;
     const id = window.setTimeout(() => {
       const stamp = Date.now();
       const key = dayKeyOf(stamp);
@@ -127,11 +114,7 @@ export function DailyGame() {
       }
       setBooted(true);
     }, 0);
-    return () => {
-      alive.current = false;
-      window.clearTimeout(id);
-      pending.forEach((timerId) => window.clearTimeout(timerId));
-    };
+    return () => window.clearTimeout(id);
   }, [dispatch]);
 
   useEffect(() => {
@@ -181,63 +164,17 @@ export function DailyGame() {
   );
   const selectedTarget = builtTargets.includes(target) ? target : (builtTargets[0] ?? 0);
 
-  async function pause(ms: number) {
-    await new Promise<void>((resolve) => {
-      const id = window.setTimeout(resolve, ms);
-      timers.current.push(id);
-    });
-  }
-
   function rollPair(): [number, number] {
     return [rollDie(), rollDie()];
-  }
-
-  async function spin(pair: [number, number]) {
-    setSpinning(true);
-    for (let step = 0; step < 7; step += 1) {
-      setSpinFaces([rollDie(), rollDie()]);
-      await pause(70);
-      if (!alive.current) return;
-    }
-    setSpinFaces(pair);
-    setSpinning(false);
-    await pause(180);
-  }
-
-  async function playRival(from: GameState) {
-    if (!alive.current || !rivalCanStrike(from)) return;
-    const dice = rollPair();
-    setSpinWho("rival");
-    await spin(dice);
-    if (!alive.current) return;
-    dispatch({ type: "rival", dice, now: Date.now() });
   }
 
   function onTestDie() {
     dispatch({ type: "add-test-die" });
   }
 
-  function onRoll() {
-    const current = state;
-    if (current.dice < 2) return;
-    const dice = rollPair();
-    const stamp = Date.now();
-    setSpinWho("you");
-    setSpinFaces(dice);
-    setSpinning(false);
-    const next = previewMove(current, dice, stamp);
-    dispatch({ type: "move", dice, now: stamp });
-    if (next.pendingBuildIndex !== null) return;
-    void playRival(next);
-  }
-
-  function onBuild(skip: boolean) {
-    const current = state;
-    if (!skip && raiseTarget(current) === null) return;
-    if (skip && current.pendingBuildIndex === null) return;
-    const next = reduce(current, skip ? { type: "skip-build" } : { type: "build" });
-    dispatch(skip ? { type: "skip-build" } : { type: "build" });
-    void playRival(next);
+  function onBuild() {
+    if (raiseTarget(state) === null) return;
+    dispatch({ type: "build" });
   }
 
   function onAttack() {
@@ -252,14 +189,7 @@ export function DailyGame() {
       if (!current.hasNft || purse <= 0 || current.rivalStolenToday >= 5) return;
     }
     const dice = rollPair();
-    const stamp = Date.now();
-    setSpinWho("you");
-    setSpinFaces(dice);
-    setSpinning(false);
-    const next = reduce(current, { type: "attack", dice, target: chosen, now: stamp });
-    dispatch({ type: "attack", dice, target: chosen, now: stamp });
-    if (next === current) return;
-    void playRival(next);
+    dispatch({ type: "attack", dice, target: chosen, now: Date.now() });
   }
 
   const playerDefense = countBuilt(state.landmarks);
@@ -271,12 +201,7 @@ export function DailyGame() {
   const here = TILES[state.position]?.name ?? "起點";
   const pendingName =
     state.pendingBuildIndex === null ? null : LANDMARK_NAMES[state.pendingBuildIndex];
-  const faces = spinning
-    ? spinFaces
-    : spinWho === "rival"
-      ? state.lastRivalFaces
-      : state.lastPlayerFaces;
-  const luck = faces ? faces[0] + faces[1] : null;
+  const playerStrike = state.lastStrike?.attacker === "you" ? state.lastStrike : null;
 
   let statusTitle = "棋盤空著";
   let statusBody =
@@ -288,17 +213,17 @@ export function DailyGame() {
     statusTone = "boot";
   } else if (pendingName) {
     statusTitle = `你站在${pendingName}`;
-    statusBody = "按起地標，這一格就蓋起來。戰鬥力加 1，分數加 3。";
+    statusBody = "要蓋的話，按小按鈕起地標。攻擊不必先蓋。";
     statusTone = "play";
   } else if (state.rollCount === 0 && state.dice === 0) {
     statusTone = "empty";
   } else if (state.dice === 1) {
     statusTitle = "只有 1 顆";
-    statusBody = "走一步要 2 顆，攻擊也要 2 顆。你現在只有 1 顆。再補一粒（測試），或等 30 分鐘。";
+    statusBody = "攻擊要 2 顆。你現在只有 1 顆。再補一粒（測試），或等 30 分鐘。";
     statusTone = "wait";
   } else if (state.rollCount === 0 && state.dice >= 2) {
-    statusTitle = "你在起點";
-    statusBody = "擲兩粒骰往前走。起地標加戰鬥力和分數。攻擊阿強會改 DST。";
+    statusTitle = "按攻擊";
+    statusBody = "一按就擲兩顆，並跟阿強結算。幸運值、兩邊戰鬥力和 DST 會一起出來。";
     statusTone = "first";
   } else if (state.dice === 0) {
     statusTitle = "手上沒有骰子";
@@ -308,7 +233,7 @@ export function DailyGame() {
     statusTone = "wait";
   } else {
     statusTitle = `你在${here}`;
-    statusBody = "再擲兩顆往前走，或花 2 顆去砸阿強。幸運值是兩顆的和，戰鬥力是已建成的地標。";
+    statusBody = "再按攻擊。一按就擲兩顆並結算，不用先擲骰。";
     statusTone = "play";
   }
 
@@ -319,7 +244,7 @@ export function DailyGame() {
           <p className="text-sm font-medium tracking-[0.22em] text-[#9e3428]">每日棋盤</p>
           <h1 className="mt-1 text-4xl font-bold tracking-tight text-[#2a1c14]">大富翁</h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-[#6f5b4b]">
-            一個人的圈，四個地標。擲兩顆骰往前走，先得到的是分數。
+            按攻擊就擲兩顆，並跟阿強結算。不用先擲骰。
           </p>
         </div>
         <div
@@ -351,35 +276,61 @@ export function DailyGame() {
           <div className="col-span-2 sm:col-span-1">
             <p className="text-sm text-[#6f5b4b]">這一手</p>
             <p className="text-lg font-semibold text-[#2a1c14]" data-testid="last-result">
-              {spinning
-                ? "骰子在轉"
-                : state.lastStrike
-                  ? `拿走 ${state.lastStrike.dst} DST`
-                  : "還沒出手"}
+              {playerStrike ? `拿走 ${playerStrike.dst} DST` : "還沒出手"}
             </p>
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
-          <Button className={actionButton} onClick={onRoll} data-testid="roll-move">
-            擲兩粒骰
-          </Button>
-          <Button className={actionButton} onClick={() => onBuild(false)} data-testid="raise">
+        <Button
+          className="mt-4 h-24 w-full cursor-pointer text-3xl font-bold"
+          onClick={onAttack}
+          data-testid="attack"
+        >
+          攻擊
+        </Button>
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm leading-6" data-testid="luck">
+              {playerStrike ? `幸運值 ${playerStrike.luck}` : "按攻擊就擲兩顆。"}
+            </p>
+            {playerStrike ? (
+              <div className="mt-1 text-sm leading-6" data-testid="strike">
+                <p>
+                  你的戰鬥力 {playerStrike.yourPower} · 阿強的戰鬥力 {playerStrike.rivalPower}
+                </p>
+                <p className="font-medium text-[#1e7a62]">拿走 {playerStrike.dst} DST</p>
+              </div>
+            ) : null}
+          </div>
+          <div className="flex gap-2">
+            <DieFace value={playerStrike ? playerStrike.faces[0] : null} />
+            <DieFace value={playerStrike ? playerStrike.faces[1] : null} />
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Button
+            className="h-10 cursor-pointer text-sm"
+            variant="outline"
+            onClick={onBuild}
+            data-testid="raise"
+          >
             起地標
           </Button>
-          <Button className={actionButton} onClick={onAttack} data-testid="attack">
-            攻擊
-          </Button>
-          <Button className={actionButton} variant="outline" onClick={onTestDie} data-testid="test-die">
+          <Button
+            className="h-10 cursor-pointer text-sm"
+            variant="outline"
+            onClick={onTestDie}
+            data-testid="test-die"
+          >
             補一粒（測試）
           </Button>
         </div>
-        {state.dice === 1 ? (
+        {state.dice < 2 ? (
           <p className="mt-2 text-sm leading-6 text-[#9e3428]" data-testid="need-two">
-            走一步和攻擊要 2 顆，你現在只有 1 顆。
+            攻擊要 2 顆，你現在只有 {state.dice} 顆。
           </p>
         ) : (
           <p className="mt-2 text-sm leading-6 text-[#6f5b4b]">
-            手上 {state.dice}／20 顆。走一步和攻擊各花 2 顆。
+            手上 {state.dice}／20 顆。攻擊花 2 顆，一按就擲。
           </p>
         )}
       </section>
@@ -409,7 +360,7 @@ export function DailyGame() {
             <h2 className="text-base font-semibold">這一局發生了什麼</h2>
             {state.log.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-[#6f5b4b]">
-                還沒有紀錄。按上面的按鈕，分數和 DST 會改。
+                還沒有紀錄。按攻擊，分數和 DST 會改。
               </p>
             ) : (
               <ol className="mt-3 space-y-2">
@@ -446,15 +397,6 @@ export function DailyGame() {
             <p className={cn("mt-1 text-sm leading-6", statusTone === "first" ? "text-[#ffe8df]" : "text-[#6f5b4b]")}>
               {statusBody}
             </p>
-            {pendingName ? (
-              <Button
-                className={cn(actionButton, "mt-3")}
-                variant="outline"
-                onClick={() => onBuild(true)}
-              >
-                先不蓋
-              </Button>
-            ) : null}
           </section>
 
           <section className="order-2 rounded-3xl border border-[#eadcc6] bg-[#fffaf3] p-4 lg:order-none">
@@ -466,31 +408,7 @@ export function DailyGame() {
                   <span className="text-base font-medium text-[#6f5b4b]">／20 顆</span>
                 </p>
               </div>
-              <div className="flex gap-2">
-                <DieFace value={booted ? (faces?.[0] ?? null) : null} spinning={spinning} />
-                <DieFace value={booted ? (faces?.[1] ?? null) : null} spinning={spinning} />
-              </div>
             </div>
-            <p className="mt-3 text-sm leading-6" data-testid="luck">
-              {spinning
-                ? spinWho === "rival"
-                  ? "阿強在擲兩顆。"
-                  : "兩顆還在轉。"
-                : luck === null
-                  ? "還沒擲過。幸運值是兩顆的和。"
-                  : `幸運值 ${luck}`}
-            </p>
-            {state.lastStrike && !spinning ? (
-              <div className="mt-2 rounded-2xl bg-[#f6efe4] px-3 py-2 text-sm leading-6" data-testid="strike">
-                <p>
-                  你的戰鬥力 {state.lastStrike.yourPower} · 阿強的戰鬥力 {state.lastStrike.rivalPower}
-                </p>
-                <p>
-                  攻擊 {state.lastStrike.attackTotal} · 防守 {state.lastStrike.defense}
-                </p>
-                <p className="font-medium text-[#1e7a62]">拿走 {state.lastStrike.dst} DST</p>
-              </div>
-            ) : null}
             <p className="mt-2 text-sm leading-6">
               每 30 分鐘補 1 顆，不出售。滿 20 顆就停。
               {countdown ? (
@@ -636,8 +554,6 @@ export function DailyGame() {
               }
               const stamp = Date.now();
               dispatch({ type: "reset", now: stamp, dayKey: dayKeyOf(stamp) });
-              setSpinWho(null);
-              setSpinFaces(null);
               setResetArmed(false);
               setSaveNote(null);
             }}
