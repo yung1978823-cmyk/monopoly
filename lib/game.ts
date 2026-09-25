@@ -1,4 +1,5 @@
 import { LANDMARK_NAMES, TILES } from "./board";
+import { CITIES } from "./cities";
 import {
   DAILY_DST_CAP,
   DICE_CAP,
@@ -46,6 +47,8 @@ export type GameState = {
   points: number;
   landmarks: Landmark[];
   rivalLandmarks: Landmark[];
+  /** Which of CITIES the current rival lives in. */
+  rivalCity: number;
   hasNft: boolean;
   rivalHasNft: boolean;
   /** DST this player has taken today. Capped at 5 per day. */
@@ -72,6 +75,8 @@ export type Action =
       enemyDice?: DiePair | null;
       /** How many landmarks the rival met on an 攻擊 square has standing (0–4). */
       rivalBuilt?: number;
+      /** Which of CITIES that rival lives in. */
+      rivalCity?: number;
       now: number;
     }
   | { type: "weapon"; target?: number | null }
@@ -97,6 +102,7 @@ export function createGame(now: number, dayKey: string): GameState {
     points: 0,
     landmarks: emptyLandmarks(),
     rivalLandmarks: ["built", "built", "empty", "empty"],
+    rivalCity: 0,
     hasNft: true,
     rivalHasNft: true,
     dstTakenToday: 0,
@@ -242,6 +248,7 @@ export function sanitizeState(
     points: clampInt(value.points, 0, 1_000_000, 0),
     landmarks,
     rivalLandmarks,
+    rivalCity: inRange(value.rivalCity, 0, CITIES.length - 1) ? value.rivalCity : 0,
     hasNft: value.hasNft === true,
     rivalHasNft: value.rivalHasNft !== false,
     // Saves from before the rename kept this under rivalStolenToday.
@@ -376,6 +383,8 @@ export function reduce(state: GameState, action: Action): GameState {
         walkFaces: faces,
         lastRivalFaces: searching ? enemyFaces : null,
         rivalLandmarks,
+        rivalCity:
+          searching && inRange(action.rivalCity, 0, CITIES.length - 1) ? action.rivalCity : state.rivalCity,
         enemyLuck,
         // Only a rival holding an NFT has a shield.
         enemyShield: searching && state.rivalHasNft,

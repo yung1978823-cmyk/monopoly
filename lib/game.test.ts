@@ -105,6 +105,15 @@ describe("daily board", () => {
     assert.match(three.log[0]?.text ?? "", /佢有 3 座建築/);
   });
 
+  it("remembers which city the rival met on 攻擊 lives in", () => {
+    const fight = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalCity: 2, now: NOW });
+    assert.equal(fight.rivalCity, 2);
+    const bad = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalCity: 9, now: NOW });
+    assert.equal(bad.rivalCity, 0);
+    const loaded = parseSave(JSON.stringify({ v: 1, state: fight }), NOW, DAY);
+    assert.equal(loaded?.rivalCity, 2);
+  });
+
   it("gives a shield only to a rival holding an NFT", () => {
     const nft = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 2, now: NOW });
     assert.equal(nft.enemyShield, true);

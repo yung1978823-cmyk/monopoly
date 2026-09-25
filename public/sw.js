@@ -1,6 +1,16 @@
 // 大富翁 service worker: keeps the app shell and art so the board opens without a network.
-const CACHE = "dafuweng-v1";
-const SHELL = ["/", "/manifest.webmanifest", "/art/board-28.png", "/art/title.jpg", "/icon-192.png"];
+const CACHE = "dafuweng-v2";
+const SHELL = [
+  "/",
+  "/manifest.webmanifest",
+  "/art/board-28.png",
+  "/art/title.jpg",
+  "/art/city-harbor.jpg",
+  "/art/city-park.jpg",
+  "/art/city-downtown.jpg",
+  "/art/shield-block.jpg",
+  "/icon-192.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));

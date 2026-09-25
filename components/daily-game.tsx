@@ -1,10 +1,12 @@
 "use client";
 
+import { AttackScreen } from "@/components/attack-screen";
 import { BoardRing } from "@/components/board-ring";
 import { DieFace } from "@/components/die-face";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { LANDMARK_NAMES, TILES } from "@/lib/board";
+import { TILES } from "@/lib/board";
+import { CITIES } from "@/lib/cities";
 import {
   STORAGE_KEY,
   builtIndexes,
@@ -16,11 +18,9 @@ import {
   raiseTarget,
   reduce,
   type GameState,
-  type Landmark,
 } from "@/lib/game";
 import { DAILY_DST_CAP, DICE_CAP, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
-import { cn } from "cn";
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const STEP_MS = 240;
 
@@ -31,51 +31,10 @@ type PendingWalk = {
   step: number;
   enemyDice: [number, number] | null;
   rivalBuilt: number;
+  rivalCity: number;
   running: boolean;
   committed: boolean;
 };
-
-function artBackground(file: string, wash: number): CSSProperties {
-  return {
-    backgroundImage: `linear-gradient(rgba(255,250,243,${wash}), rgba(255,247,238,${wash})), url(/art/${file})`,
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-  };
-}
-
-function landmarkLabel(landmark: Landmark): string {
-  if (landmark === "built") return "已建成";
-  if (landmark === "ruined") return "已打爛";
-  return "未建";
-}
-
-function BuildButton({
-  cost,
-  enabled,
-  points,
-  onBuild,
-  className,
-}: {
-  cost: number | null;
-  enabled: boolean;
-  points: number;
-  onBuild: () => void;
-  className?: string;
-}) {
-  const label =
-    cost === null ? "四座地標已建成" : enabled ? `起地標（花 ${cost} 分）` : `起地標要 ${cost} 分（差 ${cost - points}）`;
-  return (
-    <Button
-      className={cn("h-12 cursor-pointer text-base", className)}
-      variant="outline"
-      onClick={onBuild}
-      disabled={!enabled}
-      data-testid="raise"
-    >
-      {label}
-    </Button>
-  );
-}
 
 function NftToggles({
   hasNft,
@@ -118,39 +77,6 @@ function NftToggles({
           />
         </span>
       </label>
-    </div>
-  );
-}
-
-function LandmarkStrip({
-  title,
-  landmarks,
-}: {
-  title: string;
-  landmarks: Landmark[];
-}) {
-  return (
-    <div>
-      <p className="mb-2 text-sm font-medium">{title}</p>
-      <ul className="grid grid-cols-4 gap-2">
-        {LANDMARK_NAMES.map((name, index) => {
-          const landmark = landmarks[index];
-          return (
-            <li
-              key={name}
-              className={cn(
-                "rounded-xl border px-1 py-2 text-center",
-                landmark === "built" && "border-[#1f6b4a] bg-[#e7f5ee]",
-                landmark === "empty" && "border-dashed border-[#d7c4aa] bg-[#fffaf3]",
-                landmark === "ruined" && "border-[#6e332c] bg-[#e9d3cc] line-through",
-              )}
-            >
-              <span className="block text-sm font-semibold">{name}</span>
-              <span className="text-[11px] text-[#6f5b4b]">{landmarkLabel(landmark)}</span>
-            </li>
-          );
-        })}
-      </ul>
     </div>
   );
 }
@@ -261,6 +187,7 @@ export function DailyGame() {
         faces: move.faces,
         enemyDice: move.enemyDice,
         rivalBuilt: move.rivalBuilt,
+        rivalCity: move.rivalCity,
         now: Date.now(),
       });
     }, STEP_MS);
@@ -276,7 +203,8 @@ export function DailyGame() {
     const enemyDice = TILES[nextIndex]?.kind === "attack" ? rollPair() : null;
     // Each 攻擊 square meets a rival with 0–4 landmarks standing.
     const rivalBuilt = Math.floor(Math.random() * 5);
-    setPending({ faces, steps, from, step: 0, enemyDice, rivalBuilt, running: true, committed: false });
+    const rivalCity = Math.floor(Math.random() * CITIES.length);
+    setPending({ faces, steps, from, step: 0, enemyDice, rivalBuilt, rivalCity, running: true, committed: false });
   }
 
   function onBuild() {
@@ -297,10 +225,6 @@ export function DailyGame() {
   }
 
   const weapon = countBuilt(state.landmarks);
-  const rivalPower = countBuilt(state.rivalLandmarks);
-  const rivalStanding = builtIndexes(state.rivalLandmarks);
-  const attackTotal = 10 + weapon * 5;
-  const defenseTotal = rivalPower * 5 + (state.enemyLuck ?? 0);
   const shownStep = pending?.step ?? 0;
   const tokenIndex = pending ? (pending.from + shownStep) % TILES.length : state.position;
   const trail = pending
@@ -309,13 +233,10 @@ export function DailyGame() {
   const here = TILES[tokenIndex]?.name ?? "起點";
   const arrived = pending !== null && shownStep > 0;
   const countdown = booted && now > 0 ? msUntilNextDie(state.dice, state.lastRefillAt, now) : null;
-  const readout = state.weaponReadout;
-  const bothNft = state.hasNft && state.rivalHasNft;
   const buildCost = nextBuildCost(state);
   const buildable = canBuild(state);
   const buildSlot = raiseTarget(state);
   const repairing = buildSlot !== null && state.landmarks[buildSlot] === "ruined";
-  const dstLabel = `今日 DST ${state.dstTakenToday}／${DAILY_DST_CAP}`;
 
   const resetBoard = () => {
     if (!resetArmed) {
@@ -331,122 +252,11 @@ export function DailyGame() {
 
   if (state.phase === "search") {
     return (
-      <main className="mx-auto flex h-dvh w-full max-w-md flex-col overflow-y-auto bg-[#1E3A8A] px-3 pb-[max(env(safe-area-inset-bottom),1rem)] pt-[max(env(safe-area-inset-top),0.75rem)]">
-        <h1 className="mb-3 text-center text-3xl font-black text-[#FFFFFF]">搜尋敵人</h1>
-        <section
-          className="rounded-3xl border-2 border-[#9e3428] bg-[#fffaf3] p-4"
-          style={artBackground("enemy-city.jpg", 0.86)}
-          data-testid="search"
-        >
-          <p className="text-sm leading-6 text-[#6f5b4b]">配到街坊阿強。不用你選。</p>
-          <div className="mt-4">
-            <LandmarkStrip title="阿強的四座建築" landmarks={state.rivalLandmarks} />
-          </div>
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm text-[#6f5b4b]">幸運值</p>
-              <p className="text-4xl font-bold tabular-nums text-[#2a1c14]" data-testid="enemy-luck">
-                {state.enemyLuck ?? "–"}
-              </p>
-              <p className="mt-1 text-sm text-[#6f5b4b]">建築 {rivalPower}／4</p>
-            </div>
-            <div className="flex gap-2">
-              <DieFace value={state.lastRivalFaces?.[0] ?? null} />
-              <DieFace value={state.lastRivalFaces?.[1] ?? null} />
-            </div>
-          </div>
-          <div
-            className="mt-4 overflow-hidden rounded-2xl border border-[#e0bf78] p-4"
-            style={artBackground(state.enemyShield ? "shield.jpg" : "attack.jpg", 0.72)}
-            data-testid={state.enemyShield ? "shield" : "attack-art"}
-          >
-            <p className="text-sm text-[#6f5b4b]">{state.enemyShield ? "阿強有 NFT，有一面盾" : state.rivalHasNft ? "盾已經破了" : "阿強冇 NFT，冇盾"}</p>
-            <p className="mt-1 text-sm leading-6">
-              總攻擊 <span className="text-2xl font-bold tabular-nums">{attackTotal}</span>
-              <span className="text-[#6f5b4b]">（10＋武器 {weapon}×5）</span>
-            </p>
-            <p className="text-sm leading-6">
-              總防守 <span className="text-2xl font-bold tabular-nums">{defenseTotal}</span>
-              <span className="text-[#6f5b4b]">（建築 {rivalPower}×5＋幸運值 {state.enemyLuck ?? "–"}）</span>
-            </p>
-          </div>
-          <p className="mt-2 text-3xl font-bold tabular-nums" data-testid="fight-points">
-            分數 {state.points}
-          </p>
-          <p className="text-sm font-semibold text-[#1f6b4a]" data-testid="dst-today">
-            {dstLabel}
-          </p>
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <BuildButton cost={buildCost} enabled={buildable} points={state.points} onBuild={onBuild} />
-            <p className="self-center text-xs leading-5 text-[#6f5b4b]" data-testid="dst-still">
-              {bothNft
-                ? "兩邊都有 NFT。盾破只得 1 分、0 DST。沒有盾才搬 DST，一日最多 5。"
-                : "有一邊沒有 NFT。只計分數，DST 0。"}
-            </p>
-          </div>
-          {readout ? (
-            <div className="mt-4 rounded-2xl bg-[#f6efe4] px-4 py-3" data-testid="verdict">
-              <p className="text-sm text-[#6f5b4b]">
-                總攻擊 {readout.attackTotal} · 總防守 {readout.defenseTotal}
-              </p>
-              <p className="mt-1 text-3xl font-bold text-[#9e3428]">
-                {readout.shieldBreak ? "盾破" : readout.hit ? "打中" : "打唔中"}
-              </p>
-              <p className="mt-1 text-sm leading-6" data-testid="dst-pay">
-                得 {readout.pointsGained} 分。
-                {readout.dst > 0 ? `搬走 ${readout.dst} DST。` : "DST 0。"}
-              </p>
-            </div>
-          ) : null}
-          {readout?.smashed != null ? (
-            <p className="mt-3 rounded-2xl bg-[#1E3A8A] px-4 py-3 text-center text-xl font-black text-[#FFFFFF]" data-testid="smashed">
-              💥 打爛咗阿強嘅{LANDMARK_NAMES[readout.smashed]}！
-            </p>
-          ) : null}
-          {state.fightSettled ? null : state.enemyShield || rivalStanding.length === 0 ? (
-            <Button
-              className="mt-4 h-24 w-full cursor-pointer text-3xl font-bold"
-              onClick={() => onWeapon(null)}
-              data-testid="weapon"
-            >
-              {readout?.shieldBreak ? "再攻擊" : "用武器攻擊"}
-            </Button>
-          ) : (
-            <div className="mt-4" data-testid="pick-target">
-              <p className="mb-2 text-center text-sm font-bold text-[#1E3A8A]">{state.rivalHasNft ? "盾已經破咗，" : "冇盾，"}揀一座建築打落去：</p>
-              <div className="grid grid-cols-2 gap-2">
-                {rivalStanding.map((index) => (
-                  <Button
-                    key={index}
-                    className="h-16 cursor-pointer text-xl font-black"
-                    onClick={() => onWeapon(index)}
-                    data-testid={`target-${index}`}
-                  >
-                    🔨 {LANDMARK_NAMES[index]}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="mt-4">
-            <NftToggles
-              hasNft={state.hasNft}
-              rivalHasNft={state.rivalHasNft}
-              onPlayer={(value) => dispatch({ type: "set-nft", value })}
-              onRival={(value) => dispatch({ type: "set-rival-nft", value })}
-            />
-          </div>
-          {readout ? (
-            <Button
-              className="mt-4 h-10 w-full cursor-pointer"
-              variant="outline"
-              onClick={() => dispatch({ type: "return-walk" })}
-            >
-              返回棋盤
-            </Button>
-          ) : null}
-        </section>
-      </main>
+      <AttackScreen
+        state={state}
+        onStrike={(target) => onWeapon(target)}
+        onReturn={() => dispatch({ type: "return-walk" })}
+      />
     );
   }
 
