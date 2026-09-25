@@ -189,7 +189,7 @@ export function DailyGame() {
           </div>
           <div className="mt-4 flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm text-[#6f5b4b]">敵人幸運值</p>
+              <p className="text-sm text-[#6f5b4b]">幸運值</p>
               <p className="text-4xl font-bold tabular-nums text-[#2a1c14]" data-testid="enemy-luck">
                 {state.enemyLuck ?? "–"}
               </p>
