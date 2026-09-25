@@ -142,11 +142,11 @@ export function DailyGame() {
   }
 
   function onWalk() {
-    if (state.phase !== "walk" || state.dice < 2) return;
-    const dice = rollPair();
-    const nextIndex = (state.position + dice[0] + dice[1]) % TILES.length;
+    if (state.phase !== "walk" || state.dice < 1) return;
+    const face = rollDie();
+    const nextIndex = (state.position + face) % TILES.length;
     const enemyDice = TILES[nextIndex]?.kind === "attack" ? rollPair() : null;
-    dispatch({ type: "move", dice, enemyDice, now: Date.now() });
+    dispatch({ type: "move", face, enemyDice, now: Date.now() });
   }
 
   function onBuild() {
@@ -268,10 +268,9 @@ export function DailyGame() {
             purseLabel={state.hasNft ? "有 NFT" : "沒有 NFT"}
             placeLabel={`停在${here}`}
           />
-          {state.lastPlayerFaces ? (
+          {state.walkFace ? (
             <p className="text-sm leading-6" data-testid="last-walk">
-              擲出 {state.lastPlayerFaces[0]} 和 {state.lastPlayerFaces[1]}，走了{" "}
-              {state.lastPlayerFaces[0] + state.lastPlayerFaces[1]} 格。
+              擲出 {state.walkFace}，走了 {state.walkFace} 格。
             </p>
           ) : null}
           <Button
@@ -292,9 +291,9 @@ export function DailyGame() {
               補一粒（測試）
             </Button>
           </div>
-          {state.dice < 2 ? (
+          {state.dice < 1 ? (
             <p className="text-sm leading-6 text-[#9e3428]" data-testid="need-two">
-              擲骰行棋要 2 顆，你現在只有 {state.dice} 顆。
+              擲骰行棋要 1 顆。
             </p>
           ) : (
             <p className="text-xs leading-5 text-[#6f5b4b]">

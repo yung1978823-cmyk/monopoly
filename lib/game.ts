@@ -67,6 +67,7 @@ export type GameState = {
   nextLogId: number;
   pendingBuildIndex: number | null;
   dayKey: string;
+  walkFace: number | null;
   lastPlayerFaces: DiePair | null;
   lastRivalFaces: DiePair | null;
   enemyLuck: number | null;
@@ -77,7 +78,7 @@ export type GameState = {
 export type Action =
   | { type: "tick"; now: number; dayKey: string }
   | { type: "add-test-die" }
-  | { type: "move"; dice: DiePair; enemyDice?: DiePair | null; now: number }
+  | { type: "move"; face: number; enemyDice?: DiePair | null; now: number }
   | { type: "weapon" }
   | { type: "return-walk" }
   | { type: "build" }
@@ -115,6 +116,7 @@ export function createGame(now: number, dayKey: string): GameState {
     nextLogId: 1,
     pendingBuildIndex: null,
     dayKey,
+    walkFace: null,
     lastPlayerFaces: null,
     lastRivalFaces: null,
     enemyLuck: null,
@@ -252,6 +254,7 @@ export function sanitizeState(
         ? value.pendingBuildIndex
         : null,
     dayKey: typeof value.dayKey === "string" && value.dayKey ? value.dayKey : dayKey,
+    walkFace: inRange(value.walkFace, 1, 6) ? value.walkFace : null,
     lastPlayerFaces: readPair(value.lastPlayerFaces),
     lastRivalFaces: readPair(value.lastRivalFaces),
     enemyLuck: inRange(value.enemyLuck, 2, 12) ? value.enemyLuck : null,
@@ -549,19 +552,18 @@ export function reduce(state: GameState, action: Action): GameState {
       );
     }
     case "move": {
-      const faces = readPair(action.dice);
-      if (!faces || state.dice < ROLL_COST) return state;
-      const spent = spendDice(state.dice, state.lastRefillAt, action.now, ROLL_COST);
+      const face = action.face;
+      if (!isFace(face) || state.dice < 1) return state;
+      const spent = spendDice(state.dice, state.lastRefillAt, action.now, 1);
       if (!spent) return state;
-      const luck = luckOf(faces);
-      const moved = movePoints(state.position, luck);
+      const moved = movePoints(state.position, face);
       const tile = TILES[moved.position];
       const enemyFaces = tile?.kind === "attack" ? readPair(action.enemyDice) : null;
       const searching = enemyFaces !== null;
       const enemyLuck = searching ? luckOf(enemyFaces) : null;
       const passed = moved.passedStart ? "經過起點。" : "";
       const searchText = searching
-        ? `這格是攻擊。搜尋敵人，配到阿強。敵人擲出 ${enemyFaces[0]} 和 ${enemyFaces[1]}。敵人幸運值 ${enemyLuck}。`
+        ? `這格是攻擊。搜尋敵人，配到阿強。敵人擲出 ${enemyFaces[0]} 和 ${enemyFaces[1]}。幸運值 ${enemyLuck}。`
         : "這格只加分數。";
       const next: GameState = {
         ...state,
@@ -572,7 +574,7 @@ export function reduce(state: GameState, action: Action): GameState {
         points: state.points + moved.gained,
         rollCount: state.rollCount + 1,
         pendingBuildIndex: null,
-        lastPlayerFaces: faces,
+        walkFace: face,
         lastRivalFaces: searching ? enemyFaces : null,
         enemyLuck,
         weaponReadout: null,
@@ -581,7 +583,7 @@ export function reduce(state: GameState, action: Action): GameState {
       return pushLog(
         next,
         "you",
-        `你花 2 顆，擲出 ${faces[0]} 和 ${faces[1]}。走 ${luck} 格。${passed}走到${tile?.name ?? "這一格"}。分數 +${moved.gained}，合計 ${next.points}。${searchText}`,
+        `你花 1 顆，擲出 ${face}。走 ${face} 格。${passed}走到${tile?.name ?? "這一格"}。分數 +${moved.gained}，合計 ${next.points}。${searchText}`,
       );
     }
     case "weapon": {
@@ -675,6 +677,11 @@ export function reduce(state: GameState, action: Action): GameState {
   }
 }
 
-export function previewMove(state: GameState, dice: DiePair, now: number): GameState {
-  return reduce(state, { type: "move", dice, now });
+export function previewMove(
+  state: GameState,
+  face: number,
+  now: number,
+  enemyDice?: DiePair | null,
+): GameState {
+  return reduce(state, { type: "move", face, enemyDice, now });
 }

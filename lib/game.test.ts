@@ -26,7 +26,7 @@ describe("daily board", () => {
   it("opens 搜尋敵人 when the walk lands on 攻擊", () => {
     const state = reduce(start(), {
       type: "move",
-      dice: [3, 3],
+      face: 6,
       enemyDice: [1, 2],
       now: NOW,
     });
@@ -35,13 +35,13 @@ describe("daily board", () => {
     assert.equal(state.enemyLuck, 3);
     assert.deepEqual(state.lastRivalFaces, [1, 2]);
     assert.match(state.log[0]?.text ?? "", /搜尋敵人/);
-    assert.match(state.log[0]?.text ?? "", /敵人幸運值 3/);
+    assert.match(state.log[0]?.text ?? "", /幸運值 3/);
   });
 
   it("hits only when the weapon is greater than the rival total", () => {
     let state = reduce(start(), {
       type: "move",
-      dice: [3, 3],
+      face: 6,
       enemyDice: [1, 1],
       now: NOW,
     });
@@ -81,20 +81,19 @@ describe("daily board", () => {
     assert.equal(countBuilt(state.landmarks), 1);
   });
 
-  it("walks the loop with two dice, scores points, and offers a build", () => {
-    let state = { ...start(), dice: 1 };
-    const short = reduce(state, { type: "move", dice: [1, 1], now: NOW });
+  it("walks one square per pip and spends a single die", () => {
+    let state = { ...start(), dice: 0 };
+    const short = reduce(state, { type: "move", face: 1, now: NOW });
     assert.equal(short, state);
 
-    state = { ...state, dice: 2 };
-    state = reduce(state, { type: "move", dice: [1, 1], now: NOW });
-    assert.equal(state.position, 2);
+    state = { ...state, dice: 1 };
+    state = reduce(state, { type: "move", face: 1, now: NOW });
+    assert.equal(state.position, 1);
     assert.equal(state.points, 1);
     assert.equal(state.dice, 0);
     assert.equal(state.phase, "walk");
-    assert.equal(state.pendingBuildIndex, null);
-    assert.deepEqual(state.lastPlayerFaces, [1, 1]);
-    assert.match(state.log[0]?.text ?? "", /走 2 格/);
+    assert.equal(state.walkFace, 1);
+    assert.match(state.log[0]?.text ?? "", /走 1 格/);
     state = reduce(state, { type: "build" });
     assert.equal(state.landmarks[0], "built");
     assert.equal(state.points, 4);
@@ -104,8 +103,8 @@ describe("daily board", () => {
 
   it("pays the start bonus when the loop wraps", () => {
     const state = reduce(
-      { ...start(), position: 10, dice: 2 },
-      { type: "move", dice: [1, 2], now: NOW },
+      { ...start(), position: 10, dice: 1 },
+      { type: "move", face: 3, now: NOW },
     );
     assert.equal(state.position, 1);
     assert.equal(state.points, 3);
