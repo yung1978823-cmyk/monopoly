@@ -1,10 +1,10 @@
 "use client";
 
-import { DieFace } from "@/components/die-face";
 import { TipHand } from "@/components/tip-hand";
 import { LANDMARK_NAMES } from "@/lib/board";
 import { CITIES, SHIELD_ART } from "@/lib/cities";
-import { attackPower, builtIndexes, countBuilt, type GameState } from "@/lib/game";
+import { attackPower, builtIndexes, countBuilt, rivalPower, type GameState } from "@/lib/game";
+import { hitChance } from "@/lib/rules";
 import { cn } from "cn";
 import { useEffect, useState } from "react";
 
@@ -31,10 +31,11 @@ export function AttackScreen({
   const city = CITIES[state.rivalCity] ?? CITIES[0];
   const readout = state.weaponReadout;
   const standing = builtIndexes(state.rivalLandmarks);
-  const rivalPower = countBuilt(state.rivalLandmarks);
+  const rivalBuilt = countBuilt(state.rivalLandmarks);
   // Show the totals the last strike used; a smash lowers the rival's defence afterwards.
   const attackTotal = readout?.attackTotal ?? attackPower(state);
-  const defenseTotal = readout?.defenseTotal ?? rivalPower * 5 + (state.enemyLuck ?? 0);
+  const defenseTotal = readout?.defenseTotal ?? rivalPower(state);
+  const chance = readout?.chance ?? hitChance(attackTotal, defenseTotal);
   const picking = !state.fightSettled && standing.length > 0;
   const [flash, setFlash] = useState<Flash | null>(null);
   const [aimed, setAimed] = useState<number | null>(null);
@@ -162,12 +163,9 @@ export function AttackScreen({
         <div className="min-w-0 flex-1">
           <p className="truncate text-lg font-black text-[#1E3A8A]">阿強嘅{city.name}</p>
           <p className="text-xs font-bold text-[#3B5BA9]">
-            {state.rivalHasNft ? "🛡️ 有 NFT" : "冇 NFT"} · 建築 {rivalPower}／{city.plots.length}
+            🏠 {rivalBuilt}／{city.plots.length}
+            {state.rivalNfts > 0 ? ` · 💎 ${state.rivalNfts}` : ""}
           </p>
-        </div>
-        <div className="flex items-center gap-1">
-          <DieFace value={state.lastRivalFaces?.[0] ?? null} />
-          <DieFace value={state.lastRivalFaces?.[1] ?? null} />
         </div>
       </header>
 
@@ -177,7 +175,15 @@ export function AttackScreen({
           <span>
             ⚔️ 攻擊 <span className="text-xl tabular-nums">{attackTotal}</span>
           </span>
-          <span className="text-[#3B5BA9]">對</span>
+          <span
+            className={cn(
+              "rounded-full px-3 py-0.5 text-lg font-black tabular-nums text-white",
+              chance >= 60 ? "bg-[#43B047]" : chance >= 40 ? "bg-[#F59E0B]" : "bg-[#E52521]",
+            )}
+            data-testid="hit-chance"
+          >
+            🎯 {chance}%
+          </span>
           <span>
             🛡️ 防守 <span className="text-xl tabular-nums">{defenseTotal}</span>
           </span>

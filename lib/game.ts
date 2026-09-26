@@ -6,9 +6,15 @@ import {
   CHEST_MIN,
   DAILY_DST_CAP,
   DICE_CAP,
+  HIT_BASE,
+  HIT_MAX,
+  HIT_MIN,
+  NFT_ATTACK,
   NFT_SLOTS,
   POINTS,
+  hitChance,
   nftAttack,
+  smashPoints,
   addTestDie,
   applyRefill,
   buildCost,
@@ -35,6 +41,8 @@ export type WeaponReadout = {
   weapon: number;
   attackTotal: number;
   defenseTotal: number;
+  /** Chance the strike had to land, 15–85. */
+  chance: number;
   enemyLuck: number;
   hit: boolean;
   dst: number;
@@ -67,6 +75,8 @@ export type GameState = {
   /** The five NFT slots: each holds an NFT id or is empty. Any NFT placed means you hold one. */
   nfts: (string | null)[];
   rivalHasNft: boolean;
+  /** How many NFTs the current rival has placed (0 without an NFT). */
+  rivalNfts: number;
   /** DST this player has taken today. Capped at 5 per day. */
   dstTakenToday: number;
   rollCount: number;
@@ -96,11 +106,13 @@ export type Action =
       rivalBuilt?: number;
       /** Which of CITIES that rival lives in. */
       rivalCity?: number;
+      /** How many NFTs that rival has placed (1–5), when they hold any. */
+      rivalNfts?: number;
       /** Points in the chest, if the walk stops on 寶箱 (3–6). */
       chest?: number;
       now: number;
     }
-  | { type: "weapon"; target?: number | null }
+  | { type: "weapon"; target?: number | null; /** A random number in [0, 1) deciding the hit. */ roll?: number }
   | { type: "raided"; target: number }
   | { type: "return-walk" }
   | { type: "build" }
@@ -126,6 +138,11 @@ export function holdsNft(state: Pick<GameState, "nfts">): boolean {
   return nftCount(state) > 0;
 }
 
+/** The rival's power, on the same scale as yours: 10, +5 per standing building, +2 per NFT. */
+export function rivalPower(state: Pick<GameState, "rivalLandmarks" | "rivalNfts">): number {
+  return 10 + countBuilt(state.rivalLandmarks) * 5 + nftAttack(state.rivalNfts);
+}
+
 /** Attack power: 10, +5 per standing building, plus +2 per NFT placed. */
 export function attackPower(state: Pick<GameState, "landmarks" | "nfts">): number {
   return 10 + countBuilt(state.landmarks) * 5 + nftAttack(nftCount(state));
@@ -143,6 +160,7 @@ export function createGame(now: number, dayKey: string): GameState {
     rivalCity: 0,
     nfts: emptyNfts(),
     rivalHasNft: true,
+    rivalNfts: 1,
     dstTakenToday: 0,
     rollCount: 0,
     strikes: 0,
@@ -240,11 +258,12 @@ function readWeapon(value: unknown): WeaponReadout | null {
   if (!value || typeof value !== "object") return null;
   const readout = value as Partial<WeaponReadout>;
   const { weapon, attackTotal, defenseTotal, enemyLuck, hit, dst, pointsGained, shieldBreak } = readout;
+  const chance = inRange(readout.chance, HIT_MIN, HIT_MAX) ? readout.chance : HIT_BASE;
   const smashed = inRange(readout.smashed, 0, 3) ? readout.smashed : null;
   if (
     !inRange(weapon, 0, 4) ||
     !inRange(attackTotal, 10, 30 + nftAttack(NFT_SLOTS)) ||
-    !inRange(defenseTotal, 2, 32) ||
+    !inRange(defenseTotal, 10, 25 + NFT_SLOTS * NFT_ATTACK) ||
     !inRange(enemyLuck, 2, 12) ||
     typeof hit !== "boolean" ||
     !inRange(dst, 0, DAILY_DST_CAP) ||
@@ -253,7 +272,7 @@ function readWeapon(value: unknown): WeaponReadout | null {
   ) {
     return null;
   }
-  return { weapon, attackTotal, defenseTotal, enemyLuck, hit, dst, pointsGained, shieldBreak, smashed };
+  return { weapon, attackTotal, defenseTotal, chance, enemyLuck, hit, dst, pointsGained, shieldBreak, smashed };
 }
 
 export function sanitizeState(
@@ -293,6 +312,7 @@ export function sanitizeState(
     rivalCity: inRange(value.rivalCity, 0, CITIES.length - 1) ? value.rivalCity : 0,
     nfts: readNfts(value.nfts),
     rivalHasNft: value.rivalHasNft !== false,
+    rivalNfts: value.rivalHasNft === false ? 0 : clampInt(value.rivalNfts, 1, NFT_SLOTS, 1),
     // Saves from before the rename kept this under rivalStolenToday.
     dstTakenToday: clampInt(value.dstTakenToday ?? value.rivalStolenToday, 0, DAILY_DST_CAP, 0),
     rollCount: clampInt(value.rollCount, 0, 1_000_000, 0),
@@ -405,7 +425,12 @@ export function reduce(state: GameState, action: Action): GameState {
       // Before the first strike of a fight, the rival's shield follows their NFT.
       const fresh = state.phase === "search" && state.weaponReadout === null;
       return pushLog(
-        { ...state, rivalHasNft: action.value, enemyShield: fresh ? action.value : state.enemyShield },
+        {
+          ...state,
+          rivalHasNft: action.value,
+          rivalNfts: action.value ? Math.max(1, state.rivalNfts) : 0,
+          enemyShield: fresh ? action.value : state.enemyShield,
+        },
         "rule",
         action.value
           ? "對手有 NFT，開打時有一面盾。你也有 NFT 時，打中才搬 DST，一日最多 5。"
@@ -438,7 +463,7 @@ export function reduce(state: GameState, action: Action): GameState {
       const passed = moved.landing.passedStart ? "經過起點。" : "";
       const change = moved.landing.points;
       const effect = searching
-        ? `搜尋敵人，配到阿強，佢有 ${rivalBuilt} 座建築。敵人擲出 ${enemyFaces[0]} 和 ${enemyFaces[1]}。幸運值 ${enemyLuck}。`
+        ? `搜尋敵人，配到阿強，佢有 ${rivalBuilt} 座建築。`
         : moved.landing.dice > 0
           ? "多一粒骰。"
           : "";
@@ -455,6 +480,7 @@ export function reduce(state: GameState, action: Action): GameState {
         lastRivalFaces: searching ? enemyFaces : null,
         rivalLandmarks,
         rivalCity,
+        rivalNfts: state.rivalHasNft ? (inRange(action.rivalNfts, 1, NFT_SLOTS) ? action.rivalNfts : 1) : 0,
         enemyLuck,
         // Only a rival holding an NFT has a shield.
         enemyShield: searching && state.rivalHasNft,
@@ -478,19 +504,21 @@ export function reduce(state: GameState, action: Action): GameState {
       }
       const weapon = countBuilt(state.landmarks);
       const attackTotal = attackPower(state);
-      const defenseTotal = countBuilt(state.rivalLandmarks) * 5 + state.enemyLuck;
-      const hit = attackTotal > defenseTotal;
+      const defenseTotal = rivalPower(state);
+      const chance = hitChance(attackTotal, defenseTotal);
+      const roll = typeof action.roll === "number" && action.roll >= 0 && action.roll < 1 ? action.roll : 0.5;
+      const hit = roll * 100 < chance;
       const bothNft = holdsNft(state) && state.rivalHasNft;
       let pointsGained = 0;
       let dst = 0;
       let smashed: number | null = null;
       const shieldBreak = hit && state.enemyShield;
       if (hit) {
-        const smashPoints = Math.min(5, Math.max(1, attackTotal - defenseTotal));
+        const smash = smashPoints(attackTotal, defenseTotal);
         // Breaking a shield adds 1 point; DST only follows the smash itself.
-        pointsGained = smashPoints + (shieldBreak ? 1 : 0);
+        pointsGained = smash + (shieldBreak ? 1 : 0);
         const room = Math.max(0, DAILY_DST_CAP - state.dstTakenToday);
-        dst = bothNft ? Math.min(smashPoints, room) : 0;
+        dst = bothNft ? Math.min(smash, room) : 0;
         if (standing.length > 0) smashed = target;
       }
       const enemyShield = state.enemyShield && !hit;
@@ -503,6 +531,7 @@ export function reduce(state: GameState, action: Action): GameState {
         weapon,
         attackTotal,
         defenseTotal,
+        chance,
         enemyLuck: state.enemyLuck,
         hit,
         dst,
@@ -526,7 +555,7 @@ export function reduce(state: GameState, action: Action): GameState {
           weaponReadout,
         },
         "you",
-        `總攻擊 ${attackTotal}，總防守 ${defenseTotal}。${verdict}。${smashText}得 ${pointsGained} 分，合計 ${nextPoints}。${pay}`,
+        `總攻擊 ${attackTotal}，總防守 ${defenseTotal}，機會 ${chance}%。${verdict}。${smashText}得 ${pointsGained} 分，合計 ${nextPoints}。${pay}`,
       );
     }
     case "return-walk": {

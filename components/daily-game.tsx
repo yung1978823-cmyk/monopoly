@@ -37,6 +37,7 @@ type PendingWalk = {
   enemyDice: [number, number] | null;
   rivalBuilt: number;
   rivalCity: number;
+  rivalNfts: number;
   chest: number;
   running: boolean;
   committed: boolean;
@@ -238,6 +239,7 @@ export function DailyGame() {
         enemyDice: move.enemyDice,
         rivalBuilt: move.rivalBuilt,
         rivalCity: move.rivalCity,
+        rivalNfts: move.rivalNfts,
         chest: move.chest,
         now: Date.now(),
       });
@@ -256,7 +258,8 @@ export function DailyGame() {
     const rivalCity = Math.floor(Math.random() * CITIES.length);
     const rivalBuilt = Math.floor(Math.random() * (plotCount(rivalCity) + 1));
     const chest = 3 + Math.floor(Math.random() * 4);
-    setPending({ faces, steps, from, step: 0, enemyDice, rivalBuilt, rivalCity, chest, running: true, committed: false });
+    const rivalNfts = 1 + Math.floor(Math.random() * 5);
+    setPending({ faces, steps, from, step: 0, enemyDice, rivalBuilt, rivalCity, rivalNfts, chest, running: true, committed: false });
   }
 
   function onBuild() {
@@ -268,7 +271,7 @@ export function DailyGame() {
 
   function onWeapon(target: number | null = null) {
     if (state.phase !== "search" || state.fightSettled) return;
-    dispatch({ type: "weapon", target });
+    dispatch({ type: "weapon", target, roll: Math.random() });
   }
 
   /** Test helper: the rival hits one of your standing landmarks. */

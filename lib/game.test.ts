@@ -14,7 +14,7 @@ import {
   reduce,
   type Landmark,
 } from "./game";
-import { BUILD_COSTS, DICE_CAP, REFILL_MS } from "./rules";
+import { BUILD_COSTS, DICE_CAP, REFILL_MS, hitChance, smashPoints } from "./rules";
 
 const NOW = Date.parse("2026-09-24T08:00:00");
 const DAY = "2026-09-24";
@@ -153,7 +153,7 @@ describe("daily board", () => {
       ...reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 0, now: NOW }),
       enemyShield: false,
     };
-    const hit = reduce(fight, { type: "weapon" });
+    const hit = reduce(fight, { type: "weapon", roll: 0.1 });
     assert.equal(hit.weaponReadout?.hit, true);
     assert.equal(hit.weaponReadout?.smashed, null);
   });
@@ -198,54 +198,66 @@ describe("daily board", () => {
   });
 
   it("settles a fight in one tap, breaking the shield on the way to the smash", () => {
-    let state = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], now: NOW });
+    let state = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 2, rivalNfts: 1, now: NOW });
     assert.equal(state.enemyShield, true);
-    assert.equal(reduce(state, { type: "weapon" }), state, "must pick a standing landmark");
-    const missed = reduce(state, { type: "weapon", target: 0 });
+    assert.equal(reduce(state, { type: "weapon", roll: 0 }), state, "must pick a standing landmark");
+    // You 10 against their 10 + 2 buildings × 5 + 1 NFT × 2 = 22: the 15% floor.
+    const missed = reduce(state, { type: "weapon", target: 0, roll: 0.5 });
     assert.equal(missed.weaponReadout?.attackTotal, 10);
-    assert.equal(missed.weaponReadout?.defenseTotal, 12);
+    assert.equal(missed.weaponReadout?.defenseTotal, 22);
+    assert.equal(missed.weaponReadout?.chance, 15);
     assert.equal(missed.weaponReadout?.hit, false);
     assert.equal(missed.weaponReadout?.pointsGained, 0);
     assert.equal(missed.enemyShield, true);
     assert.equal(missed.fightSettled, true);
     assert.equal(missed.rivalLandmarks[0], "built");
     assert.equal(missed.strikes, 1, "counts fights for the first-time pointer");
+    const lucky = reduce(state, { type: "weapon", target: 0, roll: 0.1 });
+    assert.equal(lucky.weaponReadout?.hit, true, "even a weak attacker lands 15% of the time");
+    assert.equal(lucky.weaponReadout?.pointsGained, 6, "beating a much stronger rival pays the most: 5 + 1 for the shield");
 
     state = {
       ...state,
-      landmarks: ["built", "built", "built", "built"] as Landmark[],
       nfts: ["nft-a", null, null, null, null],
       rivalLandmarks: ["built", "empty", "empty", "empty"] as Landmark[],
-      enemyLuck: 2,
+      rivalNfts: 1,
       enemyShield: true,
       fightSettled: false,
+      points: 0,
     };
-    const scored = reduce(state, { type: "weapon", target: 0 });
-    assert.equal(scored.weaponReadout?.attackTotal, 32, "10 + 4 buildings × 5 + 1 NFT × 2");
-    assert.equal(scored.weaponReadout?.defenseTotal, 7);
+    // A weaker attacker: 10 + 1 NFT × 2 = 12 against 10 + 1 building × 5 + 1 NFT × 2 = 17.
+    const scored = reduce(state, { type: "weapon", target: 0, roll: 0.2 });
+    assert.equal(scored.weaponReadout?.attackTotal, 12);
+    assert.equal(scored.weaponReadout?.defenseTotal, 17);
+    assert.equal(scored.weaponReadout?.chance, 30);
     assert.equal(scored.weaponReadout?.shieldBreak, true);
-    assert.equal(scored.weaponReadout?.pointsGained, 6, "1 for the shield and 5 for the smash");
-    assert.equal(scored.weaponReadout?.dst, 5);
-    assert.equal(scored.dstTakenToday, 5);
+    assert.equal(scored.weaponReadout?.pointsGained, 5, "1 for the shield and 4 for smashing a stronger rival");
+    assert.equal(scored.weaponReadout?.dst, 4);
+    assert.equal(scored.dstTakenToday, 4);
     assert.equal(scored.enemyShield, false);
-    assert.equal(scored.fightSettled, true);
     assert.equal(scored.weaponReadout?.smashed, 0);
     assert.equal(scored.rivalLandmarks[0], "ruined");
-    assert.match(scored.log[0]?.text ?? "", /搬走 5 DST/);
+    assert.match(scored.log[0]?.text ?? "", /搬走 4 DST/);
     assert.equal(reduce(scored, { type: "weapon", target: 0 }), scored);
-    assert.ok(parseSave(JSON.stringify({ v: 1, state: scored }), NOW, DAY)?.weaponReadout);
+    assert.equal(parseSave(JSON.stringify({ v: 1, state: scored }), NOW, DAY)?.weaponReadout?.chance, 30);
 
-    const noPlayer = reduce({ ...state, nfts: [null, null, null, null, null] }, { type: "weapon", target: 0 });
-    assert.equal(noPlayer.weaponReadout?.pointsGained, 6);
+    const noPlayer = reduce({ ...state, nfts: [null, null, null, null, null] }, { type: "weapon", target: 0, roll: 0 });
     assert.equal(noPlayer.weaponReadout?.dst, 0);
-    const noRival = reduce({ ...state, rivalHasNft: false, enemyShield: false }, { type: "weapon", target: 0 });
+    const noRival = reduce({ ...state, rivalHasNft: false, rivalNfts: 0, enemyShield: false }, { type: "weapon", target: 0, roll: 0 });
     assert.equal(noRival.weaponReadout?.dst, 0);
-    assert.equal(noRival.weaponReadout?.pointsGained, 5);
+    const capped = reduce({ ...state, dstTakenToday: 4 }, { type: "weapon", target: 0, roll: 0 });
+    assert.equal(capped.weaponReadout?.dst, 1);
+  });
 
-    const room = reduce({ ...state, dstTakenToday: 4 }, { type: "weapon", target: 0 });
-    assert.equal(room.weaponReadout?.dst, 1);
-    const capped = reduce({ ...state, dstTakenToday: 5 }, { type: "weapon", target: 0 });
-    assert.equal(capped.weaponReadout?.dst, 0);
+  it("gives 50% when evenly matched, ±4% a point, and never below 15% or above 85%", () => {
+    assert.equal(hitChance(20, 20), 50);
+    assert.equal(hitChance(22, 20), 58, "one more NFT");
+    assert.equal(hitChance(25, 20), 70, "one more building");
+    assert.equal(hitChance(40, 10), 85);
+    assert.equal(hitChance(10, 40), 15);
+    assert.equal(smashPoints(20, 20), 3);
+    assert.equal(smashPoints(30, 10), 1, "bullying a weak rival pays little");
+    assert.equal(smashPoints(10, 30), 5);
   });
 
   it("fills up to five NFT slots; each adds attack and any one means you hold an NFT", () => {
