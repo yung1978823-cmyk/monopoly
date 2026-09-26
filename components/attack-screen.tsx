@@ -78,7 +78,11 @@ export function AttackScreen({
     >
       {/* City art, fitted inside the screen, with the landmark targets on it. */}
       <div
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[56%] bg-cover bg-center"
+        className={cn(
+          "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[56%] bg-cover bg-center",
+          // The whole town shudders when a building goes down.
+          flash?.kind === "smash" && "animate-[smash_0.5s_ease-out]",
+        )}
         style={{
           backgroundImage: `url(${city.art})`,
           width: `min(100cqw, calc(100cqh * ${city.width / city.height}))`,

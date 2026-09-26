@@ -8,6 +8,16 @@ function depthScale(y: number): number {
 }
 
 /** Tint behind each square's picture. Coins stay bare so the special squares stand out. */
+/** A stop's effect: its picture bursts up from the square with the number floating away. */
+export type Burst = {
+  key: number;
+  index: number;
+  icon: string;
+  /** e.g. "+2⭐" or "−3⭐"; empty for none. */
+  text: string;
+  bad: boolean;
+};
+
 const TINT: Record<TileKind, string | null> = {
   start: "rgba(251,208,0,0.92)",
   coin: null,
@@ -23,6 +33,7 @@ export function BoardRing({
   centre = null,
   trail = [],
   stopIndex = null,
+  burst = null,
   className,
 }: {
   position: number;
@@ -30,6 +41,7 @@ export function BoardRing({
   centre?: ReactNode;
   trail?: number[];
   stopIndex?: number | null;
+  burst?: Burst | null;
   className?: string;
 }) {
   return (
@@ -93,11 +105,50 @@ export function BoardRing({
         data-testid="token"
         aria-current="true"
       >
-        <span className="flex size-[clamp(26px,8vw,42px)] items-center justify-center rounded-full border-[3px] border-[#FBD000] bg-[#1E3A8A] text-[clamp(11px,3vw,16px)] font-black text-[#FFFFFF] shadow-[0_6px_10px_rgba(30,58,138,0.45)]">
+        <span
+          key={position}
+          className="flex size-[clamp(26px,8vw,42px)] animate-[hop_0.22s_ease-out] items-center justify-center rounded-full border-[3px] border-[#FBD000] bg-[#1E3A8A] text-[clamp(11px,3vw,16px)] font-black text-[#FFFFFF] shadow-[0_6px_10px_rgba(30,58,138,0.45)]">
           🧛
         </span>
         <span className="-mt-0.5 h-2 w-2 rotate-45 bg-[#FBD000]" />
       </div>
+
+      {burst ? (
+        <div
+          key={burst.key}
+          className="pointer-events-none absolute z-30 flex -translate-x-1/2 -translate-y-full flex-col items-center"
+          style={{ left: `${TILE_POSITIONS[burst.index].x * 100}%`, top: `${TILE_POSITIONS[burst.index].y * 100}%` }}
+          data-testid="burst"
+        >
+          {burst.text ? (
+            <span
+              className={cn(
+                "animate-[float-up_1.6s_ease-out_0.25s_both] rounded-full border-2 border-white px-2 text-[clamp(13px,4vw,20px)] font-black tabular-nums text-white shadow-md",
+                burst.bad ? "bg-[#46506E]" : "bg-[#43B047]",
+              )}
+            >
+              {burst.text}
+            </span>
+          ) : null}
+          {/* Penalties wobble first; the burst sits on an inner span so the two motions don't fight. */}
+          <span className={cn("block", burst.bad && "animate-[shake_0.6s_ease-in-out]")}>
+            <span
+              className={cn(
+                "block text-[clamp(28px,9vw,48px)] leading-none drop-shadow-[0_6px_8px_rgba(0,0,0,0.35)]",
+                burst.bad ? "animate-[pop_0.25s_ease-out,fade-out_0.5s_ease-in_1.3s_forwards]" : "animate-[burst_1.4s_ease-out_both]",
+              )}
+            >
+              {burst.icon}
+            </span>
+          </span>
+          {!burst.bad ? (
+            <>
+              <span className="absolute -left-3 top-1/2 text-lg animate-[sparkle_0.9s_ease-out_0.2s_both]">✨</span>
+              <span className="absolute -right-3 top-1/3 text-base animate-[sparkle_0.9s_ease-out_0.35s_both]">✨</span>
+            </>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* The board's green centre shows the dice while they roll; otherwise it stays clear. */}
       {centre ? (

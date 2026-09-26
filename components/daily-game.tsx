@@ -1,7 +1,7 @@
 "use client";
 
 import { AttackScreen } from "@/components/attack-screen";
-import { BoardRing } from "@/components/board-ring";
+import { BoardRing, type Burst } from "@/components/board-ring";
 import { DieFace } from "@/components/die-face";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -85,24 +85,20 @@ function NftToggles({
   );
 }
 
-/** The picture and number for what the last square did, e.g. 🪙 +2 or 🚔 −2. */
-function LandingBadge({ landing }: { landing: NonNullable<GameState["landing"]> }) {
+/** Turn the last stop into its board effect: the square's picture and what it paid. */
+function burstOf(state: GameState): Burst | null {
+  const landing = state.landing;
+  if (!landing || landing.kind === "attack") return null;
   const parts: string[] = [];
   if (landing.points !== 0) parts.push(`${landing.points > 0 ? "+" : "−"}${Math.abs(landing.points)}⭐`);
   if (landing.dice > 0) parts.push(`+${landing.dice}🎲`);
-  const bad = landing.points < 0;
-  return (
-    <span
-      className={cn(
-        "flex animate-[pop_0.4s_ease-out] items-center gap-1 rounded-full border-2 border-[#FBD000] px-2.5 py-0.5 text-[clamp(12px,3.6vw,18px)] font-black tabular-nums text-white shadow-md",
-        bad ? "bg-[#46506E]" : "bg-[#43B047]",
-      )}
-      data-testid="landing"
-    >
-      <span className="text-[1.3em] leading-none">{TILE_INFO[landing.kind].icon}</span>
-      {parts.join(" ")}
-    </span>
-  );
+  return {
+    key: state.rollCount,
+    index: state.position,
+    icon: TILE_INFO[landing.kind].icon,
+    text: parts.join(" "),
+    bad: landing.kind === "jail" || landing.kind === "tax",
+  };
 }
 
 export function DailyGame() {
@@ -115,6 +111,8 @@ export function DailyGame() {
   const [pending, setPending] = useState<PendingWalk | null>(null);
   /** The roll whose attack intro has already played. */
   const [introSeen, setIntroSeen] = useState(-1);
+  /** The last build or repair, for its little celebration over the 🏗️ button. */
+  const [buildFx, setBuildFx] = useState<{ key: number; icon: string } | null>(null);
   const dispatch = useCallback((action: Parameters<typeof reduce>[1]) => {
     setState((current) => reduce(current, action));
   }, []);
@@ -247,7 +245,9 @@ export function DailyGame() {
 
   function onBuild() {
     if (!canBuild(state)) return;
+    const slot = raiseTarget(state);
     dispatch({ type: "build" });
+    setBuildFx({ key: Date.now(), icon: slot !== null && state.landmarks[slot] === "ruined" ? "🔧" : "🏰" });
   }
 
   function onWeapon(target: number | null = null) {
@@ -263,7 +263,6 @@ export function DailyGame() {
   }
 
   const weapon = countBuilt(state.landmarks);
-  const landing = state.landing;
   const shownStep = pending?.step ?? 0;
   const tokenIndex = pending ? (pending.from + shownStep) % TILES.length : state.position;
   const trail = pending
@@ -326,15 +325,13 @@ export function DailyGame() {
             position={tokenIndex}
             trail={trail}
             stopIndex={arrived ? tokenIndex : null}
+            burst={pending?.committed ? burstOf(state) : null}
             centre={
               pending ? (
-                <div className="flex flex-col items-center gap-1">
-                  <div className="flex items-center gap-1">
-                    <DieFace value={pending.faces[0]} />
-                    <DieFace value={pending.faces[1]} />
-                  </div>
-                  {pending.committed && landing ? <LandingBadge landing={landing} /> : null}
-                </div>
+                <>
+                  <DieFace value={pending.faces[0]} />
+                  <DieFace value={pending.faces[1]} />
+                </>
               ) : null
             }
           />
@@ -343,10 +340,10 @@ export function DailyGame() {
       {/* Top bar: dice and points only; everything else lives behind the menu. */}
       <header className="relative z-30 flex items-center justify-between gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
         <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-[#1E3A8A] py-1 pl-2 pr-3 text-lg font-black tabular-nums text-white shadow-md" data-testid="dice-count">
-          🎲 {state.dice}
+          🎲 <span key={state.dice} className="inline-block animate-[bump_0.35s_ease-out]">{state.dice}</span>
         </div>
         <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-white py-1 pl-2 pr-3 text-lg font-black tabular-nums text-[#1E3A8A] shadow-md" data-testid="hud-points">
-          ⭐ {state.points}
+          ⭐ <span key={state.points} className="inline-block animate-[bump_0.35s_ease-out]">{state.points}</span>
         </div>
         <button
           type="button"
@@ -380,6 +377,14 @@ export function DailyGame() {
           <span className="flex size-14 items-center justify-center rounded-2xl border-[3px] border-[#FBD000] bg-[#43B047] text-3xl shadow-[0_4px_0_#2E8B3E]">
             {repairing ? "🔧" : "🏗️"}
           </span>
+          {buildFx ? (
+            <span key={buildFx.key} className="pointer-events-none absolute -top-16 flex flex-col items-center" aria-hidden>
+              <span className="animate-[float-up_1.6s_ease-out_0.2s_both] rounded-full border-2 border-white bg-[#E52521] px-2 text-sm font-black text-white shadow-md">
+                ⚔️+5
+              </span>
+              <span className="text-4xl animate-[burst_1.4s_ease-out_both]">{buildFx.icon}</span>
+            </span>
+          ) : null}
           {buildCost === null ? null : (
             <span className="-mt-2 rounded-full bg-white px-2 text-xs font-black tabular-nums text-[#1E3A8A] shadow">
               ⭐{buildCost}
@@ -392,7 +397,10 @@ export function DailyGame() {
             type="button"
             onClick={onWalk}
             disabled={state.dice < 1 || pending?.running === true}
-            className="flex size-28 cursor-pointer items-center justify-center rounded-full border-[6px] border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-5xl font-black tracking-wide text-white shadow-[0_8px_0_#8E1210,0_14px_24px_rgba(30,58,138,0.45)] transition-transform active:translate-y-1.5 active:shadow-[0_2px_0_#8E1210] disabled:cursor-default disabled:opacity-60"
+            className={cn(
+              "flex size-28 cursor-pointer items-center justify-center rounded-full border-[6px] border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-5xl font-black tracking-wide text-white shadow-[0_8px_0_#8E1210,0_14px_24px_rgba(30,58,138,0.45)] transition-transform active:translate-y-1.5 active:shadow-[0_2px_0_#8E1210] disabled:cursor-default disabled:opacity-60",
+              state.dice > 0 && !pending?.running && "animate-[glow_1.8s_ease-in-out_infinite]",
+            )}
             aria-label="擲骰"
             data-testid="roll-move"
           >
