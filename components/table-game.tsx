@@ -1,6 +1,6 @@
 "use client";
 
-import { createBoardScene, loadThree, type BoardScene } from "@/components/eight-scene";
+import { createBoardScene, loadThree, type BoardScene, type Decor } from "@/components/eight-scene";
 import { TILE_INFO } from "@/lib/board";
 import {
   BAIL,
@@ -10,7 +10,6 @@ import {
   SEASON_POINTS,
   STAKE,
   START_PAY,
-  TURNS_EACH,
   botMove,
   netWorth,
   newTable,
@@ -18,8 +17,10 @@ import {
   standings,
   type TableAction,
   type TableEvent,
+  type TableRules,
   type TableState,
 } from "@/lib/eight";
+import { hostReport, type Realm } from "@/lib/realm";
 import { useLang } from "@/lib/i18n";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
@@ -33,7 +34,8 @@ const CAST = [
   { name: "阿強", avatar: "/art/avatars/zombie.jpg", colour: "#16A34A", bot: true },
 ];
 
-type Player = (typeof CAST)[number];
+export type Player = (typeof CAST)[number];
+export { CAST };
 
 function Coin({ className }: { className?: string }) {
   return <img src={TILE_INFO.coin.art} alt="" className={cn("inline-block size-[1.1em] align-[-0.15em]", className)} />;
@@ -147,8 +149,26 @@ type Toast = { key: number; text: string };
 const AUTO_SECONDS = 5;
 const rollFace = () => 1 + Math.floor(Math.random() * 6);
 
-function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: () => void; onAgain: () => void }) {
-  const [table, setTable] = useState<TableState>(() => newTable(players));
+/**
+ * The 八字 board game itself. On a 領地 the host's rules and buildings come in as `rules`,
+ * `decor` and `realm`, every seat is a guest (computer) and the end shows what the host earned.
+ */
+export function EightBoard({
+  players,
+  onExit,
+  onAgain,
+  rules,
+  decor,
+  realm,
+}: {
+  players: Player[];
+  onExit: () => void;
+  onAgain: () => void;
+  rules?: Partial<TableRules>;
+  decor?: Decor;
+  realm?: Realm;
+}) {
+  const [table, setTable] = useState<TableState>(() => newTable(players, rules));
   const [loaded, setLoaded] = useState<"loading" | "ready" | "failed">("loading");
   const [busy, setBusy] = useState(true);
   const [fast, setFast] = useState(false);
@@ -160,6 +180,7 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
   tRef.current = t;
   const wideRef = useRef(false);
   const mount = useRef<HTMLDivElement>(null);
+  const decorRef = useRef(decor);
   const sceneRef = useRef<BoardScene | null>(null);
   const stateRef = useRef<TableState>(table);
   const running = useRef(false);
@@ -262,6 +283,11 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
             say("{name} 入獄！", { name: who(event.seat) });
             await scene.flyTo(event.seat, { on: "loop", i: JAIL });
             break;
+          case "house":
+            play("coin");
+            say("{name} 交租 {n} 俾主人", { name: who(event.seat), n: event.amount });
+            await scene.coinsFly(event.seat, null, event.amount);
+            break;
           case "bankrupt":
             play("smash");
             say("{name} 破產！", { name: who(event.seat) });
@@ -313,7 +339,7 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
     loadThree()
       .then((T) => {
         if (cancelled || !mount.current) return;
-        scene = createBoardScene(T, mount.current, stateRef.current.seats.map((seat) => seat.colour));
+        scene = createBoardScene(T, mount.current, stateRef.current.seats.map((seat) => seat.colour), decorRef.current);
         sceneRef.current = scene;
         setLoaded("ready");
         aim(scene, stateRef.current.current);
@@ -377,7 +403,8 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
 
   const me = table.seats[0];
   const mine = !busy && loaded === "ready" && table.current === 0 && table.phase !== "over" && !me.bankrupt;
-  const round = Math.min(TURNS_EACH, me.turnsTaken + (me.bankrupt ? 0 : 1));
+  const turnsEach = table.rules.turnsEach;
+  const round = Math.min(turnsEach, Math.max(...table.seats.map((seat) => seat.turnsTaken)) + 1);
 
   return (
     <main className="relative h-dvh w-full touch-none select-none overflow-hidden bg-[#3B1D6E] text-[#1E3A8A]" data-testid="table">
@@ -395,7 +422,7 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
             ←
           </button>
           <p className="flex-1 text-center text-sm font-black text-white drop-shadow" data-testid="round">
-            {t("第 {n}／{total} 轉", { n: round, total: TURNS_EACH })}
+            {t("第 {n}／{total} 轉", { n: round, total: turnsEach })}
           </p>
           <span className="size-10" />
         </div>
@@ -533,13 +560,16 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
                       <Coin />
                       {netWorth(table, seat)}
                     </span>
-                    <span className="rounded-full bg-[#1E3A8A] px-2 text-xs font-black text-white">
-                      {t("+{n} 分", { n: SEASON_POINTS[table.seats.length]?.[place] ?? 0 })}
-                    </span>
+                    {realm ? null : (
+                      <span className="rounded-full bg-[#1E3A8A] px-2 text-xs font-black text-white">
+                        {t("+{n} 分", { n: SEASON_POINTS[table.seats.length]?.[place] ?? 0 })}
+                      </span>
+                    )}
                   </li>
                 );
               })}
             </ol>
+            {realm ? <HostReport realm={realm} guests={table.seats.length} houseRent={table.hostIncome} /> : null}
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -561,5 +591,28 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
         </div>
       ) : null}
     </main>
+  );
+}
+
+/** What the host took from one game on their 領地. Numbers marked 臨時 are placeholders. */
+function HostReport({ realm, guests, houseRent }: { realm: Realm; guests: number; houseRent: number }) {
+  const { t } = useLang();
+  const report = hostReport(realm, guests, houseRent);
+  const row = (label: string, value: string, strong = false) => (
+    <div className={cn("flex items-center justify-between", strong && "border-t-2 border-[#FBD000] pt-1 text-lg")}>
+      <span>{label}</span>
+      <span className="tabular-nums">{value}</span>
+    </div>
+  );
+  return (
+    <section className="mt-3 space-y-1 rounded-2xl bg-[#F3EEFF] p-3 text-sm font-black text-[#4C1D95]" data-testid="host-report">
+      <h3 className="text-center text-base">{t("🏰 主人收入")}</h3>
+      {realm.ticket === 0 ? <p className="text-center text-xs">{t("免費場：分數局，冇門票")}</p> : null}
+      {row(t("門票 {n} × {g} 位客", { n: realm.ticket, g: guests }), `+${report.tickets}`)}
+      {row(t("公司抽成（臨時 10%）"), `−${report.cut}`)}
+      {row(t("租金屋收租"), `+${report.houseRent}`)}
+      {row(t("呢一局淨收"), `${report.net}`, true)}
+      {report.tables > 1 ? row(t("{n} 張枱坐滿，每輪大約", { n: report.tables }), `${report.perRound}`) : null}
+    </section>
   );
 }

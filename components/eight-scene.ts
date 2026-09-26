@@ -53,8 +53,12 @@ export type BoardScene = {
   pulse(seat: number, gold?: boolean): Promise<void>;
   removeToken(seat: number): void;
   wait(ms: number): Promise<void>;
+  /** 領地 buildings on show: rent houses on their squares, a gold facade, train stations. */
+  setDecor(decor: Decor): void;
   dispose(): void;
 };
+
+export type Decor = { houses: string[]; facade: boolean; stations: number };
 
 // ---------- Layout (world units; x right, z toward the viewer) ----------
 
@@ -80,7 +84,7 @@ function spotPoint(spot: Spot): [number, number] {
 const GROUP_COLOURS = [0xe52521, 0xf59e0b, 0x22a447, 0x38bdf8, 0x3949ab, 0xec4899, 0x9a5b2e, 0x14b8a6];
 const OFFSETS: [number, number][] = [[-0.22, -0.2], [0.22, -0.2], [-0.22, 0.2], [0.22, 0.2]];
 
-export function createBoardScene(T: any, container: HTMLElement, colours: string[]): BoardScene {
+export function createBoardScene(T: any, container: HTMLElement, colours: string[], decor?: Decor): BoardScene {
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let speed = 1;
   const pace = () => speed * (reduceMotion ? 10 : 1);
@@ -318,9 +322,10 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
 
   // ---------- Castle in the top notch, treasure in the bottom one ----------
   const castleZ = -D + 0.3;
+  const roof = mat(0xc0264b, 0.4);
   {
     const c = new T.Group();
-    const stone = mat(0xd9cfe8, 0.7), dark = mat(0x5b3b7a, 0.5), roof = mat(0xc0264b, 0.4);
+    const stone = mat(0xd9cfe8, 0.7), dark = mat(0x5b3b7a, 0.5);
     const keep = shadowy(new T.Mesh(new T.BoxGeometry(2.6, 1.8, 2.6), stone));
     keep.position.y = 0.9;
     c.add(keep);
@@ -649,6 +654,94 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
     return g;
   }
 
+  // ---------- 領地 decor ----------
+  const decorGroup = new T.Group();
+  scene.add(decorGroup);
+  const houseTiles: string[] = [];
+  function rentHouse() {
+    const g = new T.Group();
+    const purple = mat(0x7c3aed, 0.35), gold = mat(0xfbd000, 0.15, { metalness: 0.7, emissive: 0x5a3d00 });
+    const body = shadowy(new T.Mesh(new T.BoxGeometry(0.46, 0.5, 0.46), mat(0xf5ecff, 0.5)));
+    body.position.y = 0.25;
+    g.add(body);
+    const top = shadowy(new T.Mesh(new T.ConeGeometry(0.4, 0.42, 4), purple));
+    top.position.y = 0.71;
+    top.rotation.y = Math.PI / 4;
+    g.add(top);
+    const pole = shadowy(new T.Mesh(new T.CylinderGeometry(0.02, 0.02, 0.4, 8), gold));
+    pole.position.y = 1.1;
+    g.add(pole);
+    const flag = shadowy(new T.Mesh(new T.BoxGeometry(0.24, 0.14, 0.02), gold));
+    flag.position.set(0.12, 1.22, 0);
+    g.add(flag);
+    const sign = new T.Mesh(new T.BoxGeometry(0.2, 0.2, 0.01), new T.MeshBasicMaterial({ color: 0xfbd000 }));
+    sign.position.set(0, 0.3, 0.236);
+    g.add(sign);
+    return g;
+  }
+  function station() {
+    const g = new T.Group();
+    const hall = shadowy(new T.Mesh(new T.BoxGeometry(1.4, 0.6, 0.7), mat(0xfff1d6, 0.5)));
+    hall.position.y = 0.3;
+    g.add(hall);
+    const cap = shadowy(new T.Mesh(new T.BoxGeometry(1.6, 0.12, 0.9), mat(0x1e3a8a, 0.4)));
+    cap.position.y = 0.66;
+    g.add(cap);
+    const clock = new T.Mesh(new T.CylinderGeometry(0.16, 0.16, 0.04, 20), new T.MeshBasicMaterial({ color: 0xffffff }));
+    clock.rotation.x = Math.PI / 2;
+    clock.position.set(0, 0.9, 0.3);
+    g.add(clock);
+    const tower = shadowy(new T.Mesh(new T.BoxGeometry(0.4, 0.5, 0.4), mat(0xe52521, 0.4)));
+    tower.position.set(0, 0.95, 0);
+    g.add(tower);
+    // A little train waiting at the platform.
+    const engine = shadowy(new T.Mesh(new T.BoxGeometry(0.7, 0.34, 0.32), mat(0x16a34a, 0.35)));
+    engine.position.set(-0.2, 0.17, 0.75);
+    g.add(engine);
+    const funnel = shadowy(new T.Mesh(new T.CylinderGeometry(0.07, 0.09, 0.22, 12), mat(0x111827, 0.4)));
+    funnel.position.set(-0.4, 0.44, 0.75);
+    g.add(funnel);
+    const car = shadowy(new T.Mesh(new T.BoxGeometry(0.6, 0.3, 0.3), mat(0xfbd000, 0.35)));
+    car.position.set(0.5, 0.15, 0.75);
+    g.add(car);
+    return g;
+  }
+  const STATION_SPOTS: [number, number, number][] = [[-2 * D - 1.6, 0, 0], [2 * D + 1.6, 0, 0], [-D, 0, D + 1.2], [D, 0, D + 1.2], [-D, 0, -D - 1.2], [D, 0, -D - 1.2]];
+  function applyDecor(next: Decor) {
+    for (const key of houseTiles.splice(0)) {
+      const tile = tiles[key];
+      if (!tile) continue;
+      if (tile.house) tile.group.remove(tile.house);
+      tile.house = null;
+      tile.body.material.color.setHex(tile.base);
+    }
+    for (const key of next.houses) {
+      const tile = tiles[key];
+      if (!tile) continue;
+      if (tile.house) tile.group.remove(tile.house);
+      const g = rentHouse();
+      g.position.copy(tile.inward).setY(TOP + 0.03);
+      g.rotation.y = -TURN;
+      tile.group.add(g);
+      tile.house = g;
+      tile.body.material.color.setHex(0xe9d5ff);
+      houseTiles.push(key);
+    }
+    roof.color.setHex(next.facade ? 0xfbd000 : 0xc0264b);
+    roof.metalness = next.facade ? 0.6 : 0;
+    deck.material.color.setHex(next.facade ? 0xb89a6a : 0x8d7aa8);
+    while (decorGroup.children.length) decorGroup.remove(decorGroup.children[0]);
+    for (let n = 0; n < Math.min(next.stations, STATION_SPOTS.length); n++) {
+      const s = station();
+      const [x, y, z] = STATION_SPOTS[n];
+      s.position.set(x, y, z);
+      s.rotation.y = x < -D - 1 ? Math.PI / 2 : x > D + 1 ? -Math.PI / 2 : z < 0 ? Math.PI : 0;
+      s.scale.setScalar(0.8);
+      decorGroup.add(s);
+    }
+  }
+  if (decor) applyDecor(decor);
+
   const api: BoardScene = {
     focus(seat) {
       dragged = false;
@@ -783,6 +876,9 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
         ring.material.opacity = 1 - k;
         if (k === 1) scene.remove(ring);
       });
+    },
+    setDecor(next) {
+      applyDecor(next);
     },
     removeToken(seat) {
       tokens[seat].visible = false;

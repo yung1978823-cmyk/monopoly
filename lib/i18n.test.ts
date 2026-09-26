@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import { CARDS } from "./eight";
 import { translate } from "./i18n";
 import { CITIES } from "./cities";
+import { DECKS } from "./realm";
 import { LANDMARK_NAMES, TILE_INFO } from "./board";
 
 /** Every literal passed to t(…) or say(…) in the screens. */
@@ -15,6 +16,8 @@ function screenTexts(): string[] {
     if (!/\.tsx?$/.test(file)) continue;
     const source = readFileSync(join(dir, file), "utf8");
     for (const match of source.matchAll(/\b(?:t|say)\(\s*"([^"]+)"/g)) found.add(match[1]);
+    // Object-literal labels on the 領地 screen (building, size and deck names) are translated too.
+    if (file === "realm-screen.tsx") for (const match of source.matchAll(/:\s*"([^"]+)"/g)) found.add(match[1]);
     for (const match of source.matchAll(/\bsay\([^;]*?\?\s*"([^"]+)"\s*:\s*"([^"]+)"/g)) {
       found.add(match[1]);
       found.add(match[2]);
@@ -32,6 +35,7 @@ describe("languages", () => {
     const texts = [
       ...screenTexts(),
       ...CARDS.map((card) => card.text),
+      ...Object.values(DECKS).flatMap((deck) => deck.map((card) => card.text)),
       ...CITIES.map((city) => city.rival.name),
       ...LANDMARK_NAMES,
       ...Object.values(TILE_INFO).map((tile) => tile.name),

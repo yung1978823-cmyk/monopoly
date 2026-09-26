@@ -168,7 +168,22 @@ export type TableEvent =
   | { kind: "card"; seat: number; card: Card }
   | { kind: "fly"; seat: number; to: Spot }
   | { kind: "jailed"; seat: number }
-  | { kind: "bankrupt"; seat: number; to: number | null; lost: string[] };
+  | { kind: "bankrupt"; seat: number; to: number | null; lost: string[] }
+  | { kind: "house"; seat: number; key: string; amount: number };
+
+/**
+ * House rules for this table. The public table uses the defaults; a hosted game on someone's
+ * 領地 can shorten the game (車站), keep some squares as the host's rent houses (租金屋, rent
+ * paid to the host, capped at 6) and pick a published chance deck (機會屋).
+ */
+export type TableRules = {
+  turnsEach: number;
+  /** Square key → rent paid to the host by whoever lands there. */
+  houses: Record<string, number>;
+  cards: readonly Card[];
+};
+
+export const RENT_CAP = 6;
 
 export type TableState = {
   seats: Seat[];
@@ -183,14 +198,27 @@ export type TableState = {
   events: TableEvent[];
   /** Bumps on every action. */
   tick: number;
+  rules: TableRules;
+  /** Rent paid to the host's rent houses this game. */
+  hostIncome: number;
 };
 
 export type TableAction =
   | { type: "roll"; dice: [number, number]; card?: number; fly?: number }
   | { type: "choose"; road: boolean };
 
-export function newTable(players: { name: string; avatar: string; colour: string; bot: boolean }[]): TableState {
+export function newTable(
+  players: { name: string; avatar: string; colour: string; bot: boolean }[],
+  rules: Partial<TableRules> = {},
+): TableState {
+  const houses = Object.fromEntries(
+    Object.entries(rules.houses ?? {})
+      .filter(([key]) => SQUARES[key]?.kind === "lot")
+      .map(([key, rent]) => [key, Math.max(0, Math.min(RENT_CAP, Math.floor(rent)))]),
+  );
   return {
+    rules: { turnsEach: rules.turnsEach ?? TURNS_EACH, houses, cards: rules.cards?.length ? rules.cards : CARDS },
+    hostIncome: 0,
     seats: players.slice(0, 4).map((player) => ({
       ...player,
       cash: STAKE,
@@ -248,7 +276,7 @@ function alive(state: TableState): number[] {
 
 function isOver(state: TableState): boolean {
   const left = alive(state);
-  return left.length <= 1 || left.every((seat) => state.seats[seat].turnsTaken >= TURNS_EACH);
+  return left.length <= 1 || left.every((seat) => state.seats[seat].turnsTaken >= state.rules.turnsEach);
 }
 
 /** Pay from a seat to another seat (or the bank when `to` is null); short means bankrupt. */
@@ -296,6 +324,14 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
   const square = SQUARES[key];
   switch (square.kind) {
     case "lot": {
+      const house = state.rules.houses[key];
+      if (house !== undefined) {
+        // The host's rent house: pay the host, never for sale.
+        const paid = Math.min(house, player.cash);
+        events.push({ kind: "house", seat, key, amount: paid });
+        const next = pay(state, seat, house, null, events);
+        return { ...next, hostIncome: next.hostIncome + paid };
+      }
       const deed = state.deeds[key];
       if (!deed) {
         if (player.cash < square.price) return state;
@@ -323,15 +359,17 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
       return pay(state, seat, TAX, null, events);
     case "fly": {
       if (depth > 0) return state;
-      const empty = LOT_KEYS.filter((lot) => !state.deeds[lot]);
-      const pool = empty.length > 0 ? empty : LOT_KEYS;
+      const forSale = LOT_KEYS.filter((lot) => state.rules.houses[lot] === undefined);
+      const empty = forSale.filter((lot) => !state.deeds[lot]);
+      const pool = empty.length > 0 ? empty : forSale;
       const to = spotOf(pool[((state.draw.fly % pool.length) + pool.length) % pool.length]);
       events.push({ kind: "fly", seat, to });
       return land(withSeat(state, seat, { spot: to }), seat, events, depth + 1);
     }
     case "chance": {
       if (depth > 0) return state;
-      const card = CARDS[((state.draw.card % CARDS.length) + CARDS.length) % CARDS.length];
+      const deck = state.rules.cards;
+      const card = deck[((state.draw.card % deck.length) + deck.length) % deck.length];
       events.push({ kind: "card", seat, card });
       if (card.kind === "money") {
         if (card.amount >= 0) return withSeat(state, seat, { cash: player.cash + card.amount });
@@ -358,7 +396,7 @@ function finishTurn(state: TableState, events: TableEvent[]): TableState {
   let seat = done.current;
   for (let i = 0; i < done.seats.length; i += 1) {
     seat = (seat + 1) % done.seats.length;
-    if (!done.seats[seat].bankrupt && done.seats[seat].turnsTaken < TURNS_EACH) break;
+    if (!done.seats[seat].bankrupt && done.seats[seat].turnsTaken < done.rules.turnsEach) break;
   }
   events.push({ kind: "turn", seat });
   return { ...done, current: seat, phase: "roll", stepsLeft: 0 };

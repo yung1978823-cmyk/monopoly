@@ -3,6 +3,7 @@
 import { AttackScreen } from "@/components/attack-screen";
 import { MyCity } from "@/components/my-city";
 import { PanZoom } from "@/components/pan-zoom";
+import { RealmScreen } from "@/components/realm-screen";
 import { TableGame } from "@/components/table-game";
 import { BoardRing, type Burst } from "@/components/board-ring";
 import { DieFace } from "@/components/die-face";
@@ -142,6 +143,7 @@ export function DailyGame() {
   const [cityOpen, setCityOpen] = useState(false);
   /** Whether the public table (第二層) is showing instead of the board. */
   const [tableOpen, setTableOpen] = useState(false);
+  const [realmOpen, setRealmOpen] = useState(false);
   /** The board and the open space it is centred in, for the camera; GO presses glide it home. */
   const boardBox = useRef<HTMLDivElement>(null);
   const sceneBox = useRef<HTMLDivElement>(null);
@@ -346,6 +348,9 @@ export function DailyGame() {
 
   const intro = state.phase === "search" && introSeen !== state.rollCount;
 
+  if (realmOpen && state.phase === "walk") {
+    return <RealmScreen onExit={() => setRealmOpen(false)} />;
+  }
   if (tableOpen && state.phase === "walk") {
     return <TableGame onExit={() => setTableOpen(false)} />;
   }
@@ -437,6 +442,15 @@ export function DailyGame() {
           data-testid="open-table"
         >
           👥
+        </button>
+        <button
+          type="button"
+          onClick={() => !pending?.running && setRealmOpen(true)}
+          className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#4C1D95] text-xl text-white shadow-md"
+          aria-label={t("領地")}
+          data-testid="open-realm"
+        >
+          🏰
         </button>
         <button
           type="button"
