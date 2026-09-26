@@ -5,7 +5,7 @@ import { BoardRing } from "@/components/board-ring";
 import { DieFace } from "@/components/die-face";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { TILES } from "@/lib/board";
+import { BOARD_SCENE, TILES } from "@/lib/board";
 import { CITIES } from "@/lib/cities";
 import {
   STORAGE_KEY,
@@ -262,11 +262,40 @@ export function DailyGame() {
 
   return (
     <main
-      className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-[#5EBDFD] text-[#1E3A8A]"
+      className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-gradient-to-b from-[#4AA8F5] via-[#8CC63F] to-[#7DB835] text-[#1E3A8A] [container-type:size]"
       data-testid="walk"
     >
+      {/* Castle-garden scene, fitted to the screen width, with the board on its lawn. */}
+      <div
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[54%] bg-cover bg-center"
+        style={{
+          backgroundImage: `url(${BOARD_SCENE.art})`,
+          width: `min(100cqw, calc(100cqh * ${BOARD_SCENE.width} / ${BOARD_SCENE.height}))`,
+          aspectRatio: `${BOARD_SCENE.width} / ${BOARD_SCENE.height}`,
+        }}
+      >
+        <div
+          className="absolute"
+          style={{
+            left: `${BOARD_SCENE.board.left * 100}%`,
+            top: `${BOARD_SCENE.board.top * 100}%`,
+            width: `${BOARD_SCENE.board.width * 100}%`,
+          }}
+        >
+          <BoardRing
+            position={tokenIndex}
+            landmarks={state.landmarks}
+            points={state.points}
+            defense={weapon}
+            purseLabel={state.hasNft ? "有 NFT" : "沒有 NFT"}
+            placeLabel={arrived ? `行到第 ${shownStep} 格` : `停在${here}`}
+            trail={trail}
+            stopIndex={arrived ? tokenIndex : null}
+          />
+        </div>
+      </div>
       {/* Top bar: points, dice, today's DST, menu. */}
-      <header className="z-30 flex items-center gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
+      <header className="relative z-30 flex items-center gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
         <div className="flex size-12 shrink-0 items-center justify-center rounded-full border-[3px] border-[#FBD000] bg-[#1E3A8A] text-lg font-black text-[#FFFFFF] shadow-md">
           你
         </div>
@@ -290,24 +319,13 @@ export function DailyGame() {
       </header>
 
       {saveNote ? (
-        <p className="mx-3 rounded-2xl bg-[#FFFFFF] px-4 py-2 text-xs text-[#1E3A8A]" role="status">
+        <p className="relative z-30 mx-3 rounded-2xl bg-[#FFFFFF] px-4 py-2 text-xs text-[#1E3A8A]" role="status">
           {saveNote}
         </p>
       ) : null}
 
       {/* The board fills the middle of the screen. */}
-      <section className="relative flex min-h-0 flex-1 items-center justify-center [container-type:size]">
-        <BoardRing
-          className="w-[min(100cqw,100cqh)]"
-          position={tokenIndex}
-          landmarks={state.landmarks}
-          points={state.points}
-          defense={weapon}
-          purseLabel={state.hasNft ? "有 NFT" : "沒有 NFT"}
-          placeLabel={arrived ? `行到第 ${shownStep} 格` : `停在${here}`}
-          trail={trail}
-          stopIndex={arrived ? tokenIndex : null}
-        />
+      <section className="relative z-20 flex min-h-0 flex-1 items-center justify-center">
         {pending ? (
           <div
             className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#1E3A8A]/85 px-4 py-2 shadow-lg"

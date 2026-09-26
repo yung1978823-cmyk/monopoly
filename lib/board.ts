@@ -50,8 +50,17 @@ function buildTiles(): Tile[] {
 
 export const TILES: readonly Tile[] = buildTiles();
 
-/** The board art the squares are laid over (1254 × 1254). */
-export const BOARD_ART = "/art/board-28-mario.png";
+/** The board art the squares are laid over (1254 × 1254, transparent around the board). */
+export const BOARD_ART = "/art/board-28-cut.png";
+
+/** The castle-garden scene behind the board (1600 × 2848), and where the board sits on it. */
+export const BOARD_SCENE = {
+  art: "/art/board-scene.jpg",
+  width: 1600,
+  height: 2848,
+  /** The board's box on the scene, as fractions of the scene: it covers the diamond lawn. */
+  board: { left: 0.0706, top: 0.4066, width: 0.86 },
+} as const;
 
 /**
  * Centre of each square on the board art, in pixels, measured from the art.

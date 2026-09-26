@@ -47,7 +47,7 @@ export function BoardRing({
 }) {
   return (
     <div
-      className={cn("relative aspect-square w-full shrink-0 overflow-hidden bg-[#5EBDFD] bg-cover bg-center", className)}
+      className={cn("relative aspect-square w-full shrink-0 bg-contain bg-center bg-no-repeat drop-shadow-[0_10px_14px_rgba(20,70,20,0.35)]", className)}
       style={{ backgroundImage: `url(${BOARD_ART})` }}
       data-testid="board"
       role="group"
