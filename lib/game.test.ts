@@ -65,7 +65,11 @@ describe("daily board", () => {
   it("opens 搜尋敵人 when the walk lands on 攻擊", () => {
     assert.equal(TILES.length, 28);
     assert.equal(TILES.filter((tile) => tile.kind === "attack").length, 7);
-    assert.equal(TILES.filter((tile) => tile.kind === "landmark").length, 4);
+    const count = (kind: string) => TILES.filter((tile) => tile.kind === kind).length;
+    assert.deepEqual(
+      [count("start"), count("coin"), count("chest"), count("lucky"), count("jail"), count("tax")],
+      [1, 12, 4, 2, 1, 1],
+    );
     const state = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 2], now: NOW });
     assert.equal(state.position, 2);
     assert.equal(TILES[2]?.kind, "attack");
@@ -262,10 +266,41 @@ describe("daily board", () => {
     assert.equal(reduce(state, { type: "build" }), state);
   });
 
-  it("raises the landmark you stand on first", () => {
+  it("builds the first empty landmark wherever you stand", () => {
     const state = reduce({ ...start(), position: 17, points: 5 }, { type: "build" });
-    assert.deepEqual(state.landmarks, ["empty", "empty", "built", "empty"]);
-    assert.match(state.log[0]?.text ?? "", /花 5 分，起了南岸/);
+    assert.deepEqual(state.landmarks, ["built", "empty", "empty", "empty"]);
+    assert.match(state.log[0]?.text ?? "", /花 5 分，起了北門/);
+  });
+
+  it("pays each square its reward and remembers the stop", () => {
+    const at = (position: number, faces: [number, number], extra = {}) =>
+      reduce({ ...start(), position, points: 10, dice: 5 }, { type: "move", faces, now: NOW, ...extra });
+    const coin = at(0, [1, 2]);
+    assert.equal(TILES[3]?.kind, "coin");
+    assert.equal(coin.points, 12);
+    assert.deepEqual(coin.landing, { kind: "coin", points: 2, dice: 0, passedStart: false });
+
+    const chest = at(0, [2, 2], { chest: 6 });
+    assert.equal(chest.points, 16);
+    assert.equal(at(0, [2, 2], { chest: 99 }).points, 14, "a bad chest roll pays the default 4");
+
+    const lucky = at(4, [2, 3]);
+    assert.equal(TILES[9]?.kind, "lucky");
+    assert.equal(lucky.dice, 5, "spends one die and wins it back");
+    assert.equal(lucky.landing?.dice, 1);
+  });
+
+  it("keeps jail and tax mild and never below zero", () => {
+    const jail = reduce({ ...start(), points: 10, dice: 1 }, { type: "move", faces: [3, 4], now: NOW });
+    assert.equal(jail.position, 7);
+    assert.equal(jail.points, 8);
+    assert.equal(jail.dice, 0, "no extra dice lost");
+    assert.equal(jail.phase, "walk");
+
+    const tax = reduce({ ...start(), position: 15, points: 1, dice: 1 }, { type: "move", faces: [3, 3], now: NOW });
+    assert.equal(tax.position, 21);
+    assert.equal(tax.points, 0);
+    assert.equal(tax.landing?.points, -1);
   });
 
   it("walks the sum of two dice and spends a single die", () => {
@@ -274,7 +309,7 @@ describe("daily board", () => {
 
     state = reduce({ ...state, dice: 1 }, { type: "move", faces: [1, 2], now: NOW });
     assert.equal(state.position, 3);
-    assert.equal(state.points, 1);
+    assert.equal(state.points, 2);
     assert.equal(state.dice, 0);
     assert.equal(state.phase, "walk");
     assert.deepEqual(state.walkFaces, [1, 2]);
@@ -284,7 +319,7 @@ describe("daily board", () => {
   it("pays the start bonus when the loop wraps", () => {
     const state = reduce({ ...start(), position: 26, dice: 1 }, { type: "move", faces: [1, 2], now: NOW });
     assert.equal(state.position, 1);
-    assert.equal(state.points, 3);
+    assert.equal(state.points, 4);
   });
 
   it("refills a real die after 30 minutes", () => {

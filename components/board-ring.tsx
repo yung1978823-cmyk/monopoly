@@ -1,39 +1,31 @@
-import { BOARD_ART, BOARD_CENTRE, TILES, TILE_POSITIONS, type Tile } from "@/lib/board";
-import type { Landmark } from "@/lib/game";
+import { BOARD_ART, BOARD_CENTRE, TILES, TILE_INFO, TILE_POSITIONS, type TileKind } from "@/lib/board";
 import { cn } from "cn";
 import type { CSSProperties, ReactNode } from "react";
-
-function landmarkOf(landmarks: Landmark[], index: number | null): Landmark | null {
-  if (index === null) return null;
-  return landmarks[index] ?? null;
-}
 
 /** Squares nearer the bottom of the art are drawn larger, so the overlays grow with them. */
 function depthScale(y: number): number {
   return 0.88 + (0.28 * (y - 0.09)) / 0.7;
 }
 
-/** Tint and label laid over a square of the art. Plain streets stay bare. */
-function overlayOf(tile: Tile, built: boolean, ruined: boolean): { tint: string; label: string } | null {
-  if (tile.kind === "attack") return { tint: "rgba(229,37,33,0.85)", label: "🔨" };
-  if (tile.kind === "start") return { tint: "rgba(251,208,0,0.9)", label: "起點" };
-  if (tile.kind === "landmark") {
-    if (ruined) return { tint: "rgba(90,60,55,0.85)", label: `💥${tile.name}` };
-    return { tint: built ? "rgba(67,176,71,0.9)" : "rgba(67,176,71,0.55)", label: tile.name };
-  }
-  return null;
-}
+/** Tint behind each square's picture. Coins stay bare so the special squares stand out. */
+const TINT: Record<TileKind, string | null> = {
+  start: "rgba(251,208,0,0.92)",
+  coin: null,
+  chest: "rgba(255,140,40,0.9)",
+  lucky: "rgba(4,156,216,0.9)",
+  attack: "rgba(229,37,33,0.88)",
+  jail: "rgba(70,80,110,0.9)",
+  tax: "rgba(140,70,160,0.9)",
+};
 
 export function BoardRing({
   position,
-  landmarks,
   centre = null,
   trail = [],
   stopIndex = null,
   className,
 }: {
   position: number;
-  landmarks: Landmark[];
   /** Shown in the middle of the board, e.g. the dice being rolled. */
   centre?: ReactNode;
   trail?: number[];
@@ -50,9 +42,8 @@ export function BoardRing({
     >
       {TILES.map((tile, index) => {
         const spot = TILE_POSITIONS[index];
-        const landmark = landmarkOf(landmarks, tile.landmarkIndex);
-        const built = landmark === "built";
-        const overlay = overlayOf(tile, built, landmark === "ruined");
+        const tint = TINT[tile.kind];
+        const icon = TILE_INFO[tile.kind].icon;
         const onTrail = trail.includes(index);
         const stopped = stopIndex === index;
         const scale = depthScale(spot.y);
@@ -67,7 +58,7 @@ export function BoardRing({
             key={tile.id}
             className="absolute -translate-x-1/2 -translate-y-1/2"
             style={place}
-            title={`${tile.name}${built ? "（已建成）" : landmark === "ruined" ? "（已打爛）" : tile.kind === "landmark" ? "（未建）" : ""}`}
+            title={tile.name}
             data-square={index}
             data-trail={onTrail ? "true" : undefined}
           >
@@ -79,13 +70,18 @@ export function BoardRing({
                 onTrail && "shadow-[0_0_0_3px_rgba(255,255,255,0.95)]",
                 stopped && "shadow-[0_0_0_4px_#FBD000,0_0_18px_6px_rgba(251,208,0,0.8)]",
               )}
-              style={{ background: overlay?.tint ?? (onTrail || stopped ? "rgba(255,255,255,0.55)" : "transparent") }}
+              style={{ background: tint ?? (onTrail || stopped ? "rgba(255,255,255,0.55)" : "transparent") }}
             />
-            {overlay ? (
-              <span className="absolute inset-0 flex items-center justify-center text-[clamp(8px,2.4vw,13px)] font-bold leading-none text-white drop-shadow-[0_1px_1px_rgba(30,58,138,0.8)]">
-                {overlay.label}
-              </span>
-            ) : null}
+            <span
+              className={cn(
+                "absolute inset-0 flex items-center justify-center leading-none drop-shadow-[0_1px_1px_rgba(30,58,138,0.7)]",
+                tile.kind === "coin" ? "text-[clamp(9px,2.6vw,14px)]" : "text-[clamp(12px,3.6vw,19px)]",
+                stopped && "animate-[pop_0.35s_ease-out]",
+              )}
+              aria-hidden
+            >
+              {icon}
+            </span>
           </div>
         );
       })}

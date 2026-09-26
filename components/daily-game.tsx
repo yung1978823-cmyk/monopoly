@@ -5,7 +5,7 @@ import { BoardRing } from "@/components/board-ring";
 import { DieFace } from "@/components/die-face";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { BOARD_SCENE, TILES } from "@/lib/board";
+import { BOARD_SCENE, TILES, TILE_INFO } from "@/lib/board";
 import { CITIES, plotCount } from "@/lib/cities";
 import {
   STORAGE_KEY,
@@ -20,6 +20,7 @@ import {
   type GameState,
 } from "@/lib/game";
 import { DAILY_DST_CAP, DICE_CAP, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
+import { cn } from "cn";
 import { useCallback, useEffect, useState } from "react";
 
 const STEP_MS = 240;
@@ -32,6 +33,7 @@ type PendingWalk = {
   enemyDice: [number, number] | null;
   rivalBuilt: number;
   rivalCity: number;
+  chest: number;
   running: boolean;
   committed: boolean;
 };
@@ -78,6 +80,26 @@ function NftToggles({
         </span>
       </label>
     </div>
+  );
+}
+
+/** The picture and number for what the last square did, e.g. 🪙 +2 or 🚔 −2. */
+function LandingBadge({ landing }: { landing: NonNullable<GameState["landing"]> }) {
+  const parts: string[] = [];
+  if (landing.points !== 0) parts.push(`${landing.points > 0 ? "+" : "−"}${Math.abs(landing.points)}⭐`);
+  if (landing.dice > 0) parts.push(`+${landing.dice}🎲`);
+  const bad = landing.points < 0;
+  return (
+    <span
+      className={cn(
+        "flex animate-[pop_0.4s_ease-out] items-center gap-1 rounded-full border-2 border-[#FBD000] px-2.5 py-0.5 text-[clamp(12px,3.6vw,18px)] font-black tabular-nums text-white shadow-md",
+        bad ? "bg-[#46506E]" : "bg-[#43B047]",
+      )}
+      data-testid="landing"
+    >
+      <span className="text-[1.3em] leading-none">{TILE_INFO[landing.kind].icon}</span>
+      {parts.join(" ")}
+    </span>
   );
 }
 
@@ -188,6 +210,7 @@ export function DailyGame() {
         enemyDice: move.enemyDice,
         rivalBuilt: move.rivalBuilt,
         rivalCity: move.rivalCity,
+        chest: move.chest,
         now: Date.now(),
       });
     }, STEP_MS);
@@ -204,7 +227,8 @@ export function DailyGame() {
     // Each 攻擊 square meets a rival in a random city, with 0 up to that city's plots built.
     const rivalCity = Math.floor(Math.random() * CITIES.length);
     const rivalBuilt = Math.floor(Math.random() * (plotCount(rivalCity) + 1));
-    setPending({ faces, steps, from, step: 0, enemyDice, rivalBuilt, rivalCity, running: true, committed: false });
+    const chest = 3 + Math.floor(Math.random() * 4);
+    setPending({ faces, steps, from, step: 0, enemyDice, rivalBuilt, rivalCity, chest, running: true, committed: false });
   }
 
   function onBuild() {
@@ -225,6 +249,7 @@ export function DailyGame() {
   }
 
   const weapon = countBuilt(state.landmarks);
+  const landing = state.landing;
   const shownStep = pending?.step ?? 0;
   const tokenIndex = pending ? (pending.from + shownStep) % TILES.length : state.position;
   const trail = pending
@@ -283,15 +308,17 @@ export function DailyGame() {
         >
           <BoardRing
             position={tokenIndex}
-            landmarks={state.landmarks}
             trail={trail}
             stopIndex={arrived ? tokenIndex : null}
             centre={
               pending ? (
-                <>
-                  <DieFace value={pending.faces[0]} />
-                  <DieFace value={pending.faces[1]} />
-                </>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="flex items-center gap-1">
+                    <DieFace value={pending.faces[0]} />
+                    <DieFace value={pending.faces[1]} />
+                  </div>
+                  {pending.committed && landing ? <LandingBadge landing={landing} /> : null}
+                </div>
               ) : null
             }
           />

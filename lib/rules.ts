@@ -3,10 +3,18 @@ export const REFILL_MS = 30 * 60 * 1000;
 export const DAILY_DST_CAP = 5;
 export const LANDMARK_SLOTS = 4;
 
+/** What each square pays. Penalties are small and never take points below zero. */
 export const POINTS = {
-  land: 1,
   start: 2,
+  coin: 2,
+  jail: -2,
+  tax: -3,
 } as const;
+
+/** A chest pays a random 3–6 points. */
+export const CHEST_MIN = 3;
+export const CHEST_MAX = 6;
+export const CHEST_DEFAULT = 4;
 
 /** Points spent to raise the 1st, 2nd, 3rd and 4th landmark. Tunable. */
 export const BUILD_COSTS = [5, 10, 15, 20] as const;

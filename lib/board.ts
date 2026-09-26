@@ -2,53 +2,54 @@ export const BOARD_SIZE = 28;
 /** Squares per side of the square ring, corners included. 4 × (8 − 1) = 28: six squares between each pair of corners. */
 export const BOARD_SIDE = 8;
 
-export type TileKind = "start" | "street" | "landmark" | "attack";
+/**
+ * What a square does when you stop on it. Every kind is shown as a picture on the board:
+ * 🏁 start, 🪙 coins, 🎁 chest, 🎲 lucky die, 🔨 attack, 🚔 jail, 🧾 tax.
+ */
+export type TileKind = "start" | "coin" | "chest" | "lucky" | "attack" | "jail" | "tax";
 
 export type Tile = {
   id: string;
   name: string;
   kind: TileKind;
-  landmarkIndex: number | null;
 };
 
+/** Names for your four buildings, used when you build, repair or get raided. */
 export const LANDMARK_NAMES = ["北門", "東市", "南岸", "西街"] as const;
 
 /** Every fourth square is 攻擊 (2, 6, 10 … 26), so each roll of two dice lands on one 22–28% of the time. */
 export const ATTACK_EVERY = 4;
 export const ATTACK_OFFSET = 2;
-/** One landmark per side of the board, clear of the corners and the 攻擊 squares. */
-export const LANDMARK_SQUARES = [4, 11, 17, 25] as const;
+/** The two free corners hold the small penalties; a chest sits on each side; two lucky dice. */
+export const JAIL_SQUARE = 7;
+export const TAX_SQUARE = 21;
+export const CHEST_SQUARES = [4, 11, 17, 25] as const;
+export const LUCKY_SQUARES = [9, 23] as const;
 
-const STREET_NAMES = [
-  "巷口", "茶檔", "公園", "碼頭", "花墟", "書局", "魚市", "戲院",
-  "電車站", "涼茶鋪", "糖水店", "麵包舖", "鐘樓", "海旁", "夜市", "燈塔",
-];
+export const TILE_INFO: Record<TileKind, { name: string; icon: string }> = {
+  start: { name: "起點", icon: "🏁" },
+  coin: { name: "金幣", icon: "🪙" },
+  chest: { name: "寶箱", icon: "🎁" },
+  lucky: { name: "幸運骰", icon: "🎲" },
+  attack: { name: "攻擊", icon: "🔨" },
+  jail: { name: "監獄", icon: "🚔" },
+  tax: { name: "稅局", icon: "🧾" },
+};
 
-function buildTiles(): Tile[] {
-  const tiles: Tile[] = [];
-  let street = 0;
-  for (let index = 0; index < BOARD_SIZE; index += 1) {
-    const landmarkIndex = (LANDMARK_SQUARES as readonly number[]).indexOf(index);
-    if (index === 0) {
-      tiles.push({ id: "start", name: "起點", kind: "start", landmarkIndex: null });
-    } else if (index % ATTACK_EVERY === ATTACK_OFFSET) {
-      tiles.push({ id: `attack-${index}`, name: "攻擊", kind: "attack", landmarkIndex: null });
-    } else if (landmarkIndex !== -1) {
-      tiles.push({
-        id: `landmark-${index}`,
-        name: LANDMARK_NAMES[landmarkIndex],
-        kind: "landmark",
-        landmarkIndex,
-      });
-    } else {
-      tiles.push({ id: `street-${index}`, name: STREET_NAMES[street], kind: "street", landmarkIndex: null });
-      street += 1;
-    }
-  }
-  return tiles;
+function kindOf(index: number): TileKind {
+  if (index === 0) return "start";
+  if (index % ATTACK_EVERY === ATTACK_OFFSET) return "attack";
+  if (index === JAIL_SQUARE) return "jail";
+  if (index === TAX_SQUARE) return "tax";
+  if ((CHEST_SQUARES as readonly number[]).includes(index)) return "chest";
+  if ((LUCKY_SQUARES as readonly number[]).includes(index)) return "lucky";
+  return "coin";
 }
 
-export const TILES: readonly Tile[] = buildTiles();
+export const TILES: readonly Tile[] = Array.from({ length: BOARD_SIZE }, (_, index) => {
+  const kind = kindOf(index);
+  return { id: `${kind}-${index}`, name: TILE_INFO[kind].name, kind };
+});
 
 /** The board art the squares are laid over (1254 × 1254, transparent around the board). */
 export const BOARD_ART = "/art/board-28-cut.png";

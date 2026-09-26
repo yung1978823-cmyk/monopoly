@@ -1,6 +1,9 @@
-import { LANDMARK_NAMES, TILES } from "./board";
+import { LANDMARK_NAMES, TILES, TILE_INFO, type TileKind } from "./board";
 import { CITIES, plotCount } from "./cities";
 import {
+  CHEST_DEFAULT,
+  CHEST_MAX,
+  CHEST_MIN,
   DAILY_DST_CAP,
   DICE_CAP,
   POINTS,
@@ -39,6 +42,16 @@ export type WeaponReadout = {
   smashed: number | null;
 };
 
+/** What the last stop did, for the picture shown on the board. */
+export type Landing = {
+  kind: TileKind;
+  /** Points actually gained (negative for jail or tax), start bonus included. */
+  points: number;
+  /** Dice gained. */
+  dice: number;
+  passedStart: boolean;
+};
+
 export type GameState = {
   phase: Phase;
   position: number;
@@ -64,6 +77,7 @@ export type GameState = {
   enemyShield: boolean;
   fightSettled: boolean;
   weaponReadout: WeaponReadout | null;
+  landing: Landing | null;
 };
 
 export type Action =
@@ -77,6 +91,8 @@ export type Action =
       rivalBuilt?: number;
       /** Which of CITIES that rival lives in. */
       rivalCity?: number;
+      /** Points in the chest, if the walk stops on 寶箱 (3–6). */
+      chest?: number;
       now: number;
     }
   | { type: "weapon"; target?: number | null }
@@ -116,6 +132,7 @@ export function createGame(now: number, dayKey: string): GameState {
     enemyShield: false,
     fightSettled: false,
     weaponReadout: null,
+    landing: null,
   };
 }
 
@@ -127,15 +144,8 @@ export function builtIndexes(landmarks: readonly Landmark[]): number[] {
   return landmarks.flatMap((landmark, index) => (landmark === "built" ? [index] : []));
 }
 
-/**
- * Which landmark the next build raises: the one under you, else a smashed one (cheaper to
- * repair), else the first empty one.
- */
+/** Which landmark the next build raises: a smashed one first (cheaper to repair), else the first empty one. */
 export function raiseTarget(state: GameState): number | null {
-  const here = TILES[state.position];
-  if (here && here.landmarkIndex !== null && state.landmarks[here.landmarkIndex] !== "built") {
-    return here.landmarkIndex;
-  }
   const ruined = state.landmarks.indexOf("ruined");
   if (ruined !== -1) return ruined;
   const open = state.landmarks.indexOf("empty");
@@ -263,6 +273,7 @@ export function sanitizeState(
     enemyShield: value.enemyShield === true,
     fightSettled: value.fightSettled === true,
     weaponReadout: readWeapon(value.weaponReadout),
+    landing: null,
     phase: value.phase === "search" && inRange(value.enemyLuck, 2, 12) ? "search" : "walk",
   };
 }
@@ -277,18 +288,32 @@ export function parseSave(raw: string, now: number, dayKey: string): GameState |
   }
 }
 
-function movePoints(from: number, roll: number): {
-  position: number;
-  gained: number;
-  passedStart: boolean;
-} {
+/** Walk `roll` squares and apply what the square you stop on does. */
+function landOn(
+  from: number,
+  roll: number,
+  points: number,
+  dice: number,
+  chest: number,
+): { position: number; points: number; dice: number; landing: Landing } {
   const position = (from + roll) % TILES.length;
   const passedStart = from + roll >= TILES.length;
-  const tile = TILES[position];
-  let gained = 0;
-  if (passedStart) gained += POINTS.start;
-  if (tile.kind !== "start") gained += POINTS.land;
-  return { position, gained, passedStart };
+  const kind = TILES[position].kind;
+  let change = passedStart ? POINTS.start : 0;
+  let diceGained = 0;
+  if (kind === "coin") change += POINTS.coin;
+  if (kind === "chest") change += chest;
+  if (kind === "jail") change += POINTS.jail;
+  if (kind === "tax") change += POINTS.tax;
+  if (kind === "lucky" && dice < DICE_CAP) diceGained = 1;
+  // Penalties sting a little but never push points below zero.
+  const nextPoints = Math.max(0, points + change);
+  return {
+    position,
+    points: nextPoints,
+    dice: dice + diceGained,
+    landing: { kind, points: nextPoints - points, dice: diceGained, passedStart },
+  };
 }
 
 function rollDay(state: GameState, now: number, dayKey: string): GameState {
@@ -359,7 +384,8 @@ export function reduce(state: GameState, action: Action): GameState {
       const steps = luckOf(faces);
       const spent = spendDice(state.dice, state.lastRefillAt, action.now, 1);
       if (!spent) return state;
-      const moved = movePoints(state.position, steps);
+      const chest = inRange(action.chest, CHEST_MIN, CHEST_MAX) ? action.chest : CHEST_DEFAULT;
+      const moved = landOn(state.position, steps, state.points, spent.dice, chest);
       const tile = TILES[moved.position];
       const enemyFaces = tile?.kind === "attack" ? readPair(action.enemyDice) : null;
       const searching = enemyFaces !== null;
@@ -375,17 +401,21 @@ export function reduce(state: GameState, action: Action): GameState {
       const rivalLandmarks: Landmark[] = searching
         ? [0, 1, 2, 3].map((slot) => (slot < rivalBuilt ? "built" : "empty"))
         : state.rivalLandmarks;
-      const passed = moved.passedStart ? "經過起點。" : "";
-      const searchText = searching
-        ? `這格是攻擊。搜尋敵人，配到阿強，佢有 ${rivalBuilt} 座建築。敵人擲出 ${enemyFaces[0]} 和 ${enemyFaces[1]}。幸運值 ${enemyLuck}。`
-        : "這格只加分數。";
+      const passed = moved.landing.passedStart ? "經過起點。" : "";
+      const change = moved.landing.points;
+      const effect = searching
+        ? `搜尋敵人，配到阿強，佢有 ${rivalBuilt} 座建築。敵人擲出 ${enemyFaces[0]} 和 ${enemyFaces[1]}。幸運值 ${enemyLuck}。`
+        : moved.landing.dice > 0
+          ? "多一粒骰。"
+          : "";
       const next: GameState = {
         ...state,
         phase: searching ? "search" : "walk",
-        dice: spent.dice,
+        dice: moved.dice,
         lastRefillAt: spent.lastRefillAt,
         position: moved.position,
-        points: state.points + moved.gained,
+        points: moved.points,
+        landing: moved.landing,
         rollCount: state.rollCount + 1,
         walkFaces: faces,
         lastRivalFaces: searching ? enemyFaces : null,
@@ -400,7 +430,7 @@ export function reduce(state: GameState, action: Action): GameState {
       return pushLog(
         next,
         "you",
-        `你花 1 顆，擲出 ${faces[0]} 和 ${faces[1]}。走 ${steps} 格。${passed}走到${tile?.name ?? "這一格"}。分數 +${moved.gained}，合計 ${next.points}。${searchText}`,
+        `你花 1 顆，擲出 ${faces[0]} 和 ${faces[1]}。走 ${steps} 格。${passed}走到${TILE_INFO[tile.kind].icon}${tile.name}。分數 ${change >= 0 ? "+" : ""}${change}，合計 ${next.points}。${effect}`,
       );
     }
     case "weapon": {
