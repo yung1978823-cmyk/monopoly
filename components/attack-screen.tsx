@@ -5,6 +5,7 @@ import { FX_ART, LANDMARK_NAMES } from "@/lib/board";
 import { CITIES, SHIELD_ART } from "@/lib/cities";
 import { attackPower, builtIndexes, countBuilt, rivalPower, type GameState } from "@/lib/game";
 import { hitChance } from "@/lib/rules";
+import { play } from "@/lib/sfx";
 import { cn } from "cn";
 import { useEffect, useState } from "react";
 
@@ -46,13 +47,25 @@ export function AttackScreen({
     if (!readout) return;
     const kind: Flash["kind"] = readout.smashed !== null ? "smash" : readout.hit ? "hit" : "miss";
     const lead = readout.shieldBreak ? SHIELD_MS : 0;
+    const blocked = !readout.hit && state.enemyShield;
+    const sound = kind === "smash" ? "smash" : kind === "hit" ? "coin" : blocked ? "shield" : "miss";
     const timers = [
-      readout.shieldBreak ? window.setTimeout(() => setFlash({ kind: "shield", key: Date.now() }), 0) : 0,
-      window.setTimeout(() => setFlash({ kind, key: Date.now() + 1 }), lead),
+      readout.shieldBreak
+        ? window.setTimeout(() => {
+            play("shield");
+            setFlash({ kind: "shield", key: Date.now() });
+          }, 0)
+        : 0,
+      window.setTimeout(() => {
+        play(sound);
+        setFlash({ kind, key: Date.now() + 1 });
+      }, lead),
       window.setTimeout(() => setFlash(null), lead + FLASH_MS),
       window.setTimeout(onReturn, lead + FLASH_MS + RETURN_MS),
     ];
     return () => timers.forEach((id) => window.clearTimeout(id));
+    // Only a new strike result should replay this; the shield flag is read at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readout, onReturn]);
 
   function strike(target: number | null) {

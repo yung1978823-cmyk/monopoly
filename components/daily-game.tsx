@@ -23,7 +23,8 @@ import {
 } from "@/lib/game";
 import { DAILY_DST_CAP, DICE_CAP, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
 import { cn } from "cn";
-import { useCallback, useEffect, useState } from "react";
+import { isMuted, play, setMuted, type Sound } from "@/lib/sfx";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const STEP_MS = 240;
 /** How long the 🔨 swoop plays before the attack screen opens. */
@@ -126,6 +127,11 @@ export function DailyGame() {
   const [now, setNow] = useState(0);
   const [resetArmed, setResetArmed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mute, setMute] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => setMute(isMuted()), 0);
+    return () => window.clearTimeout(id);
+  }, []);
   const [pending, setPending] = useState<PendingWalk | null>(null);
   /** The roll whose attack intro has already played. */
   const [introSeen, setIntroSeen] = useState(-1);
@@ -203,6 +209,24 @@ export function DailyGame() {
     return () => window.clearTimeout(id);
   }, [resetArmed]);
 
+  // Each stop plays its square's sound once, when the walk lands.
+  const soundedRoll = useRef(-1);
+  useEffect(() => {
+    if (!pending?.committed || !state.landing || soundedRoll.current === state.rollCount) return;
+    soundedRoll.current = state.rollCount;
+    const sounds: Partial<Record<string, Sound>> = {
+      start: "coin",
+      coin: "coin",
+      chest: "chest",
+      lucky: "lucky",
+      jail: "bad",
+      tax: "bad",
+      attack: "attack",
+    };
+    const sound = sounds[state.landing.kind];
+    if (sound) play(sound);
+  }, [pending?.committed, state.landing, state.rollCount]);
+
   // Landing on 攻擊 plays a short 🔨 swoop over the board, then opens the rival's city.
   useEffect(() => {
     if (state.phase !== "search" || introSeen === state.rollCount) return;
@@ -218,6 +242,7 @@ export function DailyGame() {
   useEffect(() => {
     if (!pending?.running || pending.step >= pending.steps) return;
     const id = window.setTimeout(() => {
+      play("step");
       setPending((current) => {
         if (!current?.running || current.step >= current.steps) return current;
         return { ...current, step: current.step + 1 };
@@ -250,6 +275,7 @@ export function DailyGame() {
 
   function onWalk() {
     if (state.phase !== "walk" || state.dice < 1 || pending?.running) return;
+    play("roll");
     const faces = rollPair();
     const steps = faces[0] + faces[1];
     const from = state.position;
@@ -267,6 +293,7 @@ export function DailyGame() {
     if (!canBuild(state)) return;
     const slot = raiseTarget(state);
     dispatch({ type: "build" });
+    play("build");
     setBuildFx({ key: Date.now(), icon: slot !== null && state.landmarks[slot] === "ruined" ? "🔧" : "🏰" });
   }
 
@@ -478,9 +505,23 @@ export function DailyGame() {
           >
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-black">設定</h2>
-              <button type="button" className="cursor-pointer text-2xl" onClick={() => setMenuOpen(false)} aria-label="關閉">
-                ✕
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  className="flex size-10 cursor-pointer items-center justify-center rounded-full bg-[#EAF4FF] text-xl"
+                  onClick={() => {
+                    setMuted(!mute);
+                    setMute(!mute);
+                  }}
+                  aria-label={mute ? "開聲" : "靜音"}
+                  data-testid="mute"
+                >
+                  {mute ? "🔇" : "🔊"}
+                </button>
+                <button type="button" className="cursor-pointer text-2xl" onClick={() => setMenuOpen(false)} aria-label="關閉">
+                  ✕
+                </button>
+              </div>
             </div>
             <div className="flex flex-wrap gap-2 text-sm font-bold text-[#1E3A8A]">
               <span key={power} className="rounded-full bg-[#EAF4FF] px-3 py-1 tabular-nums animate-[bump_0.35s_ease-out]" data-testid="attack-power">
