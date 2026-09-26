@@ -1,5 +1,5 @@
 import { LANDMARK_NAMES, TILES } from "./board";
-import { CITIES } from "./cities";
+import { CITIES, plotCount } from "./cities";
 import {
   DAILY_DST_CAP,
   DICE_CAP,
@@ -364,7 +364,14 @@ export function reduce(state: GameState, action: Action): GameState {
       const enemyFaces = tile?.kind === "attack" ? readPair(action.enemyDice) : null;
       const searching = enemyFaces !== null;
       const enemyLuck = searching ? luckOf(enemyFaces) : null;
-      const rivalBuilt = inRange(action.rivalBuilt, 0, 4) ? action.rivalBuilt : countBuilt(state.rivalLandmarks);
+      const rivalCity =
+        searching && inRange(action.rivalCity, 0, CITIES.length - 1) ? action.rivalCity : state.rivalCity;
+      // A rival can't have more landmarks than their city has plots.
+      const plots = plotCount(rivalCity);
+      const rivalBuilt = Math.min(
+        plots,
+        inRange(action.rivalBuilt, 0, 4) ? action.rivalBuilt : countBuilt(state.rivalLandmarks),
+      );
       const rivalLandmarks: Landmark[] = searching
         ? [0, 1, 2, 3].map((slot) => (slot < rivalBuilt ? "built" : "empty"))
         : state.rivalLandmarks;
@@ -383,8 +390,7 @@ export function reduce(state: GameState, action: Action): GameState {
         walkFaces: faces,
         lastRivalFaces: searching ? enemyFaces : null,
         rivalLandmarks,
-        rivalCity:
-          searching && inRange(action.rivalCity, 0, CITIES.length - 1) ? action.rivalCity : state.rivalCity,
+        rivalCity,
         enemyLuck,
         // Only a rival holding an NFT has a shield.
         enemyShield: searching && state.rivalHasNft,

@@ -6,7 +6,7 @@ import { DieFace } from "@/components/die-face";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { BOARD_SCENE, TILES } from "@/lib/board";
-import { CITIES } from "@/lib/cities";
+import { CITIES, plotCount } from "@/lib/cities";
 import {
   STORAGE_KEY,
   builtIndexes,
@@ -201,9 +201,9 @@ export function DailyGame() {
     const from = state.position;
     const nextIndex = (from + steps) % TILES.length;
     const enemyDice = TILES[nextIndex]?.kind === "attack" ? rollPair() : null;
-    // Each 攻擊 square meets a rival with 0–4 landmarks standing.
-    const rivalBuilt = Math.floor(Math.random() * 5);
+    // Each 攻擊 square meets a rival in a random city, with 0 up to that city's plots built.
     const rivalCity = Math.floor(Math.random() * CITIES.length);
+    const rivalBuilt = Math.floor(Math.random() * (plotCount(rivalCity) + 1));
     setPending({ faces, steps, from, step: 0, enemyDice, rivalBuilt, rivalCity, running: true, committed: false });
   }
 

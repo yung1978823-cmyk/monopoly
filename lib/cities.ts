@@ -1,4 +1,8 @@
-/** A rival's city: the art shown when you land on 攻擊, and where each landmark stands on it. */
+/**
+ * A rival's city: the art shown when you land on 攻擊, and its empty building plots.
+ * Each plot holds one of the rival's landmarks, so a city with fewer plots has fewer
+ * landmarks to attack.
+ */
 export type City = {
   id: string;
   name: string;
@@ -9,50 +13,56 @@ export type City = {
   /** Colours at the top and bottom edge of the art, to fill the screen around it. */
   sky: string;
   ground: string;
-  /** Centre of landmark slots 0–3 (北門、東市、南岸、西街) as fractions of the art. */
-  targets: readonly { x: number; y: number }[];
+  /** Stand-in for a built landmark until the 3D building renders are drawn. */
+  building: string;
+  /** Centre of each plot as fractions of the art; plot i holds landmark slot i. */
+  plots: readonly { x: number; y: number }[];
 };
+
+const WIDTH = 1600;
+const HEIGHT = 2848;
 
 function city(
   id: string,
   name: string,
-  width: number,
-  height: number,
   sky: string,
   ground: string,
+  building: string,
   points: readonly [number, number][],
 ): City {
   return {
     id,
     name,
     art: `/art/city-${id}.jpg`,
-    width,
-    height,
+    width: WIDTH,
+    height: HEIGHT,
     sky,
     ground,
-    targets: points.map(([x, y]) => ({ x: x / width, y: y / height })),
+    building,
+    plots: points.map(([x, y]) => ({ x: x / WIDTH, y: y / HEIGHT })),
   };
 }
 
 export const CITIES: readonly City[] = [
-  city("harbor", "海港", 1223, 1286, "#37aafe", "#efbaa3", [
-    [210, 780],
-    [490, 540],
-    [1020, 690],
-    [1010, 330],
+  city("jiangshi", "清朝古鎮", "#3da6d5", "#f5ddbb", "🏯", [
+    [470, 2221],
+    [1367, 1402],
+    [1025, 854],
   ]),
-  city("park", "花園", 941, 1672, "#20a4fd", "#f0c2a5", [
-    [220, 975],
-    [270, 610],
-    [755, 760],
-    [790, 380],
+  city("mummy", "沙漠綠洲", "#3596cb", "#ffdb8f", "🏛️", [
+    [363, 2050],
+    [1231, 2050],
   ]),
-  city("downtown", "市中心", 1122, 1402, "#3db3fd", "#d7965c", [
-    [270, 830],
-    [520, 560],
-    [880, 780],
-    [970, 340],
+  city("zombie", "工地小鎮", "#4eaddd", "#a48e80", "🏠", [
+    [448, 2014],
+    [313, 1431],
+    [1210, 1772],
   ]),
 ];
+
+/** How many landmarks a rival in this city can have. */
+export function plotCount(cityIndex: number): number {
+  return (CITIES[cityIndex] ?? CITIES[0]).plots.length;
+}
 
 export const SHIELD_ART = "/art/shield-block.jpg";

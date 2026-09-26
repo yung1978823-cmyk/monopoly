@@ -114,6 +114,14 @@ describe("daily board", () => {
     assert.equal(loaded?.rivalCity, 2);
   });
 
+  it("gives a rival no more landmarks than their city has plots", () => {
+    const desert = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 4, rivalCity: 1, now: NOW });
+    assert.deepEqual(desert.rivalLandmarks, ["built", "built", "empty", "empty"]);
+    assert.match(desert.log[0]?.text ?? "", /佢有 2 座建築/);
+    const town = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 4, rivalCity: 0, now: NOW });
+    assert.equal(countBuilt(town.rivalLandmarks), 3);
+  });
+
   it("gives a shield only to a rival holding an NFT", () => {
     const nft = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 2, now: NOW });
     assert.equal(nft.enemyShield, true);

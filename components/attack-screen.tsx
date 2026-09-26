@@ -82,14 +82,14 @@ export function AttackScreen({
     >
       {/* City art, fitted inside the screen, with the landmark targets on it. */}
       <div
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-cover bg-center"
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[56%] bg-cover bg-center"
         style={{
           backgroundImage: `url(${city.art})`,
           width: `min(100cqw, calc(100cqh * ${city.width / city.height}))`,
           aspectRatio: `${city.width} / ${city.height}`,
         }}
       >
-        {city.targets.map((spot, index) => {
+        {city.plots.map((spot, index) => {
           const landmark = state.rivalLandmarks[index];
           const smashedNow = flash?.kind === "smash" && readout?.smashed === index;
           const place = { left: `${spot.x * 100}%`, top: `${spot.y * 100}%` };
@@ -97,10 +97,10 @@ export function AttackScreen({
             return (
               <span
                 key={index}
-                className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/85 px-2 py-0.5 text-xs font-bold text-[#1E3A8A]"
+                className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-bold text-[#1E3A8A]"
                 style={place}
               >
-                {LANDMARK_NAMES[index]}·未起
+                未起
               </span>
             );
           }
@@ -109,14 +109,14 @@ export function AttackScreen({
               <span
                 key={index}
                 className={cn(
-                  "absolute flex size-[18%] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full bg-[#5b4a42]/70 text-3xl",
+                  "absolute flex -translate-x-1/2 -translate-y-[70%] flex-col items-center text-[min(11cqw,3rem)] leading-none",
                   smashedNow && "animate-[smash_0.5s_ease-out]",
                 )}
                 style={place}
                 data-testid={`ruined-${index}`}
               >
                 💥
-                <span className="text-[10px] font-bold text-white">已打爛</span>
+                <span className="mt-0.5 rounded-full bg-[#5b4a42]/80 px-2 text-[10px] font-bold text-white">已打爛</span>
               </span>
             );
           }
@@ -127,23 +127,26 @@ export function AttackScreen({
               disabled={!picking}
               onClick={() => strike(index)}
               className={cn(
-                "absolute flex size-[20%] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full",
+                "absolute flex -translate-x-1/2 -translate-y-[75%] flex-col items-center",
                 picking ? "cursor-pointer" : "cursor-default",
               )}
               style={place}
               aria-label={`攻擊${LANDMARK_NAMES[index]}`}
               data-testid={`target-${index}`}
             >
+              {/* Stand-in building until the 3D renders land. */}
+              <span className="text-[min(13cqw,3.6rem)] leading-none drop-shadow-[0_6px_6px_rgba(0,0,0,0.3)]">
+                {city.building}
+              </span>
+              {/* Small target ring over the building. */}
               <span
                 className={cn(
-                  "absolute inset-0 rounded-full border-[5px] border-white shadow-[0_0_0_3px_rgba(229,37,33,0.9),inset_0_0_0_3px_rgba(229,37,33,0.9)]",
-                  picking ? "animate-pulse" : "opacity-60",
+                  "absolute left-1/2 top-[40%] size-[min(9cqw,2.4rem)] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow-[0_0_0_2px_rgba(229,37,33,0.9),inset_0_0_0_2px_rgba(229,37,33,0.9)]",
+                  picking ? "animate-pulse" : "opacity-0",
                 )}
               />
-              <span className="absolute h-[70%] w-[5px] rounded bg-white/90" />
-              <span className="absolute h-[5px] w-[70%] rounded bg-white/90" />
               {aimed === index && state.fightSettled ? (
-                <span className="absolute -top-6 text-4xl animate-[hammer_0.6s_ease-out]">🔨</span>
+                <span className="absolute -top-8 text-3xl animate-[hammer_0.6s_ease-out]">🔨</span>
               ) : null}
             </button>
           );
@@ -156,7 +159,7 @@ export function AttackScreen({
         <div className="min-w-0 flex-1">
           <p className="truncate text-lg font-black text-[#1E3A8A]">阿強嘅{city.name}</p>
           <p className="text-xs font-bold text-[#3B5BA9]">
-            {state.rivalHasNft ? "🛡️ 有 NFT" : "冇 NFT"} · 建築 {rivalPower}／4
+            {state.rivalHasNft ? "🛡️ 有 NFT" : "冇 NFT"} · 建築 {rivalPower}／{city.plots.length}
           </p>
         </div>
         <div className="flex items-center gap-1">
