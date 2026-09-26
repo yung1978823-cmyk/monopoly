@@ -1,5 +1,6 @@
 "use client";
 
+import { BoolionaireLogo } from "@/components/boolionaire-logo";
 import { useEffect, useState } from "react";
 
 const LOAD_MS = 1400;
@@ -58,13 +59,10 @@ export function TitleScreen({ onStart }: { onStart: () => void }) {
             className="h-[22cqh] w-[88cqw] bg-contain bg-center bg-no-repeat drop-shadow-[0_8px_16px_rgba(15,42,107,0.5)]"
             style={{ backgroundImage: `url(${LOGO_ART})` }}
             role="img"
-            aria-label="Dice Tycoon"
+            aria-label="Boolionaire"
           />
         ) : (
-          <h1 className="flex flex-col items-center font-display leading-[0.82] tracking-tight" aria-label="Dice Tycoon">
-            <span className="logo-type text-[min(19cqw,5.5rem)] text-[#FBD000]">DICE</span>
-            <span className="logo-type text-[min(15cqw,4.4rem)] text-white">TYCOON</span>
-          </h1>
+          <BoolionaireLogo className="text-[min(13.5cqw,4.2rem)]" />
         )}
         <span className="mt-2 rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold tracking-[0.3em] text-white/90 backdrop-blur-sm">
           大富翁
