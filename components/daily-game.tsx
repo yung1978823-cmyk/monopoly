@@ -3,6 +3,7 @@
 import { AttackScreen } from "@/components/attack-screen";
 import { MyCity } from "@/components/my-city";
 import { PanZoom } from "@/components/pan-zoom";
+import { TableGame } from "@/components/table-game";
 import { BoardRing, type Burst } from "@/components/board-ring";
 import { DieFace } from "@/components/die-face";
 import { TipHand } from "@/components/tip-hand";
@@ -135,6 +136,8 @@ export function DailyGame() {
   const [introSeen, setIntroSeen] = useState(-1);
   /** Whether your own town (opened with 🏗️) is showing instead of the board. */
   const [cityOpen, setCityOpen] = useState(false);
+  /** Whether the public table (第二層) is showing instead of the board. */
+  const [tableOpen, setTableOpen] = useState(false);
   /** The board and the open space it is centred in, for the camera; GO presses glide it home. */
   const boardBox = useRef<HTMLDivElement>(null);
   const frameBox = useRef<HTMLElement>(null);
@@ -335,6 +338,10 @@ export function DailyGame() {
 
   const intro = state.phase === "search" && introSeen !== state.rollCount;
 
+  if (tableOpen && state.phase === "walk") {
+    return <TableGame onExit={() => setTableOpen(false)} />;
+  }
+
   if (cityOpen && state.phase === "walk") {
     return (
       <MyCity
@@ -405,6 +412,16 @@ export function DailyGame() {
           <img src={TILE_INFO.coin.art} alt="金幣" className="size-6" />
           <span key={state.points} className="inline-block animate-[bump_0.35s_ease-out]">{state.points}</span>
         </div>
+        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => !pending?.running && setTableOpen(true)}
+          className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#7C3AED] text-xl text-white shadow-md"
+          aria-label="公開桌"
+          data-testid="open-table"
+        >
+          👥
+        </button>
         <button
           type="button"
           onClick={() => setMenuOpen(true)}
@@ -414,6 +431,7 @@ export function DailyGame() {
         >
           ☰
         </button>
+        </div>
       </header>
 
       {saveNote ? (
