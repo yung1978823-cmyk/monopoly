@@ -2,6 +2,7 @@
 
 import { AttackScreen } from "@/components/attack-screen";
 import { MyCity } from "@/components/my-city";
+import { PanZoom } from "@/components/pan-zoom";
 import { BoardRing, type Burst } from "@/components/board-ring";
 import { DieFace } from "@/components/die-face";
 import { TipHand } from "@/components/tip-hand";
@@ -134,6 +135,10 @@ export function DailyGame() {
   const [introSeen, setIntroSeen] = useState(-1);
   /** Whether your own town (opened with 🏗️) is showing instead of the board. */
   const [cityOpen, setCityOpen] = useState(false);
+  /** The board and the open space it is centred in, for the camera; GO presses glide it home. */
+  const boardBox = useRef<HTMLDivElement>(null);
+  const frameBox = useRef<HTMLElement>(null);
+  const [goPresses, setGoPresses] = useState(0);
   const dispatch = useCallback((action: Parameters<typeof reduce>[1]) => {
     setState((current) => reduce(current, action));
   }, []);
@@ -273,6 +278,7 @@ export function DailyGame() {
   function onWalk() {
     if (state.phase !== "walk" || state.dice < 1 || pending?.running) return;
     play("roll");
+    setGoPresses((count) => count + 1);
     const faces = rollPair();
     const steps = faces[0] + faces[1];
     const from = state.position;
@@ -354,39 +360,42 @@ export function DailyGame() {
       className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-gradient-to-b from-[#4AA8F5] via-[#8CC63F] to-[#7DB835] text-[#1E3A8A] [container-type:size]"
       data-testid="walk"
     >
-      {/* Castle-garden scene, fitted to the screen width, with the board on its lawn. */}
-      <div
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[54%] bg-cover bg-center"
-        style={{
-          backgroundImage: `url(${BOARD_SCENE.art})`,
-          width: `min(100cqw, calc(100cqh * ${BOARD_SCENE.width} / ${BOARD_SCENE.height}))`,
-          aspectRatio: `${BOARD_SCENE.width} / ${BOARD_SCENE.height}`,
-        }}
-      >
+      {/* Castle-garden scene on a movable camera: drag, pinch or wheel; double-tap snaps back. */}
+      <PanZoom focus={boardBox} frame={frameBox} startScale={1.15} resetKey={goPresses}>
         <div
-          className="absolute"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[54%] bg-cover bg-center"
           style={{
-            left: `${BOARD_SCENE.board.left * 100}%`,
-            top: `${BOARD_SCENE.board.top * 100}%`,
-            width: `${BOARD_SCENE.board.width * 100}%`,
+            backgroundImage: `url(${BOARD_SCENE.art})`,
+            width: `min(100cqw, calc(100cqh * ${BOARD_SCENE.width} / ${BOARD_SCENE.height}))`,
+            aspectRatio: `${BOARD_SCENE.width} / ${BOARD_SCENE.height}`,
           }}
         >
-          <BoardRing
-            position={tokenIndex}
-            trail={trail}
-            stopIndex={arrived ? tokenIndex : null}
-            burst={pending?.committed ? burstOf(state) : null}
-            centre={
-              pending ? (
-                <>
-                  <DieFace value={pending.faces[0]} />
-                  <DieFace value={pending.faces[1]} />
-                </>
-              ) : null
-            }
-          />
+          <div
+            ref={boardBox}
+            className="absolute"
+            style={{
+              left: `${BOARD_SCENE.board.left * 100}%`,
+              top: `${BOARD_SCENE.board.top * 100}%`,
+              width: `${BOARD_SCENE.board.width * 100}%`,
+            }}
+          >
+            <BoardRing
+              position={tokenIndex}
+              trail={trail}
+              stopIndex={arrived ? tokenIndex : null}
+              burst={pending?.committed ? burstOf(state) : null}
+              centre={
+                pending ? (
+                  <>
+                    <DieFace value={pending.faces[0]} />
+                    <DieFace value={pending.faces[1]} />
+                  </>
+                ) : null
+              }
+            />
+          </div>
         </div>
-      </div>
+      </PanZoom>
       {/* Top bar: dice and points only; everything else lives behind the menu. */}
       <header className="relative z-30 flex items-center justify-between gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
         <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-[#1E3A8A] py-1 pl-2 pr-3 text-lg font-black tabular-nums text-white shadow-md" data-testid="dice-count">
@@ -413,7 +422,8 @@ export function DailyGame() {
         </p>
       ) : null}
 
-      <section className="relative z-20 min-h-0 flex-1" />
+      {/* The open space between the bars: the board is centred here. Taps fall through to the camera. */}
+      <section ref={frameBox} className="pointer-events-none relative z-20 min-h-0 flex-1" />
 
       {/* Bottom bar: one big GO; building sits to the side as an icon. */}
       <footer className="relative z-30 flex items-end justify-center px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-2">
