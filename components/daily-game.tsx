@@ -140,6 +140,8 @@ export function DailyGame() {
   const [tableOpen, setTableOpen] = useState(false);
   /** The board and the open space it is centred in, for the camera; GO presses glide it home. */
   const boardBox = useRef<HTMLDivElement>(null);
+  const sceneBox = useRef<HTMLDivElement>(null);
+  const tokenBox = useRef<HTMLElement | null>(null);
   const frameBox = useRef<HTMLElement>(null);
   const [goPresses, setGoPresses] = useState(0);
   const dispatch = useCallback((action: Parameters<typeof reduce>[1]) => {
@@ -320,6 +322,8 @@ export function DailyGame() {
     ? Array.from({ length: shownStep }, (_, index) => (pending.from + index + 1) % TILES.length)
     : [];
   const arrived = pending !== null && shownStep > 0;
+  // The camera follows the token drawn inside the board.
+  tokenBox.current = boardBox.current?.querySelector<HTMLElement>('[data-testid="token"]') ?? null;
   const countdown = booted && now > 0 ? msUntilNextDie(state.dice, state.lastRefillAt, now) : null;
   const buildCost = cheapestUpgrade(state);
   const buildable = buildCost !== null && state.points >= buildCost;
@@ -367,9 +371,17 @@ export function DailyGame() {
       className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-gradient-to-b from-[#4AA8F5] via-[#8CC63F] to-[#7DB835] text-[#1E3A8A] [container-type:size]"
       data-testid="walk"
     >
-      {/* Castle-garden scene on a movable camera: drag, pinch or wheel; double-tap snaps back. */}
-      <PanZoom focus={boardBox} frame={frameBox} startScale={1.15} resetKey={goPresses}>
+      {/* Castle-garden scene on a Monopoly GO–style camera: big, dragged around freely, following the token. */}
+      <PanZoom
+        world={sceneBox}
+        focus={boardBox}
+        frame={frameBox}
+        follow={tokenBox}
+        followKey={`${goPresses}:${tokenIndex}`}
+        startScale={1.5}
+      >
         <div
+          ref={sceneBox}
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[54%] bg-cover bg-center"
           style={{
             backgroundImage: `url(${BOARD_SCENE.art})`,
