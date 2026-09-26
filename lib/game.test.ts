@@ -209,6 +209,7 @@ describe("daily board", () => {
     assert.equal(missed.enemyShield, true);
     assert.equal(missed.fightSettled, true);
     assert.equal(missed.rivalLandmarks[0], "built");
+    assert.equal(missed.strikes, 1, "counts fights for the first-time pointer");
 
     state = {
       ...state,

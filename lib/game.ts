@@ -70,6 +70,8 @@ export type GameState = {
   /** DST this player has taken today. Capped at 5 per day. */
   dstTakenToday: number;
   rollCount: number;
+  /** Fights settled so far; the first one gets a pointing hand. */
+  strikes: number;
   log: LogEntry[];
   nextLogId: number;
   dayKey: string;
@@ -143,6 +145,7 @@ export function createGame(now: number, dayKey: string): GameState {
     rivalHasNft: true,
     dstTakenToday: 0,
     rollCount: 0,
+    strikes: 0,
     log: [],
     nextLogId: 1,
     dayKey,
@@ -293,6 +296,7 @@ export function sanitizeState(
     // Saves from before the rename kept this under rivalStolenToday.
     dstTakenToday: clampInt(value.dstTakenToday ?? value.rivalStolenToday, 0, DAILY_DST_CAP, 0),
     rollCount: clampInt(value.rollCount, 0, 1_000_000, 0),
+    strikes: clampInt(value.strikes, 0, 1_000_000, 0),
     log,
     nextLogId: clampInt(value.nextLogId, 1, 1_000_000, 1),
     dayKey: typeof value.dayKey === "string" && value.dayKey ? value.dayKey : dayKey,
@@ -515,6 +519,7 @@ export function reduce(state: GameState, action: Action): GameState {
           ...state,
           points: nextPoints,
           dstTakenToday: state.dstTakenToday + dst,
+          strikes: state.strikes + 1,
           rivalLandmarks,
           enemyShield,
           fightSettled,

@@ -1,6 +1,7 @@
 "use client";
 
 import { DieFace } from "@/components/die-face";
+import { TipHand } from "@/components/tip-hand";
 import { LANDMARK_NAMES } from "@/lib/board";
 import { CITIES, SHIELD_ART } from "@/lib/cities";
 import { attackPower, builtIndexes, countBuilt, type GameState } from "@/lib/game";
@@ -144,6 +145,9 @@ export function AttackScreen({
                   picking ? "animate-pulse" : "opacity-0",
                 )}
               />
+              {picking && state.strikes === 0 && index === standing[0] ? (
+                <TipHand className="-top-12 left-1/2 -translate-x-1/2" />
+              ) : null}
               {aimed === index && state.fightSettled ? (
                 <span className="absolute -top-8 text-3xl animate-[hammer_0.6s_ease-out]">🔨</span>
               ) : null}
@@ -197,14 +201,17 @@ export function AttackScreen({
             返回棋盤
           </button>
         ) : picking ? null : (
-          <button
-            type="button"
-            onClick={() => strike(null)}
-            className="h-16 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-[#E52521] text-2xl font-black text-white shadow-[0_6px_0_#8E1210] active:translate-y-1 active:shadow-[0_2px_0_#8E1210]"
-            data-testid="weapon"
-          >
-            🔨 攻擊
-          </button>
+          <div className="relative">
+            {state.strikes === 0 ? <TipHand className="-top-12 left-1/2 -translate-x-1/2" /> : null}
+            <button
+              type="button"
+              onClick={() => strike(null)}
+              className="h-16 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-[#E52521] text-2xl font-black text-white shadow-[0_6px_0_#8E1210] active:translate-y-1 active:shadow-[0_2px_0_#8E1210]"
+              data-testid="weapon"
+            >
+              🔨 攻擊
+            </button>
+          </div>
         )}
       </footer>
 

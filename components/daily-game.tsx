@@ -3,6 +3,7 @@
 import { AttackScreen } from "@/components/attack-screen";
 import { BoardRing, type Burst } from "@/components/board-ring";
 import { DieFace } from "@/components/die-face";
+import { TipHand } from "@/components/tip-hand";
 import { Button } from "@/components/ui/button";
 import { BOARD_SCENE, TILES, TILE_INFO } from "@/lib/board";
 import { CITIES, plotCount } from "@/lib/cities";
@@ -393,6 +394,9 @@ export function DailyGame() {
           <span className="flex size-14 items-center justify-center rounded-2xl border-[3px] border-[#FBD000] bg-[#43B047] text-3xl shadow-[0_4px_0_#2E8B3E]">
             {repairing ? "🔧" : "🏗️"}
           </span>
+          {buildable && !pending?.running && state.landmarks.every((item) => item === "empty") ? (
+            <TipHand className="-top-11 left-1/2 -translate-x-1/2" />
+          ) : null}
           {buildFx ? (
             <span key={buildFx.key} className="pointer-events-none absolute -top-16 flex flex-col items-center" aria-hidden>
               <span className="animate-[float-up_1.6s_ease-out_0.2s_both] rounded-full border-2 border-white bg-[#E52521] px-2 text-sm font-black text-white shadow-md">
@@ -408,7 +412,9 @@ export function DailyGame() {
           )}
         </button>
 
-        <div className="flex flex-col items-center gap-1">
+        <div className="relative flex flex-col items-center gap-1">
+          {/* First-time tips: tap GO, then build once you can afford it. */}
+          {state.rollCount === 0 && !pending ? <TipHand className="-top-12 left-1/2 -translate-x-1/2" /> : null}
           <button
             type="button"
             onClick={onWalk}
