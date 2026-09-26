@@ -1,10 +1,10 @@
 import { MAX_LEVEL } from "@/lib/rules";
 import { cn } from "cn";
 
-/** Stand-in pictures for levels 1–5 until the drawn buildings arrive: tent, hut, house, villa, castle. */
+/** Emoji fallback per level, used only if a picture is missing: frame, cabin, house, mansion, castle. */
 const LEVEL_ICONS = ["", "⛺", "🛖", "🏠", "🏡", "🏰"] as const;
-/** Drawn art per level; fill these in (e.g. "/art/buildings/3.png") and the emoji step aside. */
-const LEVEL_ART: readonly (string | null)[] = [null, "/art/buildings/1.png", "/art/buildings/2.png", null, null, null];
+/** Drawn art per level: frame → log cabin → cottage → mansion → castle. */
+const LEVEL_ART: readonly (string | null)[] = [null, 1, 2, 3, 4, 5].map((level) => (level ? `/art/buildings/${level}.png` : null));
 
 /** A building at its level, drawn a little bigger each level. Level 0 draws nothing. */
 export function Building({ level, className }: { level: number; className?: string }) {
