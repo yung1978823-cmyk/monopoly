@@ -359,7 +359,7 @@ describe("daily board", () => {
   it("refills a real die after 30 minutes", () => {
     const next = reduce({ ...start(), dice: 0 }, { type: "tick", now: NOW + REFILL_MS, dayKey: DAY });
     assert.equal(next.dice, 1);
-    assert.match(next.log[0]?.text ?? "", /30 分鐘/);
+    assert.match(next.log[0]?.text ?? "", /3 分鐘/);
   });
 
   it("resets the daily DST count on a new day", () => {

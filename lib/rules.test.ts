@@ -20,7 +20,7 @@ describe("landmark cost", () => {
 });
 
 describe("dice refill", () => {
-  it("adds one die per 30 minutes and stops at 20", () => {
+  it("adds one die per 3 minutes and stops at 20", () => {
     const start = 1_000;
     const one = applyRefill(0, start, start + REFILL_MS);
     assert.deepEqual(one, { dice: 1, lastRefillAt: start + REFILL_MS, gained: 1 });
@@ -41,7 +41,7 @@ describe("dice refill", () => {
     assert.deepEqual(full, { dice: 20, lastRefillAt: 0, gained: 0 });
   });
 
-  it("starts a fresh 30 minutes when dice are spent from a full stack", () => {
+  it("starts a fresh 3 minutes when dice are spent from a full stack", () => {
     const spent = spendDice(20, 0, 50_000, 1);
     assert.deepEqual(spent, { dice: 19, lastRefillAt: 50_000 });
     const pair = spendDice(20, 0, 50_000, 2);
@@ -57,7 +57,7 @@ describe("dice refill", () => {
   });
 
   it("formats the countdown", () => {
-    assert.equal(formatClock(REFILL_MS), "30:00");
+    assert.equal(formatClock(REFILL_MS), "03:00");
     assert.equal(msUntilNextDie(20, 0, 0), null);
     assert.equal(msUntilNextDie(0, 0, 0), REFILL_MS);
   });

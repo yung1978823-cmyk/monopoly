@@ -383,7 +383,7 @@ function rollDay(state: GameState, now: number, dayKey: string): GameState {
     next = pushLog(
       next,
       "rule",
-      `30 分鐘到了，補上 ${player.gained} 顆。現在 ${player.dice}／20。骰子不出售。`,
+      `3 分鐘到了，補上 ${player.gained} 顆。現在 ${player.dice}／20。骰子不出售。`,
     );
   }
   if (!dayChanged) return next;

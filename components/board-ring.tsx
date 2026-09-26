@@ -15,8 +15,10 @@ export type Burst = {
   icon: string;
   /** The drawn picture, when the square has one. */
   art?: string;
-  /** e.g. "+2⭐" or "−3⭐"; empty for none. */
-  text: string;
+  /** Money gained or lost (negative for jail and tax). */
+  money: number;
+  /** Dice gained. */
+  dice: number;
   bad: boolean;
 };
 
@@ -131,14 +133,21 @@ export function BoardRing({
           style={{ left: `${TILE_POSITIONS[burst.index].x * 100}%`, top: `${TILE_POSITIONS[burst.index].y * 100}%` }}
           data-testid="burst"
         >
-          {burst.text ? (
+          {burst.money !== 0 || burst.dice > 0 ? (
             <span
               className={cn(
-                "animate-[float-up_1.6s_ease-out_0.25s_both] rounded-full border-2 border-white px-2 text-[clamp(13px,4vw,20px)] font-black tabular-nums text-white shadow-md",
+                "flex animate-[float-up_1.6s_ease-out_0.25s_both] items-center gap-0.5 rounded-full border-2 border-white px-2 text-[clamp(13px,4vw,20px)] font-black tabular-nums text-white shadow-md",
                 burst.bad ? "bg-[#46506E]" : "bg-[#43B047]",
               )}
             >
-              {burst.text}
+              {burst.money !== 0 ? (
+                <>
+                  {burst.money > 0 ? "+" : "−"}
+                  {Math.abs(burst.money)}
+                  <img src={TILE_INFO.coin.art} alt="金幣" className="size-[1.1em]" />
+                </>
+              ) : null}
+              {burst.dice > 0 ? <>+{burst.dice}🎲</> : null}
             </span>
           ) : null}
           {/* Penalties wobble first; the burst sits on an inner span so the two motions don't fight. */}

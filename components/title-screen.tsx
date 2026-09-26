@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 const LOAD_MS = 1400;
 
 /** Swap in the drawn logo here once it exists (e.g. "/art/logo.png"); until then a type logo stands in. */
-const LOGO_ART: string | null = null;
+const LOGO_ART: string | null = "/art/logo.webp";
 
 /** Opening screen: the title art shown whole, the logo, a slim loading bar, then a tap to start. */
 export function TitleScreen({ onStart }: { onStart: () => void }) {
@@ -76,7 +76,7 @@ export function TitleScreen({ onStart }: { onStart: () => void }) {
             data-testid="start"
           >
             <span className="absolute inset-x-3 top-1 h-[42%] rounded-full bg-white/30" aria-hidden="true" />
-            <span className="relative">開始遊戲</span>
+            <span className="relative text-2xl tracking-[0.2em]">START</span>
           </button>
         ) : (
           <>

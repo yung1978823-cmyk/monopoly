@@ -21,7 +21,7 @@ import {
   reduce,
   type GameState,
 } from "@/lib/game";
-import { DAILY_DST_CAP, DICE_CAP, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
+import { DAILY_DST_CAP, DICE_CAP, REFILL_MS, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
 import { cn } from "cn";
 import { isMuted, play, setMuted, type Sound } from "@/lib/sfx";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -107,15 +107,13 @@ function NftSlots({
 function burstOf(state: GameState): Burst | null {
   const landing = state.landing;
   if (!landing || landing.kind === "attack") return null;
-  const parts: string[] = [];
-  if (landing.points !== 0) parts.push(`${landing.points > 0 ? "+" : "−"}${Math.abs(landing.points)}⭐`);
-  if (landing.dice > 0) parts.push(`+${landing.dice}🎲`);
   return {
     key: state.rollCount,
     index: state.position,
     icon: TILE_INFO[landing.kind].icon,
     art: TILE_INFO[landing.kind].art,
-    text: parts.join(" "),
+    money: landing.points,
+    dice: landing.dice,
     bad: landing.kind === "jail" || landing.kind === "tax",
   };
 }
@@ -195,7 +193,7 @@ export function DailyGame() {
   useEffect(() => {
     if (!booted || now === 0) return;
     const key = dayKeyOf(now);
-    const playerDue = state.dice < DICE_CAP && now - state.lastRefillAt >= 30 * 60 * 1000;
+    const playerDue = state.dice < DICE_CAP && now - state.lastRefillAt >= REFILL_MS;
     if (!playerDue && key === state.dayKey) return;
     const id = window.setTimeout(() => {
       dispatch({ type: "tick", now, dayKey: key });
@@ -391,7 +389,8 @@ export function DailyGame() {
           🎲 <span key={state.dice} className="inline-block animate-[bump_0.35s_ease-out]">{state.dice}</span>
         </div>
         <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-white py-1 pl-2 pr-3 text-lg font-black tabular-nums text-[#1E3A8A] shadow-md" data-testid="hud-points">
-          ⭐ <span key={state.points} className="inline-block animate-[bump_0.35s_ease-out]">{state.points}</span>
+          <img src={TILE_INFO.coin.art} alt="金幣" className="size-6" />
+          <span key={state.points} className="inline-block animate-[bump_0.35s_ease-out]">{state.points}</span>
         </div>
         <button
           type="button"
@@ -419,7 +418,7 @@ export function DailyGame() {
           onClick={onBuild}
           disabled={!buildable || pending?.running === true}
           className="absolute bottom-[max(env(safe-area-inset-bottom),1rem)] left-5 flex cursor-pointer flex-col items-center disabled:cursor-default disabled:opacity-50"
-          aria-label={buildCost === null ? "地標已建齊" : `${repairing ? "修理" : "起地標"}，要 ${buildCost} 分`}
+          aria-label={buildCost === null ? "地標已建齊" : `${repairing ? "修理" : "起地標"}，要 ${buildCost} 金幣`}
           data-testid="raise"
         >
           <span className="flex size-14 items-center justify-center rounded-2xl border-[3px] border-[#FBD000] bg-[#43B047] text-3xl shadow-[0_4px_0_#2E8B3E]">
@@ -446,7 +445,8 @@ export function DailyGame() {
           ) : null}
           {buildCost === null ? null : (
             <span className="-mt-2 rounded-full bg-white px-2 text-xs font-black tabular-nums text-[#1E3A8A] shadow">
-              ⭐{buildCost}
+              <img src={TILE_INFO.coin.art} alt="" className="mr-0.5 inline size-3.5 align-[-2px]" />
+              {buildCost}
             </span>
           )}
         </button>

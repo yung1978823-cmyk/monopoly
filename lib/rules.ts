@@ -1,5 +1,6 @@
 export const DICE_CAP = 20;
-export const REFILL_MS = 30 * 60 * 1000;
+/** One die comes back every 3 minutes, up to DICE_CAP. */
+export const REFILL_MS = 3 * 60 * 1000;
 export const DAILY_DST_CAP = 5;
 export const LANDMARK_SLOTS = 4;
 /** Up to five NFTs can be placed; each adds the same +2 attack, so no single one decides a fight. */

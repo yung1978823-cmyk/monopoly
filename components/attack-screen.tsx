@@ -1,10 +1,10 @@
 "use client";
 
 import { TipHand } from "@/components/tip-hand";
-import { FX_ART, LANDMARK_NAMES } from "@/lib/board";
-import { CITIES, SHIELD_ART } from "@/lib/cities";
-import { attackPower, builtIndexes, countBuilt, rivalPower, type GameState } from "@/lib/game";
-import { hitChance } from "@/lib/rules";
+import { FX_ART, LANDMARK_NAMES, TILE_INFO } from "@/lib/board";
+import { CITIES } from "@/lib/cities";
+import { ShieldFx } from "@/components/shield-fx";
+import { builtIndexes, type GameState } from "@/lib/game";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
 import { useEffect, useState } from "react";
@@ -32,11 +32,6 @@ export function AttackScreen({
   const city = CITIES[state.rivalCity] ?? CITIES[0];
   const readout = state.weaponReadout;
   const standing = builtIndexes(state.rivalLandmarks);
-  const rivalBuilt = countBuilt(state.rivalLandmarks);
-  // Show the totals the last strike used; a smash lowers the rival's defence afterwards.
-  const attackTotal = readout?.attackTotal ?? attackPower(state);
-  const defenseTotal = readout?.defenseTotal ?? rivalPower(state);
-  const chance = readout?.chance ?? hitChance(attackTotal, defenseTotal);
   const picking = !state.fightSettled && standing.length > 0;
   const [flash, setFlash] = useState<Flash | null>(null);
   const [aimed, setAimed] = useState<number | null>(null);
@@ -170,44 +165,30 @@ export function AttackScreen({
         })}
       </div>
 
-      {/* Rival banner. */}
-      <header className="relative z-10 mx-3 mt-[max(env(safe-area-inset-top),0.75rem)] flex items-center gap-3 rounded-full border-[3px] border-[#FBD000] bg-white/95 py-1.5 pl-1.5 pr-4 shadow-lg">
-        <span className="flex size-12 items-center justify-center rounded-full bg-[#E52521] text-2xl">💪</span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-lg font-black text-[#1E3A8A]">阿強嘅{city.name}</p>
-          <p className="text-xs font-bold text-[#3B5BA9]">
-            🏠 {rivalBuilt}／{city.plots.length}
-            {state.rivalNfts > 0 ? ` · 💎 ${state.rivalNfts}` : ""}
-          </p>
-        </div>
+      {/* Rival: framed face and name, small, centred at the top. */}
+      <header className="relative z-10 mx-auto mt-[max(env(safe-area-inset-top),0.75rem)] flex flex-col items-center" data-testid="rival">
+        <img
+          src={city.rival.avatar}
+          alt=""
+          draggable={false}
+          className="size-16 rounded-full border-[3px] border-[#FBD000] object-cover shadow-[0_0_0_3px_#E52521,0_6px_12px_rgba(0,0,0,0.3)]"
+        />
+        <p className="-mt-2 rounded-full border-2 border-[#FBD000] bg-[#E52521] px-3 text-sm font-black text-white shadow-md">
+          {city.rival.name}
+        </p>
       </header>
 
-      {/* Bottom panel: totals, status and the next action. */}
+      {/* Bottom panel: what to do, what it paid, and the next action. */}
       <footer className="relative z-10 mt-auto space-y-2 rounded-t-[32px] bg-white/95 px-4 pb-[max(env(safe-area-inset-bottom),0.9rem)] pt-3 shadow-[0_-6px_20px_rgba(30,58,138,0.25)]">
-        <div className="flex items-center justify-between text-sm font-bold text-[#1E3A8A]">
-          <span>
-            ⚔️ 攻擊 <span className="text-xl tabular-nums">{attackTotal}</span>
-          </span>
-          <span
-            className={cn(
-              "rounded-full px-3 py-0.5 text-lg font-black tabular-nums text-white",
-              chance >= 60 ? "bg-[#43B047]" : chance >= 40 ? "bg-[#F59E0B]" : "bg-[#E52521]",
-            )}
-            data-testid="hit-chance"
-          >
-            🎯 {chance}%
-          </span>
-          <span>
-            🛡️ 防守 <span className="text-xl tabular-nums">{defenseTotal}</span>
-          </span>
-        </div>
         <p className="text-center text-base font-black text-[#E52521]" data-testid="attack-status">
           {status}
         </p>
         {readout ? (
-          <p className="text-center text-sm font-bold text-[#1E3A8A]" data-testid="dst-pay">
-            得 {readout.pointsGained} 分 · {readout.dst > 0 ? `搬走 ${readout.dst} DST` : "DST 0"} · 今日 DST{" "}
-            {state.dstTakenToday}／5
+          <p className="flex items-center justify-center gap-2 text-sm font-bold text-[#1E3A8A]" data-testid="dst-pay">
+            <span className="flex items-center gap-1">
+              <img src={TILE_INFO.coin.art} alt="金幣" className="size-5" />+{readout.pointsGained}
+            </span>
+            {readout.dst > 0 ? <span>· 搬走 {readout.dst} DST</span> : null}
           </p>
         ) : null}
         {state.fightSettled ? (
@@ -242,14 +223,9 @@ export function AttackScreen({
           data-testid={`flash-${flash.kind}`}
         >
           {flash.kind === "shield" ? (
-            <div
-              className="flex aspect-square w-[88%] animate-[pop_0.45s_ease-out] items-end justify-center overflow-hidden rounded-[36px] border-4 border-[#FBD000] bg-cover bg-center shadow-2xl"
-              style={{ backgroundImage: `url(${SHIELD_ART})` }}
-            >
-              <p className="mb-4 rounded-full bg-white/95 px-5 py-2 text-xl font-black text-[#E52521]">
-                🛡️ 盾破！+1
-              </p>
-            </div>
+            <ShieldFx broken />
+          ) : flash.kind === "miss" && state.enemyShield ? (
+            <ShieldFx broken={false} />
           ) : (
             <p
               className={cn(
@@ -261,9 +237,7 @@ export function AttackScreen({
                 ? "💥 打爛咗！"
                 : flash.kind === "hit"
                   ? "打中！"
-                  : state.enemyShield
-                    ? "🛡️ 擋住！"
-                    : "打唔中"}
+                  : "打唔中"}
             </p>
           )}
         </div>
