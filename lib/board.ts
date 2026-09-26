@@ -33,8 +33,8 @@ export const TILE_INFO: Record<TileKind, { name: string; icon: string; art?: str
   chest: { name: "寶箱", icon: "🎁", art: "/art/tiles/chest.png" },
   lucky: { name: "幸運骰", icon: "🎲", art: "/art/tiles/lucky.png" },
   attack: { name: "攻擊", icon: "🔨", art: "/art/tiles/attack.png" },
-  jail: { name: "監獄", icon: "🚔" },
-  tax: { name: "稅局", icon: "🧾" },
+  jail: { name: "監獄", icon: "🚔", art: "/art/tiles/jail.png" },
+  tax: { name: "稅局", icon: "🧾", art: "/art/tiles/tax.png" },
 };
 
 function kindOf(index: number): TileKind {
@@ -51,6 +51,9 @@ export const TILES: readonly Tile[] = Array.from({ length: BOARD_SIZE }, (_, ind
   const kind = kindOf(index);
   return { id: `${kind}-${index}`, name: TILE_INFO[kind].name, kind };
 });
+
+/** Effect art: a golden star burst for rewards and an explosion for smashes. */
+export const FX_ART = { sparkle: "/art/fx/sparkle.png", smash: "/art/fx/smash.png" } as const;
 
 /** The board art the squares are laid over (1254 × 1254, transparent around the board). */
 export const BOARD_ART = "/art/board-28-cut.png";

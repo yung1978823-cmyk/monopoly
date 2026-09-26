@@ -5,7 +5,7 @@ import { BoardRing, type Burst } from "@/components/board-ring";
 import { DieFace } from "@/components/die-face";
 import { TipHand } from "@/components/tip-hand";
 import { Button } from "@/components/ui/button";
-import { BOARD_SCENE, TILES, TILE_INFO } from "@/lib/board";
+import { BOARD_SCENE, FX_ART, TILES, TILE_INFO } from "@/lib/board";
 import { CITIES, plotCount } from "@/lib/cities";
 import {
   STORAGE_KEY,
@@ -406,7 +406,15 @@ export function DailyGame() {
               <span className="animate-[float-up_1.6s_ease-out_0.2s_both] rounded-full border-2 border-white bg-[#E52521] px-2 text-sm font-black text-white shadow-md">
                 ⚔️+5
               </span>
-              <span className="text-4xl animate-[burst_1.4s_ease-out_both]">{buildFx.icon}</span>
+              <span className="relative text-4xl animate-[burst_1.4s_ease-out_both]">
+                <img
+                  src={FX_ART.sparkle}
+                  alt=""
+                  draggable={false}
+                  className="absolute left-1/2 top-1/2 size-24 max-w-none -translate-x-1/2 -translate-y-1/2 object-contain"
+                />
+                <span className="relative">{buildFx.icon}</span>
+              </span>
             </span>
           ) : null}
           {buildCost === null ? null : (
@@ -450,7 +458,12 @@ export function DailyGame() {
               draggable={false}
               className="block size-[min(42cqw,12rem)] object-contain animate-[hammer_0.6s_ease-out]"
             />
-            <span className="absolute -bottom-4 -right-6 text-[0.5em] animate-[pop_0.4s_ease-out_0.45s_both]">💥</span>
+            <img
+              src={FX_ART.smash}
+              alt=""
+              draggable={false}
+              className="absolute -bottom-8 -right-10 size-[min(28cqw,8rem)] object-contain animate-[pop_0.4s_ease-out_0.45s_both]"
+            />
           </span>
         </div>
       ) : null}

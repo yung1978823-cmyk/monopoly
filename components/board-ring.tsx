@@ -1,4 +1,4 @@
-import { BOARD_ART, BOARD_CENTRE, TILES, TILE_INFO, TILE_POSITIONS, type TileKind } from "@/lib/board";
+import { BOARD_ART, BOARD_CENTRE, FX_ART, TILES, TILE_INFO, TILE_POSITIONS, type TileKind } from "@/lib/board";
 import { cn } from "cn";
 import type { CSSProperties, ReactNode } from "react";
 
@@ -157,10 +157,12 @@ export function BoardRing({
             </span>
           </span>
           {!burst.bad ? (
-            <>
-              <span className="absolute -left-3 top-1/2 text-lg animate-[sparkle_0.9s_ease-out_0.2s_both]">✨</span>
-              <span className="absolute -right-3 top-1/3 text-base animate-[sparkle_0.9s_ease-out_0.35s_both]">✨</span>
-            </>
+            <img
+              src={FX_ART.sparkle}
+              alt=""
+              draggable={false}
+              className="absolute bottom-0 left-1/2 -z-10 size-[clamp(60px,20vw,110px)] -translate-x-1/2 translate-y-1/4 object-contain animate-[sparkle_0.9s_ease-out_0.15s_both]"
+            />
           ) : null}
         </div>
       ) : null}

@@ -1,7 +1,7 @@
 "use client";
 
 import { TipHand } from "@/components/tip-hand";
-import { LANDMARK_NAMES } from "@/lib/board";
+import { FX_ART, LANDMARK_NAMES } from "@/lib/board";
 import { CITIES, SHIELD_ART } from "@/lib/cities";
 import { attackPower, builtIndexes, countBuilt, rivalPower, type GameState } from "@/lib/game";
 import { hitChance } from "@/lib/rules";
@@ -116,8 +116,8 @@ export function AttackScreen({
                 style={place}
                 data-testid={`ruined-${index}`}
               >
-                💥
-                <span className="mt-0.5 rounded-full bg-[#5b4a42]/80 px-2 text-[10px] font-bold text-white">已打爛</span>
+                <img src={FX_ART.smash} alt="" draggable={false} className="size-[min(16cqw,4.5rem)] object-contain" />
+                <span className="-mt-1 rounded-full bg-[#5b4a42]/80 px-2 text-[10px] font-bold text-white">已打爛</span>
               </span>
             );
           }
