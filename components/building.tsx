@@ -1,4 +1,5 @@
 import { MAX_LEVEL } from "@/lib/rules";
+import { useLang } from "@/lib/i18n";
 import { cn } from "cn";
 
 /** Emoji fallback per level, used only if a picture is missing: frame, cabin, house, mansion, castle. */
@@ -24,8 +25,9 @@ export function Building({ level, className }: { level: number; className?: stri
 
 /** Five little dots: filled up to the level, hollow for levels a raid knocked down (still repairable). */
 export function LevelPips({ level, best = level, className }: { level: number; best?: number; className?: string }) {
+  const { t } = useLang();
   return (
-    <span className={cn("flex gap-0.5", className)} aria-label={`第 ${level} 級`}>
+    <span className={cn("flex gap-0.5", className)} aria-label={t("第 {n} 級", { n: level })}>
       {Array.from({ length: MAX_LEVEL }, (_, index) => (
         <span
           key={index}

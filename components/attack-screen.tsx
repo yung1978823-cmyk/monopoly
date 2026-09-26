@@ -6,6 +6,7 @@ import { CITIES } from "@/lib/cities";
 import { ShieldFx } from "@/components/shield-fx";
 import { Building, LevelPips } from "@/components/building";
 import { standingIndexes, type GameState } from "@/lib/game";
+import { useLang } from "@/lib/i18n";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
 import { useEffect, useState } from "react";
@@ -34,6 +35,7 @@ export function AttackScreen({
   const readout = state.weaponReadout;
   const standing = standingIndexes(state.rivalLevels);
   const picking = !state.fightSettled && standing.length > 0;
+  const { t } = useLang();
   const [flash, setFlash] = useState<Flash | null>(null);
   const [aimed, setAimed] = useState<number | null>(null);
 
@@ -72,13 +74,13 @@ export function AttackScreen({
 
   const status = state.fightSettled
     ? readout?.smashed != null
-      ? `${LANDMARK_NAMES[readout.smashed]}跌咗一級！`
+      ? t("{b}跌咗一級！", { b: t(LANDMARK_NAMES[readout.smashed]) })
       : readout?.hit
-        ? "打中！"
-        : "打唔中……"
+        ? t("打中！")
+        : t("打唔中……")
     : standing.length > 0
-      ? `${state.enemyShield ? "🛡️ " : ""}撳一座建築 🔨`
-      : "一座建築都冇，直接打！";
+      ? `${state.enemyShield ? "🛡️ " : ""}${t("撳一座建築 🔨")}`
+      : t("一座建築都冇，直接打！");
 
   return (
     <main
@@ -128,7 +130,7 @@ export function AttackScreen({
                 picking ? "cursor-pointer" : "cursor-default",
               )}
               style={place}
-              aria-label={`攻擊${LANDMARK_NAMES[index]}`}
+              aria-label={t("攻擊{b}", { b: t(LANDMARK_NAMES[index]) })}
               data-testid={`target-${index}`}
             >
               <span className={cn(smashedNow && "animate-[smash_0.5s_ease-out]")}>
@@ -170,7 +172,7 @@ export function AttackScreen({
           className="size-16 rounded-full border-[3px] border-[#FBD000] object-cover shadow-[0_0_0_3px_#E52521,0_6px_12px_rgba(0,0,0,0.3)]"
         />
         <p className="-mt-2 rounded-full border-2 border-[#FBD000] bg-[#E52521] px-3 text-sm font-black text-white shadow-md">
-          {city.rival.name}
+          {t(city.rival.name)}
         </p>
       </header>
 
@@ -182,9 +184,9 @@ export function AttackScreen({
         {readout ? (
           <p className="flex items-center justify-center gap-2 text-sm font-bold text-[#1E3A8A]" data-testid="dst-pay">
             <span className="flex items-center gap-1">
-              <img src={TILE_INFO.coin.art} alt="金幣" className="size-5" />+{readout.pointsGained}
+              <img src={TILE_INFO.coin.art} alt={t("金幣")} className="size-5" />+{readout.pointsGained}
             </span>
-            {readout.dst > 0 ? <span>· 搬走 {readout.dst} DST</span> : null}
+            {readout.dst > 0 ? <span>· {t("搬走 {n} DST", { n: readout.dst })}</span> : null}
           </p>
         ) : null}
         {state.fightSettled ? (
@@ -194,7 +196,7 @@ export function AttackScreen({
             className="h-14 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-[#049CD8] text-xl font-black text-white shadow-[0_5px_0_#1E3A8A] active:translate-y-1 active:shadow-[0_1px_0_#1E3A8A]"
             data-testid="return-walk"
           >
-            返回棋盤
+            {t("返回棋盤")}
           </button>
         ) : picking ? null : (
           <div className="relative">
@@ -205,7 +207,7 @@ export function AttackScreen({
               className="h-16 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-[#E52521] text-2xl font-black text-white shadow-[0_6px_0_#8E1210] active:translate-y-1 active:shadow-[0_2px_0_#8E1210]"
               data-testid="weapon"
             >
-              🔨 攻擊
+              {t("🔨 攻擊")}
             </button>
           </div>
         )}
@@ -230,10 +232,10 @@ export function AttackScreen({
               )}
             >
               {flash.kind === "smash"
-                ? "💥 跌一級！"
+                ? t("💥 跌一級！")
                 : flash.kind === "hit"
-                  ? "打中！"
-                  : "打唔中"}
+                  ? t("打中！")
+                  : t("打唔中")}
             </p>
           )}
         </div>

@@ -487,7 +487,7 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
   // ---------- Camera: 40° down; close on the player, wide between turns ----------
   const ELEV = (40 * Math.PI) / 180;
   const WIDE = { dist: 26, target: new T.Vector3(0, 0, 0.4) };
-  const CLOSE = 10;
+  const CLOSE = 13;
   const cam = { target: WIDE.target.clone(), dist: WIDE.dist };
   const goal = { target: WIDE.target.clone(), dist: WIDE.dist, follow: -1 };
   let dragged = false;

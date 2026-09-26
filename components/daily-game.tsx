@@ -6,6 +6,7 @@ import { PanZoom } from "@/components/pan-zoom";
 import { TableGame } from "@/components/table-game";
 import { BoardRing, type Burst } from "@/components/board-ring";
 import { DieFace } from "@/components/die-face";
+import { LangPicker } from "@/components/lang-picker";
 import { TipHand } from "@/components/tip-hand";
 import { Button } from "@/components/ui/button";
 import { BOARD_SCENE, FX_ART, TILES, TILE_INFO } from "@/lib/board";
@@ -24,6 +25,7 @@ import {
 } from "@/lib/game";
 import { DAILY_DST_CAP, DICE_CAP, REFILL_MS, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
 import { cn } from "cn";
+import { useLang } from "@/lib/i18n";
 import { isMuted, play, setMuted, type Sound } from "@/lib/sfx";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -68,6 +70,7 @@ function NftSlots({
   onPlace: (slot: number, id: string) => void;
   onRemove: (slot: number) => void;
 }) {
+  const { t } = useLang();
   const next = NFT_STANDINS.find((nft) => !nfts.includes(nft.id));
   return (
     <div className="grid grid-cols-5 gap-2" data-testid="nft-slots">
@@ -78,7 +81,7 @@ function NftSlots({
             type="button"
             onClick={() => onRemove(slot)}
             className="relative flex aspect-square cursor-pointer items-center justify-center rounded-2xl border-[3px] border-[#FBD000] bg-gradient-to-b from-[#8B5CF6] to-[#4C1D95] text-3xl shadow-[0_4px_0_#2E1065] animate-[pop_0.3s_ease-out]"
-            aria-label={`拎走 NFT ${slot + 1}`}
+            aria-label={t("拎走 NFT {n}", { n: slot + 1 })}
             data-testid={`nft-${slot}`}
           >
             {nftIcon(id)}
@@ -93,7 +96,7 @@ function NftSlots({
             onClick={() => next && onPlace(slot, next.id)}
             disabled={!next}
             className="flex aspect-square cursor-pointer items-center justify-center rounded-2xl border-[3px] border-dashed border-[#8B5CF6]/50 bg-[#F3EEFF] text-2xl font-black text-[#8B5CF6]/60"
-            aria-label={`放 NFT 入第 ${slot + 1} 格`}
+            aria-label={t("放 NFT 入第 {n} 格", { n: slot + 1 })}
             data-testid={`nft-${slot}`}
           >
             +
@@ -122,6 +125,7 @@ function burstOf(state: GameState): Burst | null {
 export function DailyGame() {
   const [state, setState] = useState<GameState>(() => createGame(0, "1970-01-01"));
   const [booted, setBooted] = useState(false);
+  const { t } = useLang();
   const [saveNote, setSaveNote] = useState<string | null>(null);
   const [now, setNow] = useState(0);
   const [resetArmed, setResetArmed] = useState(false);
@@ -421,7 +425,7 @@ export function DailyGame() {
           🎲 <span key={state.dice} className="inline-block animate-[bump_0.35s_ease-out]">{state.dice}</span>
         </div>
         <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-white py-1 pl-2 pr-3 text-lg font-black tabular-nums text-[#1E3A8A] shadow-md" data-testid="hud-points">
-          <img src={TILE_INFO.coin.art} alt="金幣" className="size-6" />
+          <img src={TILE_INFO.coin.art} alt={t("金幣")} className="size-6" />
           <span key={state.points} className="inline-block animate-[bump_0.35s_ease-out]">{state.points}</span>
         </div>
         <div className="flex items-center gap-2">
@@ -429,7 +433,7 @@ export function DailyGame() {
           type="button"
           onClick={() => !pending?.running && setTableOpen(true)}
           className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#7C3AED] text-xl text-white shadow-md"
-          aria-label="公開桌"
+          aria-label={t("公開桌")}
           data-testid="open-table"
         >
           👥
@@ -438,7 +442,7 @@ export function DailyGame() {
           type="button"
           onClick={() => setMenuOpen(true)}
           className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#E52521] text-xl text-white shadow-md"
-          aria-label="設定"
+          aria-label={t("設定")}
           data-testid="menu"
         >
           ☰
@@ -448,7 +452,7 @@ export function DailyGame() {
 
       {saveNote ? (
         <p className="relative z-30 mx-3 rounded-2xl bg-[#FFFFFF] px-4 py-2 text-xs text-[#1E3A8A]" role="status">
-          {saveNote}
+          {t(saveNote)}
         </p>
       ) : null}
 
@@ -462,7 +466,7 @@ export function DailyGame() {
           onClick={onBuild}
           disabled={pending?.running === true}
           className="absolute bottom-[max(env(safe-area-inset-bottom),1rem)] left-5 flex cursor-pointer flex-col items-center disabled:cursor-default"
-          aria-label="你個城"
+          aria-label={t("你個城")}
           data-testid="raise"
         >
           <span
@@ -500,7 +504,7 @@ export function DailyGame() {
               "flex size-28 cursor-pointer items-center justify-center rounded-full border-[6px] border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-5xl font-black tracking-wide text-white shadow-[0_8px_0_#8E1210,0_14px_24px_rgba(30,58,138,0.45)] transition-transform active:translate-y-1.5 active:shadow-[0_2px_0_#8E1210] disabled:cursor-default disabled:opacity-60",
               state.dice > 0 && !pending?.running && "animate-[glow_1.8s_ease-in-out_infinite]",
             )}
-            aria-label="擲骰"
+            aria-label={t("擲骰")}
             data-testid="roll-move"
           >
             GO
@@ -542,7 +546,7 @@ export function DailyGame() {
             data-testid="menu-sheet"
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-black">設定</h2>
+              <h2 className="text-xl font-black">{t("設定")}</h2>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -551,16 +555,17 @@ export function DailyGame() {
                     setMuted(!mute);
                     setMute(!mute);
                   }}
-                  aria-label={mute ? "開聲" : "靜音"}
+                  aria-label={mute ? t("開聲") : t("靜音")}
                   data-testid="mute"
                 >
                   {mute ? "🔇" : "🔊"}
                 </button>
-                <button type="button" className="cursor-pointer text-2xl" onClick={() => setMenuOpen(false)} aria-label="關閉">
+                <button type="button" className="cursor-pointer text-2xl" onClick={() => setMenuOpen(false)} aria-label={t("關閉")}>
                   ✕
                 </button>
               </div>
             </div>
+            <LangPicker />
             <div className="flex flex-wrap gap-2 text-sm font-bold text-[#1E3A8A]">
               <span key={power} className="rounded-full bg-[#EAF4FF] px-3 py-1 tabular-nums animate-[bump_0.35s_ease-out]" data-testid="attack-power">
                 ⚔️ {power}
@@ -583,7 +588,7 @@ export function DailyGame() {
                 onClick={() => dispatch({ type: "add-test-die" })}
                 data-testid="test-die"
               >
-                補一粒（測試）
+                {t("補一粒（測試）")}
               </Button>
               <Button
                 className="h-11 cursor-pointer"
@@ -592,7 +597,7 @@ export function DailyGame() {
                 disabled={weapon === 0}
                 data-testid="raided"
               >
-                被攻擊（測試）
+                {t("被攻擊（測試）")}
               </Button>
               <Button
                 className="h-11 cursor-pointer"
@@ -600,10 +605,10 @@ export function DailyGame() {
                 onClick={() => dispatch({ type: "set-rival-nft", value: !state.rivalHasNft })}
                 data-testid="rival-nft"
               >
-                對手 NFT：{state.rivalHasNft ? "有" : "冇"}（測試）
+                {t("對手 NFT：{v}（測試）", { v: t(state.rivalHasNft ? "有" : "冇") })}
               </Button>
               <Button className="h-11 cursor-pointer" variant="outline" onClick={resetBoard}>
-                {resetArmed ? "確定重開？" : "重開棋盤"}
+                {resetArmed ? t("確定重開？") : t("重開棋盤")}
               </Button>
             </div>
           </div>

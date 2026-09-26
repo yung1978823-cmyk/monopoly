@@ -6,6 +6,7 @@ import { FX_ART, LANDMARK_NAMES, TILE_INFO } from "@/lib/board";
 import { CITIES } from "@/lib/cities";
 import { canUpgrade, isRepair, upgradeCost, type GameState } from "@/lib/game";
 import { MAX_LEVEL } from "@/lib/rules";
+import { useLang } from "@/lib/i18n";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
 import { useState } from "react";
@@ -27,6 +28,7 @@ export function MyCity({
   onClose: () => void;
 }) {
   const city = HOME_CITY;
+  const { t } = useLang();
   const [raised, setRaised] = useState<{ building: number; key: number } | null>(null);
   const firstTime = state.levels.every((level) => level === 0);
 
@@ -62,7 +64,7 @@ export function MyCity({
               onClick={() => raise(building)}
               className="absolute flex -translate-x-1/2 -translate-y-[80%] cursor-pointer flex-col items-center"
               style={place}
-              aria-label={`${LANDMARK_NAMES[building]}，第 ${level} 級`}
+              aria-label={t("{b}，第 {n} 級", { b: t(LANDMARK_NAMES[building]), n: level })}
               data-testid={`plot-${building}`}
             >
               {level > 0 ? (
@@ -95,13 +97,13 @@ export function MyCity({
           type="button"
           onClick={onClose}
           className="flex size-11 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#049CD8] text-2xl font-black text-white shadow-md"
-          aria-label="返回棋盤"
+          aria-label={t("返回棋盤")}
           data-testid="city-back"
         >
           ←
         </button>
         <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-white py-1 pl-1.5 pr-3 text-lg font-black tabular-nums text-[#1E3A8A] shadow-md">
-          <img src={TILE_INFO.coin.art} alt="金幣" className="size-6" />
+          <img src={TILE_INFO.coin.art} alt={t("金幣")} className="size-6" />
           <span key={state.points} className="inline-block animate-[bump_0.35s_ease-out]">
             {state.points}
           </span>
@@ -126,7 +128,7 @@ export function MyCity({
                 "relative flex cursor-pointer flex-col items-center gap-1 rounded-2xl border-[3px] px-1 pb-1.5 pt-2 transition-transform active:translate-y-0.5 disabled:cursor-default",
                 affordable ? "border-[#FBD000] bg-[#FFF8D6] shadow-[0_4px_0_#E0A800]" : "border-[#D6DEEA] bg-[#F1F4F9]",
               )}
-              aria-label={maxed ? `${LANDMARK_NAMES[building]}已經最高級` : `${repair ? "修返" : "升級"}${LANDMARK_NAMES[building]}，要 ${cost} 金幣`}
+              aria-label={maxed ? t("{b}已經最高級", { b: t(LANDMARK_NAMES[building]) }) : t(repair ? "修返{b}，要 {n} 金幣" : "升級{b}，要 {n} 金幣", { b: t(LANDMARK_NAMES[building]), n: cost ?? 0 })}
               data-testid={`upgrade-${building}`}
             >
               {firstTime && affordable && building === 0 ? <TipHand className="-top-11 left-1/2 -translate-x-1/2" /> : null}

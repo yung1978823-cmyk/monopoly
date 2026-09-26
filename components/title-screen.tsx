@@ -1,6 +1,8 @@
 "use client";
 
 import { BoolionaireLogo } from "@/components/boolionaire-logo";
+import { LangPicker } from "@/components/lang-picker";
+import { useLang } from "@/lib/i18n";
 import { useEffect, useState } from "react";
 
 const LOAD_MS = 1400;
@@ -10,6 +12,7 @@ const LOGO_ART: string | null = "/art/logo.webp";
 
 /** Opening screen: the title art shown whole, the logo, a slim loading bar, then a tap to start. */
 export function TitleScreen({ onStart }: { onStart: () => void }) {
+  const { t } = useLang();
   const [progress, setProgress] = useState(0);
 
   // A timer rather than animation frames, so the bar still fills when the page is in the background.
@@ -46,7 +49,7 @@ export function TitleScreen({ onStart }: { onStart: () => void }) {
           WebkitMaskImage: "linear-gradient(transparent, black 10%, black 90%, transparent)",
         }}
         role="img"
-        aria-label="吸血鬼、中國殭屍、木乃伊同殭屍喺大棋盤上衝出嚟"
+        aria-label={t("吸血鬼、中國殭屍、木乃伊同殭屍喺大棋盤上衝出嚟")}
       />
       <div className="absolute inset-x-0 top-0 h-[40%] bg-gradient-to-b from-[#0f2a6b]/80 via-[#0f2a6b]/35 to-transparent" />
       <div className="absolute inset-x-0 bottom-0 h-[35%] bg-gradient-to-t from-[#0f2a6b]/85 via-[#0f2a6b]/35 to-transparent" />
@@ -77,6 +80,9 @@ export function TitleScreen({ onStart }: { onStart: () => void }) {
             <span className="absolute inset-x-3 top-1 h-[42%] rounded-full bg-white/30" aria-hidden="true" />
             <span className="relative text-2xl tracking-[0.2em]">START</span>
           </button>
+        ) : null}
+        {ready ? (
+          <LangPicker />
         ) : (
           <>
             <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/25 ring-1 ring-white/40">
@@ -85,7 +91,7 @@ export function TitleScreen({ onStart }: { onStart: () => void }) {
                 style={{ width: `${Math.max(6, progress * 100)}%` }}
               />
             </div>
-            <p className="text-xs font-bold tracking-widest text-white/80">載入中 {Math.round(progress * 100)}%</p>
+            <p className="text-xs font-bold tracking-widest text-white/80">{t("載入中 {n}%", { n: Math.round(progress * 100) })}</p>
           </>
         )}
       </footer>

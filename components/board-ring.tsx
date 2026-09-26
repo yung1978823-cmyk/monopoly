@@ -1,4 +1,5 @@
 import { BOARD_ART, BOARD_CENTRE, FX_ART, TILES, TILE_INFO, TILE_POSITIONS, type TileKind } from "@/lib/board";
+import { useLang } from "@/lib/i18n";
 import { cn } from "cn";
 import type { CSSProperties, ReactNode } from "react";
 
@@ -48,13 +49,14 @@ export function BoardRing({
   burst?: Burst | null;
   className?: string;
 }) {
+  const { t } = useLang();
   return (
     <div
       className={cn("relative aspect-square w-full shrink-0 bg-contain bg-center bg-no-repeat drop-shadow-[0_10px_14px_rgba(20,70,20,0.35)]", className)}
       style={{ backgroundImage: `url(${BOARD_ART})` }}
       data-testid="board"
       role="group"
-      aria-label="你的每日棋盤"
+      aria-label={t("你的每日棋盤")}
     >
       {TILES.map((tile, index) => {
         const spot = TILE_POSITIONS[index];
@@ -74,7 +76,7 @@ export function BoardRing({
             key={tile.id}
             className="absolute -translate-x-1/2 -translate-y-1/2"
             style={place}
-            title={tile.name}
+            title={t(tile.name)}
             data-square={index}
             data-trail={onTrail ? "true" : undefined}
           >
@@ -144,7 +146,7 @@ export function BoardRing({
                 <>
                   {burst.money > 0 ? "+" : "−"}
                   {Math.abs(burst.money)}
-                  <img src={TILE_INFO.coin.art} alt="金幣" className="size-[1.1em]" />
+                  <img src={TILE_INFO.coin.art} alt={t("金幣")} className="size-[1.1em]" />
                 </>
               ) : null}
               {burst.dice > 0 ? <>+{burst.dice}🎲</> : null}

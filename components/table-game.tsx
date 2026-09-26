@@ -20,6 +20,7 @@ import {
   type TableEvent,
   type TableState,
 } from "@/lib/eight";
+import { useLang } from "@/lib/i18n";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -39,6 +40,7 @@ function Coin({ className }: { className?: string }) {
 }
 
 function Lobby({ onStart, onExit }: { onStart: (opponents: number) => void; onExit: () => void }) {
+  const { t } = useLang();
   const [opponents, setOpponents] = useState(3);
   return (
     <main
@@ -50,11 +52,11 @@ function Lobby({ onStart, onExit }: { onStart: (opponents: number) => void; onEx
           type="button"
           onClick={onExit}
           className="flex size-11 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#049CD8] text-2xl font-black text-white shadow-md"
-          aria-label="返回"
+          aria-label={t("返回")}
         >
           ←
         </button>
-        <h1 className="flex-1 text-center text-3xl font-black text-white drop-shadow-[0_3px_0_#1E3A8A]">公開桌</h1>
+        <h1 className="flex-1 text-center text-3xl font-black text-white drop-shadow-[0_3px_0_#1E3A8A]">{t("公開桌")}</h1>
         <span className="size-11" />
       </header>
 
@@ -62,21 +64,21 @@ function Lobby({ onStart, onExit }: { onStart: (opponents: number) => void; onEx
       <section className="w-full rounded-3xl border-4 border-[#FBD000] bg-white/95 p-4 shadow-lg" data-testid="entry">
         <div className="flex items-center justify-between text-center font-black">
           <div className="flex flex-col items-center">
-            <span className="text-xs text-[#3B5BA9]">入場</span>
+            <span className="text-xs text-[#3B5BA9]">{t("入場")}</span>
             <span className="text-2xl tabular-nums">{ENTRY_FEE}</span>
           </div>
           <span className="text-xl text-[#3B5BA9]">→</span>
           <div className="flex flex-col items-center text-[#E52521]">
-            <span className="text-xs">門票</span>
+            <span className="text-xs">{t("門票")}</span>
             <span className="text-2xl tabular-nums">−{HOUSE_CUT}</span>
           </div>
           <span className="text-xl text-[#3B5BA9]">→</span>
           <div className="flex flex-col items-center text-[#22A447]">
-            <span className="text-xs">落場</span>
+            <span className="text-xs">{t("落場")}</span>
             <span className="text-3xl tabular-nums">{STAKE}</span>
           </div>
         </div>
-        <p className="mt-2 text-center text-xs font-bold text-[#3B5BA9]">練習局：用分數代替 DST，打完清零</p>
+        <p className="mt-2 text-center text-xs font-bold text-[#3B5BA9]">{t("練習局：用分數代替 DST，打完清零")}</p>
       </section>
 
       {/* Opponents: pick 1–3 computer players. */}
@@ -91,7 +93,7 @@ function Lobby({ onStart, onExit }: { onStart: (opponents: number) => void; onEx
                 "flex cursor-pointer items-center gap-1 rounded-full border-[3px] px-2 py-1.5 shadow-md",
                 opponents === count ? "border-[#FBD000] bg-[#E52521]" : "border-white bg-white/80",
               )}
-              aria-label={`${count + 1} 人枱`}
+              aria-label={t("{n} 人枱", { n: count + 1 })}
               data-testid={`opponents-${count}`}
             >
               {CAST.slice(1, count + 1).map((seat) => (
@@ -110,7 +112,7 @@ function Lobby({ onStart, onExit }: { onStart: (opponents: number) => void; onEx
                 style={{ borderColor: seat.colour }}
               />
               <span className="-mt-2 rounded-full px-2 text-xs font-black text-white" style={{ background: seat.colour }}>
-                {seat.name}
+                {t(seat.name)}
               </span>
             </div>
           ))}
@@ -123,7 +125,7 @@ function Lobby({ onStart, onExit }: { onStart: (opponents: number) => void; onEx
         className="mt-auto h-16 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-3xl font-black tracking-[0.2em] text-white shadow-[0_6px_0_#8E1210] active:translate-y-1 active:shadow-[0_2px_0_#8E1210]"
         data-testid="table-start"
       >
-        開枱
+        {t("開枱")}
       </button>
     </main>
   );
@@ -141,12 +143,22 @@ export function TableGame({ onExit }: { onExit: () => void }) {
 
 type Toast = { key: number; text: string };
 
+/** Seconds of doing nothing on your turn before the game rolls for you. */
+const AUTO_SECONDS = 5;
+const rollFace = () => 1 + Math.floor(Math.random() * 6);
+
 function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: () => void; onAgain: () => void }) {
   const [table, setTable] = useState<TableState>(() => newTable(players));
   const [loaded, setLoaded] = useState<"loading" | "ready" | "failed">("loading");
   const [busy, setBusy] = useState(true);
   const [fast, setFast] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [wide, setWide] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const { t } = useLang();
+  const tRef = useRef(t);
+  tRef.current = t;
+  const wideRef = useRef(false);
   const mount = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<BoardScene | null>(null);
   const stateRef = useRef<TableState>(table);
@@ -154,10 +166,14 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
   const fastRef = useRef(false);
   const toastKey = useRef(0);
 
-  const say = useCallback((text: string) => {
+  /** Show a line, translated into the current language. */
+  const say = useCallback((text: string, vars?: Record<string, string | number>) => {
     toastKey.current += 1;
-    setToast({ key: toastKey.current, text });
+    setToast({ key: toastKey.current, text: tRef.current(text, vars) });
   }, []);
+
+  /** Close in on a seat, unless 睇全枱 is on: then the camera stays wide for the rest of the game. */
+  const aim = useCallback((scene: BoardScene, seat: number) => scene.focus(wideRef.current ? null : seat), []);
 
   // Each pop-up fades after a moment; a newer one restarts the clock.
   useEffect(() => {
@@ -172,7 +188,7 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
   /** Play a move's events on the board, one after another. */
   const playEvents = useCallback(
     async (scene: BoardScene, events: TableEvent[], state: TableState) => {
-      const who = (seat: number) => state.seats[seat]?.name ?? "";
+      const who = (seat: number) => tRef.current(state.seats[seat]?.name ?? "");
       for (const event of events) {
         if (sceneRef.current !== scene) return;
         switch (event.kind) {
@@ -182,12 +198,12 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
             scene.focus(null);
             await scene.wait(900);
             scene.setSpeed(speedFor());
-            scene.focus(event.seat);
-            say(`輪到 ${who(event.seat)}`);
+            aim(scene, event.seat);
+            say("輪到 {name}", { name: who(event.seat) });
             await scene.wait(700);
             break;
           case "freed":
-            say(`${who(event.seat)} 付 ${BAIL} 保釋出獄`);
+            say("{name} 付 {n} 保釋出獄", { name: who(event.seat), n: BAIL });
             await scene.wait(800);
             break;
           case "step":
@@ -195,60 +211,60 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
             play("step");
             if (event.passedStart) {
               play("coin");
-              say(`經過起點 +${START_PAY}`);
+              say("經過起點 +{n}", { n: START_PAY });
               void scene.coinsBurst(event.seat, 2);
             }
             break;
           case "fork":
-            say(state.seats[event.seat]?.bot ? `${who(event.seat)} 喺分岔路口` : "揀路");
+            say(state.seats[event.seat]?.bot ? "{name} 喺分岔路口" : "揀路", { name: who(event.seat) });
             break;
           case "bought":
             play("coin");
-            say(`${who(event.seat)} 買地起樓 −${event.price}`);
+            say("{name} 買地起樓 −{n}", { name: who(event.seat), n: event.price });
             await Promise.all([scene.own(event.key, event.seat, 1), scene.pulse(event.seat)]);
             break;
           case "upgraded":
             play("build");
-            say(event.level >= 4 ? `${who(event.seat)} 起咗地標！` : `${who(event.seat)} 升到第 ${event.level} 級`);
+            say(event.level >= 4 ? "{name} 起咗地標！" : "{name} 升到第 {n} 級", { name: who(event.seat), n: event.level });
             await Promise.all([scene.own(event.key, event.seat, event.level), scene.pulse(event.seat, true)]);
             if (event.level >= 4) await scene.coinsBurst(event.seat, 4);
             break;
           case "rent":
             play("bad");
-            say(`${who(event.seat)} 交租 ${event.amount} 俾 ${who(event.to)}`);
+            say("{name} 交租 {n} 俾 {owner}", { name: who(event.seat), n: event.amount, owner: who(event.to) });
             await scene.coinsFly(event.seat, event.to, event.amount);
             break;
           case "bonus":
             play(event.reason === "chest" ? "chest" : "coin");
-            say(event.reason === "chest" ? `${who(event.seat)} 開寶箱 +${event.amount}` : `${who(event.seat)} 十字路口 +${event.amount}`);
+            say(event.reason === "chest" ? "{name} 開寶箱 +{n}" : "{name} 十字路口 +{n}", { name: who(event.seat), n: event.amount });
             await scene.coinsBurst(event.seat, event.amount);
             break;
           case "tax":
             play("bad");
-            say(`${who(event.seat)} 交稅 −${event.amount}`);
+            say("{name} 交稅 −{n}", { name: who(event.seat), n: event.amount });
             await scene.coinsFly(event.seat, null, event.amount);
             break;
           case "card": {
             const good = event.card.kind === "money" ? event.card.amount >= 0 : event.card.kind === "forward";
             play(good ? "lucky" : "miss");
-            say(`❓ ${event.card.text}`);
+            say("❓ {text}", { text: tRef.current(event.card.text) });
             await scene.wait(900);
             if (event.card.kind === "money" && event.card.amount > 0) await scene.coinsBurst(event.seat, event.card.amount);
             break;
           }
           case "fly":
-            say(`${who(event.seat)} 坐飛機！`);
+            say("{name} 坐飛機！", { name: who(event.seat) });
             await scene.wait(400);
             await scene.flyTo(event.seat, event.to);
             break;
           case "jailed":
             play("bad");
-            say(`${who(event.seat)} 入獄！`);
+            say("{name} 入獄！", { name: who(event.seat) });
             await scene.flyTo(event.seat, { on: "loop", i: JAIL });
             break;
           case "bankrupt":
             play("smash");
-            say(`${who(event.seat)} 破產！`);
+            say("{name} 破產！", { name: who(event.seat) });
             scene.removeToken(event.seat);
             event.lost.forEach((key) => scene.clear(key));
             await scene.wait(900);
@@ -256,7 +272,7 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
         }
       }
     },
-    [say, speedFor],
+    [say, speedFor, aim],
   );
 
   /** Apply a move, play it on the board, then show the new state. */
@@ -274,7 +290,7 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
         play("roll");
         await scene.roll(before.current, next.lastDice);
         const [a, b] = next.lastDice;
-        say(a === b ? `擲出 ${a + b}，孖寶！` : `擲出 ${a + b}`);
+        say(a === b ? "擲出 {n}，孖寶！" : "擲出 {n}", { n: a + b });
         await scene.wait(350);
       }
       await playEvents(scene, next.events, next);
@@ -300,8 +316,8 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
         scene = createBoardScene(T, mount.current, stateRef.current.seats.map((seat) => seat.colour));
         sceneRef.current = scene;
         setLoaded("ready");
-        scene.focus(stateRef.current.current);
-        say(`輪到 ${stateRef.current.seats[stateRef.current.current].name}`);
+        aim(scene, stateRef.current.current);
+        say("輪到 {name}", { name: tRef.current(stateRef.current.seats[stateRef.current.current].name) });
         setBusy(false);
       })
       .catch(() => {
@@ -312,7 +328,7 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
       if (sceneRef.current === scene) sceneRef.current = null;
       scene?.dispose();
     };
-  }, [say]);
+  }, [say, aim]);
 
   // Computer players move on their own.
   useEffect(() => {
@@ -321,20 +337,51 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
     return () => window.clearTimeout(id);
   }, [loaded, busy, table, run]);
 
+  /** 睇全枱 keeps the camera wide for the rest of the game; 跟住睇 goes back to following. */
+  const toggleWide = () => {
+    wideRef.current = !wideRef.current;
+    setWide(wideRef.current);
+    const scene = sceneRef.current;
+    if (scene) aim(scene, stateRef.current.current);
+  };
+
   const toggleFast = () => {
     fastRef.current = !fastRef.current;
     setFast(fastRef.current);
     sceneRef.current?.setSpeed(speedFor());
   };
 
+  // Your turn and you haven't moved for 5 seconds: roll for you (at a fork, keep to the loop).
+  const waiting = loaded === "ready" && !busy && table.phase !== "over" && table.current === 0 && !table.seats[0].bankrupt;
+  useEffect(() => {
+    if (!waiting) {
+      setCountdown(null);
+      return;
+    }
+    let left = AUTO_SECONDS;
+    setCountdown(left);
+    const id = window.setInterval(() => {
+      left -= 1;
+      if (left > 0) {
+        setCountdown(left);
+        return;
+      }
+      window.clearInterval(id);
+      setCountdown(null);
+      const now = stateRef.current;
+      if (now.phase === "fork") void run({ type: "choose", road: false });
+      else void run({ type: "roll", dice: [rollFace(), rollFace()], card: Math.floor(Math.random() * 1000), fly: Math.floor(Math.random() * 1000) });
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [waiting, table.tick, run]);
+
   const me = table.seats[0];
   const mine = !busy && loaded === "ready" && table.current === 0 && table.phase !== "over" && !me.bankrupt;
   const round = Math.min(TURNS_EACH, me.turnsTaken + (me.bankrupt ? 0 : 1));
-  const die = () => 1 + Math.floor(Math.random() * 6);
 
   return (
     <main className="relative h-dvh w-full touch-none select-none overflow-hidden bg-[#3B1D6E] text-[#1E3A8A]" data-testid="table">
-      <div ref={mount} className="absolute inset-0" aria-label="兩個菱形砌成八字嘅立體棋盤" />
+      <div ref={mount} className="absolute inset-0" aria-label={t("兩個菱形砌成八字嘅立體棋盤")} />
 
       {/* Players: face, cash, whose turn. */}
       <header className="pointer-events-none absolute inset-x-0 top-0 z-10 mx-auto flex max-w-xl flex-col gap-1 px-2 pt-[max(env(safe-area-inset-top),0.6rem)]">
@@ -343,12 +390,12 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
             type="button"
             onClick={onExit}
             className="pointer-events-auto flex size-10 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#049CD8] text-xl font-black text-white shadow-md"
-            aria-label="返回"
+            aria-label={t("返回")}
           >
             ←
           </button>
           <p className="flex-1 text-center text-sm font-black text-white drop-shadow" data-testid="round">
-            第 {round}／{TURNS_EACH} 轉
+            {t("第 {n}／{total} 轉", { n: round, total: TURNS_EACH })}
           </p>
           <span className="size-10" />
         </div>
@@ -364,7 +411,7 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
               data-testid={`seat-${index}`}
             >
               <img src={seat.avatar} alt="" className="size-9 rounded-full border-[3px] object-cover" style={{ borderColor: seat.colour }} />
-              <span className="text-[11px] font-black leading-tight">{seat.name}</span>
+              <span className="text-[11px] font-black leading-tight">{t(seat.name)}</span>
               <span key={seat.cash} className="flex items-center gap-0.5 text-sm font-black tabular-nums animate-[bump_0.35s_ease-out]">
                 <Coin />
                 {seat.cash}
@@ -378,16 +425,16 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
       {loaded !== "ready" ? (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 px-4 text-center font-black text-white">
           {loaded === "loading" ? (
-            <p className="animate-pulse text-lg">載入立體棋盤⋯</p>
+            <p className="animate-pulse text-lg">{t("載入立體棋盤⋯")}</p>
           ) : (
             <>
-              <p className="text-lg">立體畫面載入唔到，請檢查網絡再試。</p>
+              <p className="text-lg">{t("立體畫面載入唔到，請檢查網絡再試。")}</p>
               <button
                 type="button"
                 onClick={onAgain}
                 className="cursor-pointer rounded-full border-4 border-[#FBD000] bg-[#E52521] px-6 py-2 text-lg font-black text-white"
               >
-                再試
+                {t("再試")}
               </button>
             </>
           )}
@@ -415,14 +462,14 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
             onClick={() => void run({ type: "choose", road: false })}
             className="cursor-pointer rounded-full border-4 border-[#FBD000] bg-white px-5 py-3 text-lg font-black text-[#1E3A8A] shadow-[0_6px_0_#C9A700]"
           >
-            ⟳ 行外圈
+            {t("⟳ 行外圈")}
           </button>
           <button
             type="button"
             onClick={() => void run({ type: "choose", road: true })}
             className="cursor-pointer rounded-full border-4 border-[#FBD000] bg-gradient-to-b from-[#FFE066] to-[#F2C230] px-5 py-3 text-lg font-black text-[#1E3A8A] shadow-[0_6px_0_#C9A700]"
           >
-            ⇢ 抄內路
+            {t("⇢ 抄內路")}
           </button>
         </div>
       ) : null}
@@ -432,7 +479,7 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
         <button
           type="button"
           onClick={toggleFast}
-          aria-label={fast ? "而家兩倍速度，撳返一倍" : "而家一倍速度，撳做兩倍"}
+          aria-label={t("速度 {n} 倍，撳一下轉", { n: fast ? 2 : 1 })}
           className={cn(
             "pointer-events-auto min-w-14 cursor-pointer rounded-full border-[3px] border-[#FBD000] px-4 py-2 text-base font-black tabular-nums text-white",
             fast ? "bg-[#16A34A] shadow-[0_4px_0_#0D5F2B]" : "bg-[#1E3A8A] shadow-[0_4px_0_#0F1F4D]",
@@ -443,19 +490,23 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
         <button
           type="button"
           disabled={!mine || table.phase !== "roll"}
-          onClick={() => void run({ type: "roll", dice: [die(), die()], card: Math.floor(Math.random() * 1000), fly: Math.floor(Math.random() * 1000) })}
+          onClick={() => void run({ type: "roll", dice: [rollFace(), rollFace()], card: Math.floor(Math.random() * 1000), fly: Math.floor(Math.random() * 1000) })}
           className="pointer-events-auto size-24 cursor-pointer rounded-full border-[6px] border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-2xl font-black text-white shadow-[0_6px_0_#8E1210] active:translate-y-1 disabled:cursor-default disabled:opacity-50 enabled:animate-[glow_1.8s_ease-in-out_infinite]"
-          aria-label="擲骰"
+          aria-label={countdown !== null ? t("{n} 秒後自動擲骰", { n: countdown }) : t("擲骰")}
           data-testid="table-roll"
         >
-          擲骰
+          <span className="flex flex-col items-center leading-none">
+            {t("擲骰")}
+            {countdown !== null && table.phase === "roll" ? <span className="mt-1 text-base tabular-nums">{countdown}</span> : null}
+          </span>
         </button>
         <button
           type="button"
-          onClick={() => sceneRef.current?.focus(null)}
+          onClick={toggleWide}
+          aria-pressed={wide}
           className="pointer-events-auto cursor-pointer rounded-full border-[3px] border-[#FBD000] bg-[#1E3A8A] px-4 py-2 text-sm font-black text-white shadow-[0_4px_0_#0F1F4D]"
         >
-          睇全枱
+          {wide ? t("跟住睇") : t("睇全枱")}
         </button>
       </footer>
 
@@ -463,7 +514,7 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
       {table.phase === "over" ? (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#1E3A8A]/70 px-5" data-testid="table-over">
           <div className="w-full animate-[pop_0.4s_ease-out] rounded-[32px] border-4 border-[#FBD000] bg-white p-4 shadow-2xl">
-            <h2 className="mb-3 text-center text-2xl font-black">🏆 結果</h2>
+            <h2 className="mb-3 text-center text-2xl font-black">{t("🏆 結果")}</h2>
             <ol className="space-y-2">
               {standings(table).map((seat, place) => {
                 const player = table.seats[seat];
@@ -477,13 +528,13 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
                   >
                     <span className="w-7 text-center text-xl">{["🥇", "🥈", "🥉", "4"][place]}</span>
                     <img src={player.avatar} alt="" className="size-10 rounded-full border-[3px] object-cover" style={{ borderColor: player.colour }} />
-                    <span className="flex-1 font-black">{player.name}</span>
+                    <span className="flex-1 font-black">{t(player.name)}</span>
                     <span className="flex items-center gap-0.5 font-black tabular-nums">
                       <Coin />
                       {netWorth(table, seat)}
                     </span>
                     <span className="rounded-full bg-[#1E3A8A] px-2 text-xs font-black text-white">
-                      +{SEASON_POINTS[table.seats.length]?.[place] ?? 0} 分
+                      {t("+{n} 分", { n: SEASON_POINTS[table.seats.length]?.[place] ?? 0 })}
                     </span>
                   </li>
                 );
@@ -503,7 +554,7 @@ function EightBoard({ players, onExit, onAgain }: { players: Player[]; onExit: (
                 className="h-12 cursor-pointer rounded-full border-4 border-[#FBD000] bg-[#E52521] text-lg font-black text-white"
                 data-testid="table-again"
               >
-                再嚟一局
+                {t("再嚟一局")}
               </button>
             </div>
           </div>
