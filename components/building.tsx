@@ -4,7 +4,7 @@ import { cn } from "cn";
 /** Stand-in pictures for levels 1–5 until the drawn buildings arrive: tent, hut, house, villa, castle. */
 const LEVEL_ICONS = ["", "⛺", "🛖", "🏠", "🏡", "🏰"] as const;
 /** Drawn art per level; fill these in (e.g. "/art/buildings/3.png") and the emoji step aside. */
-const LEVEL_ART: readonly (string | null)[] = [null, null, null, null, null, null];
+const LEVEL_ART: readonly (string | null)[] = [null, "/art/buildings/1.png", "/art/buildings/2.png", null, null, null];
 
 /** A building at its level, drawn a little bigger each level. Level 0 draws nothing. */
 export function Building({ level, className }: { level: number; className?: string }) {
@@ -17,7 +17,7 @@ export function Building({ level, className }: { level: number; className?: stri
       style={{ fontSize: `${grow}em` }}
       aria-hidden
     >
-      {art ? <img src={art} alt="" draggable={false} className="h-[1.2em] w-auto object-contain" /> : LEVEL_ICONS[level]}
+      {art ? <img src={art} alt="" draggable={false} className="h-[1.35em] w-auto max-w-none object-contain" /> : LEVEL_ICONS[level]}
     </span>
   );
 }

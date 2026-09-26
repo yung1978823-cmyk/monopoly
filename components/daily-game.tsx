@@ -459,7 +459,7 @@ export function DailyGame() {
               buildable && "animate-[glow_1.8s_ease-in-out_infinite]",
             )}
           >
-            🏗️
+            <img src="/art/crane.png" alt="" draggable={false} className="size-12 object-contain" />
           </span>
           {buildable && !pending?.running && state.levels.every((level) => level === 0) ? (
             <TipHand className="-top-11 left-1/2 -translate-x-1/2" />
