@@ -4,15 +4,16 @@ import { AttackScreen } from "@/components/attack-screen";
 import { BoardRing, type Burst } from "@/components/board-ring";
 import { DieFace } from "@/components/die-face";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { BOARD_SCENE, TILES, TILE_INFO } from "@/lib/board";
 import { CITIES, plotCount } from "@/lib/cities";
 import {
   STORAGE_KEY,
+  attackPower,
   builtIndexes,
   canBuild,
   countBuilt,
   createGame,
+  holdsNft,
   nextBuildCost,
   parseSave,
   raiseTarget,
@@ -40,47 +41,61 @@ type PendingWalk = {
   committed: boolean;
 };
 
-function NftToggles({
-  hasNft,
-  rivalHasNft,
-  onPlayer,
-  onRival,
+/** Stand-in NFTs until wallet NFTs are wired in: tapping an empty slot places the next one. */
+const NFT_STANDINS = [
+  { id: "nft-vampire", icon: "🧛" },
+  { id: "nft-jiangshi", icon: "🧟" },
+  { id: "nft-ghost", icon: "👻" },
+  { id: "nft-bat", icon: "🦇" },
+  { id: "nft-pumpkin", icon: "🎃" },
+] as const;
+
+function nftIcon(id: string): string {
+  return NFT_STANDINS.find((nft) => nft.id === id)?.icon ?? "💎";
+}
+
+/** Five NFT slots and nothing else: a filled slot is an NFT you hold, and each one adds attack. */
+function NftSlots({
+  nfts,
+  onPlace,
+  onRemove,
 }: {
-  hasNft: boolean;
-  rivalHasNft: boolean;
-  onPlayer: (value: boolean) => void;
-  onRival: (value: boolean) => void;
+  nfts: (string | null)[];
+  onPlace: (slot: number, id: string) => void;
+  onRemove: (slot: number) => void;
 }) {
+  const next = NFT_STANDINS.find((nft) => !nfts.includes(nft.id));
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      <label className="flex h-16 items-center justify-between rounded-2xl border-2 border-[#9e3428] bg-[#fffaf3] px-4">
-        <span className="text-lg font-bold" id="nft-label">
-          我有 NFT
-        </span>
-        <span className="flex items-center gap-3">
-          <span className="text-sm font-semibold text-[#9e3428]">{hasNft ? "開" : "關"}</span>
-          <Switch
-            checked={hasNft}
-            onCheckedChange={onPlayer}
-            aria-labelledby="nft-label"
-            data-testid="nft-switch"
-          />
-        </span>
-      </label>
-      <label className="flex h-16 items-center justify-between rounded-2xl border-2 border-[#9e3428] bg-[#fffaf3] px-4">
-        <span className="text-lg font-bold" id="rival-nft-label">
-          對手有 NFT
-        </span>
-        <span className="flex items-center gap-3">
-          <span className="text-sm font-semibold text-[#9e3428]">{rivalHasNft ? "開" : "關"}</span>
-          <Switch
-            checked={rivalHasNft}
-            onCheckedChange={onRival}
-            aria-labelledby="rival-nft-label"
-            data-testid="rival-nft-switch"
-          />
-        </span>
-      </label>
+    <div className="grid grid-cols-5 gap-2" data-testid="nft-slots">
+      {nfts.map((id, slot) =>
+        id ? (
+          <button
+            key={slot}
+            type="button"
+            onClick={() => onRemove(slot)}
+            className="relative flex aspect-square cursor-pointer items-center justify-center rounded-2xl border-[3px] border-[#FBD000] bg-gradient-to-b from-[#8B5CF6] to-[#4C1D95] text-3xl shadow-[0_4px_0_#2E1065] animate-[pop_0.3s_ease-out]"
+            aria-label={`拎走 NFT ${slot + 1}`}
+            data-testid={`nft-${slot}`}
+          >
+            {nftIcon(id)}
+            <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-white text-[10px] font-black text-[#4C1D95] shadow">
+              ✕
+            </span>
+          </button>
+        ) : (
+          <button
+            key={slot}
+            type="button"
+            onClick={() => next && onPlace(slot, next.id)}
+            disabled={!next}
+            className="flex aspect-square cursor-pointer items-center justify-center rounded-2xl border-[3px] border-dashed border-[#8B5CF6]/50 bg-[#F3EEFF] text-2xl font-black text-[#8B5CF6]/60"
+            aria-label={`放 NFT 入第 ${slot + 1} 格`}
+            data-testid={`nft-${slot}`}
+          >
+            +
+          </button>
+        ),
+      )}
     </div>
   );
 }
@@ -263,6 +278,7 @@ export function DailyGame() {
   }
 
   const weapon = countBuilt(state.landmarks);
+  const power = attackPower(state);
   const shownStep = pending?.step ?? 0;
   const tokenIndex = pending ? (pending.from + shownStep) % TILES.length : state.position;
   const trail = pending
@@ -439,18 +455,19 @@ export function DailyGame() {
               </button>
             </div>
             <div className="flex flex-wrap gap-2 text-sm font-bold text-[#1E3A8A]">
-              <span className="rounded-full bg-[#EAF4FF] px-3 py-1">⚔️ 武器 {weapon}／4</span>
-              {state.hasNft ? (
+              <span key={power} className="rounded-full bg-[#EAF4FF] px-3 py-1 tabular-nums animate-[bump_0.35s_ease-out]" data-testid="attack-power">
+                ⚔️ {power}
+              </span>
+              {holdsNft(state) ? (
                 <span className="rounded-full bg-[#E8F7E8] px-3 py-1 text-[#2E8B3E]" data-testid="dst-today">
                   DST {state.dstTakenToday}／{DAILY_DST_CAP}
                 </span>
               ) : null}
             </div>
-            <NftToggles
-              hasNft={state.hasNft}
-              rivalHasNft={state.rivalHasNft}
-              onPlayer={(value) => dispatch({ type: "set-nft", value })}
-              onRival={(value) => dispatch({ type: "set-rival-nft", value })}
+            <NftSlots
+              nfts={state.nfts}
+              onPlace={(slot, id) => dispatch({ type: "place-nft", slot, id })}
+              onRemove={(slot) => dispatch({ type: "remove-nft", slot })}
             />
             <div className="grid grid-cols-2 gap-2">
               <Button
@@ -469,6 +486,14 @@ export function DailyGame() {
                 data-testid="raided"
               >
                 被攻擊（測試）
+              </Button>
+              <Button
+                className="h-11 cursor-pointer"
+                variant="outline"
+                onClick={() => dispatch({ type: "set-rival-nft", value: !state.rivalHasNft })}
+                data-testid="rival-nft"
+              >
+                對手 NFT：{state.rivalHasNft ? "有" : "冇"}（測試）
               </Button>
               <Button className="h-11 cursor-pointer" variant="outline" onClick={resetBoard}>
                 {resetArmed ? "確定重開？" : "重開棋盤"}

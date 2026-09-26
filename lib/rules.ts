@@ -2,6 +2,9 @@ export const DICE_CAP = 20;
 export const REFILL_MS = 30 * 60 * 1000;
 export const DAILY_DST_CAP = 5;
 export const LANDMARK_SLOTS = 4;
+/** Up to five NFTs can be placed; each adds this much attack. */
+export const NFT_SLOTS = 5;
+export const NFT_ATTACK = 2;
 
 /** What each square pays. Penalties are small and never take points below zero. */
 export const POINTS = {

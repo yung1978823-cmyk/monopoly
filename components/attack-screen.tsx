@@ -3,7 +3,7 @@
 import { DieFace } from "@/components/die-face";
 import { LANDMARK_NAMES } from "@/lib/board";
 import { CITIES, SHIELD_ART } from "@/lib/cities";
-import { builtIndexes, countBuilt, type GameState } from "@/lib/game";
+import { attackPower, builtIndexes, countBuilt, type GameState } from "@/lib/game";
 import { cn } from "cn";
 import { useEffect, useState } from "react";
 
@@ -30,10 +30,9 @@ export function AttackScreen({
   const city = CITIES[state.rivalCity] ?? CITIES[0];
   const readout = state.weaponReadout;
   const standing = builtIndexes(state.rivalLandmarks);
-  const weapon = countBuilt(state.landmarks);
   const rivalPower = countBuilt(state.rivalLandmarks);
   // Show the totals the last strike used; a smash lowers the rival's defence afterwards.
-  const attackTotal = readout?.attackTotal ?? 10 + weapon * 5;
+  const attackTotal = readout?.attackTotal ?? attackPower(state);
   const defenseTotal = readout?.defenseTotal ?? rivalPower * 5 + (state.enemyLuck ?? 0);
   const picking = !state.fightSettled && standing.length > 0;
   const [flash, setFlash] = useState<Flash | null>(null);

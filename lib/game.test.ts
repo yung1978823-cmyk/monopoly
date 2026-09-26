@@ -3,10 +3,13 @@ import { describe, it } from "node:test";
 import { TILES, TILE_POSITIONS } from "./board";
 import {
   STARTING_DICE,
+  attackPower,
   canBuild,
   countBuilt,
   createGame,
+  holdsNft,
   nextBuildCost,
+  nftCount,
   parseSave,
   reduce,
   type Landmark,
@@ -26,7 +29,7 @@ describe("daily board", () => {
     assert.equal(state.dice, STARTING_DICE);
     assert.equal(state.points, 0);
     assert.equal(state.rollCount, 0);
-    assert.equal(state.hasNft, true);
+    assert.deepEqual(state.nfts, [null, null, null, null, null]);
     assert.equal(state.rivalHasNft, true);
     assert.equal(state.dstTakenToday, 0);
     assert.deepEqual(state.landmarks, ["empty", "empty", "empty", "empty"]);
@@ -210,13 +213,14 @@ describe("daily board", () => {
     state = {
       ...state,
       landmarks: ["built", "built", "built", "built"] as Landmark[],
+      nfts: ["nft-a", null, null, null, null],
       rivalLandmarks: ["built", "empty", "empty", "empty"] as Landmark[],
       enemyLuck: 2,
       enemyShield: true,
       fightSettled: false,
     };
     const scored = reduce(state, { type: "weapon", target: 0 });
-    assert.equal(scored.weaponReadout?.attackTotal, 30);
+    assert.equal(scored.weaponReadout?.attackTotal, 32, "10 + 4 buildings × 5 + 1 NFT × 2");
     assert.equal(scored.weaponReadout?.defenseTotal, 7);
     assert.equal(scored.weaponReadout?.shieldBreak, true);
     assert.equal(scored.weaponReadout?.pointsGained, 6, "1 for the shield and 5 for the smash");
@@ -230,7 +234,7 @@ describe("daily board", () => {
     assert.equal(reduce(scored, { type: "weapon", target: 0 }), scored);
     assert.ok(parseSave(JSON.stringify({ v: 1, state: scored }), NOW, DAY)?.weaponReadout);
 
-    const noPlayer = reduce({ ...state, hasNft: false }, { type: "weapon", target: 0 });
+    const noPlayer = reduce({ ...state, nfts: [null, null, null, null, null] }, { type: "weapon", target: 0 });
     assert.equal(noPlayer.weaponReadout?.pointsGained, 6);
     assert.equal(noPlayer.weaponReadout?.dst, 0);
     const noRival = reduce({ ...state, rivalHasNft: false, enemyShield: false }, { type: "weapon", target: 0 });
@@ -241,6 +245,24 @@ describe("daily board", () => {
     assert.equal(room.weaponReadout?.dst, 1);
     const capped = reduce({ ...state, dstTakenToday: 5 }, { type: "weapon", target: 0 });
     assert.equal(capped.weaponReadout?.dst, 0);
+  });
+
+  it("fills up to five NFT slots; each adds attack and any one means you hold an NFT", () => {
+    let state = start();
+    assert.equal(holdsNft(state), false);
+    assert.equal(attackPower(state), 10);
+    state = reduce(state, { type: "place-nft", slot: 0, id: "vampire" });
+    state = reduce(state, { type: "place-nft", slot: 3, id: "mummy" });
+    assert.equal(holdsNft(state), true);
+    assert.equal(nftCount(state), 2);
+    assert.equal(attackPower(state), 14);
+    assert.equal(reduce(state, { type: "place-nft", slot: 0, id: "zombie" }), state, "slot taken");
+    assert.equal(reduce(state, { type: "place-nft", slot: 1, id: "vampire" }), state, "same NFT twice");
+    assert.equal(reduce(state, { type: "place-nft", slot: 5, id: "zombie" }), state, "only five slots");
+    const loaded = parseSave(JSON.stringify({ v: 1, state }), NOW, DAY);
+    assert.deepEqual(loaded?.nfts, ["vampire", null, null, "mummy", null]);
+    state = reduce(reduce(state, { type: "remove-nft", slot: 0 }), { type: "remove-nft", slot: 3 });
+    assert.equal(holdsNft(state), false);
   });
 
   it("spends points to raise landmarks, costing more each time", () => {

@@ -6,6 +6,8 @@ import {
   CHEST_MIN,
   DAILY_DST_CAP,
   DICE_CAP,
+  NFT_ATTACK,
+  NFT_SLOTS,
   POINTS,
   addTestDie,
   applyRefill,
@@ -62,7 +64,8 @@ export type GameState = {
   rivalLandmarks: Landmark[];
   /** Which of CITIES the current rival lives in. */
   rivalCity: number;
-  hasNft: boolean;
+  /** The five NFT slots: each holds an NFT id or is empty. Any NFT placed means you hold one. */
+  nfts: (string | null)[];
   rivalHasNft: boolean;
   /** DST this player has taken today. Capped at 5 per day. */
   dstTakenToday: number;
@@ -99,7 +102,8 @@ export type Action =
   | { type: "raided"; target: number }
   | { type: "return-walk" }
   | { type: "build" }
-  | { type: "set-nft"; value: boolean }
+  | { type: "place-nft"; slot: number; id: string }
+  | { type: "remove-nft"; slot: number }
   | { type: "set-rival-nft"; value: boolean }
   | { type: "reset"; now: number; dayKey: string }
   | { type: "hydrate"; state: GameState; now: number; dayKey: string };
@@ -108,6 +112,22 @@ export const STORAGE_KEY = "dafuweng-daily-board-v3";
 export const STARTING_DICE = 2;
 
 const emptyLandmarks = (): Landmark[] => ["empty", "empty", "empty", "empty"];
+const emptyNfts = (): (string | null)[] => Array.from({ length: NFT_SLOTS }, () => null);
+
+/** How many NFTs sit in your slots. */
+export function nftCount(state: Pick<GameState, "nfts">): number {
+  return state.nfts.filter((id) => id !== null).length;
+}
+
+/** Placing any NFT counts as holding one: that unlocks DST and the shield. */
+export function holdsNft(state: Pick<GameState, "nfts">): boolean {
+  return nftCount(state) > 0;
+}
+
+/** Attack power: 10, +5 per standing building, +NFT_ATTACK per NFT placed. */
+export function attackPower(state: Pick<GameState, "landmarks" | "nfts">): number {
+  return 10 + countBuilt(state.landmarks) * 5 + nftCount(state) * NFT_ATTACK;
+}
 
 export function createGame(now: number, dayKey: string): GameState {
   return {
@@ -119,7 +139,7 @@ export function createGame(now: number, dayKey: string): GameState {
     landmarks: emptyLandmarks(),
     rivalLandmarks: ["built", "built", "empty", "empty"],
     rivalCity: 0,
-    hasNft: true,
+    nfts: emptyNfts(),
     rivalHasNft: true,
     dstTakenToday: 0,
     rollCount: 0,
@@ -200,6 +220,15 @@ function readLandmarks(value: unknown): Landmark[] | null {
   return [...value];
 }
 
+function readNfts(value: unknown): (string | null)[] {
+  const slots = emptyNfts();
+  if (!Array.isArray(value)) return slots;
+  return slots.map((_, index) => {
+    const id = value[index];
+    return typeof id === "string" && id.length > 0 && id.length <= 64 ? id : null;
+  });
+}
+
 function inRange(value: unknown, min: number, max: number): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
 }
@@ -211,7 +240,7 @@ function readWeapon(value: unknown): WeaponReadout | null {
   const smashed = inRange(readout.smashed, 0, 3) ? readout.smashed : null;
   if (
     !inRange(weapon, 0, 4) ||
-    !inRange(attackTotal, 10, 30) ||
+    !inRange(attackTotal, 10, 30 + NFT_SLOTS * NFT_ATTACK) ||
     !inRange(defenseTotal, 2, 32) ||
     !inRange(enemyLuck, 2, 12) ||
     typeof hit !== "boolean" ||
@@ -259,7 +288,7 @@ export function sanitizeState(
     landmarks,
     rivalLandmarks,
     rivalCity: inRange(value.rivalCity, 0, CITIES.length - 1) ? value.rivalCity : 0,
-    hasNft: value.hasNft === true,
+    nfts: readNfts(value.nfts),
     rivalHasNft: value.rivalHasNft !== false,
     // Saves from before the rename kept this under rivalStolenToday.
     dstTakenToday: clampInt(value.dstTakenToday ?? value.rivalStolenToday, 0, DAILY_DST_CAP, 0),
@@ -356,15 +385,16 @@ export function reduce(state: GameState, action: Action): GameState {
       if (state.dice >= DICE_CAP) return state;
       return { ...state, dice: addTestDie(state.dice) };
     }
-    case "set-nft": {
-      if (state.hasNft === action.value) return state;
-      return pushLog(
-        { ...state, hasNft: action.value },
-        "rule",
-        action.value
-          ? "你有 NFT。對手也有 NFT 時，打中才搬 DST，一日最多 5。"
-          : "你沒有 NFT。這一戰只計分數，DST 0。",
-      );
+    case "place-nft": {
+      if (!inRange(action.slot, 0, NFT_SLOTS - 1) || !action.id || state.nfts[action.slot] !== null) return state;
+      if (state.nfts.includes(action.id)) return state;
+      const nfts = state.nfts.map((id, index) => (index === action.slot ? action.id : id));
+      return { ...state, nfts };
+    }
+    case "remove-nft": {
+      if (!inRange(action.slot, 0, NFT_SLOTS - 1) || state.nfts[action.slot] === null) return state;
+      const nfts = state.nfts.map((id, index) => (index === action.slot ? null : id));
+      return { ...state, nfts };
     }
     case "set-rival-nft": {
       if (state.rivalHasNft === action.value) return state;
@@ -443,10 +473,10 @@ export function reduce(state: GameState, action: Action): GameState {
         return state;
       }
       const weapon = countBuilt(state.landmarks);
-      const attackTotal = 10 + weapon * 5;
+      const attackTotal = attackPower(state);
       const defenseTotal = countBuilt(state.rivalLandmarks) * 5 + state.enemyLuck;
       const hit = attackTotal > defenseTotal;
-      const bothNft = state.hasNft && state.rivalHasNft;
+      const bothNft = holdsNft(state) && state.rivalHasNft;
       let pointsGained = 0;
       let dst = 0;
       let smashed: number | null = null;
