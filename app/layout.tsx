@@ -3,7 +3,7 @@ import { RegisterServiceWorker } from "@/components/register-sw";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Boolionaire 大富翁",
+  title: "Boolionaire",
   description: "每日棋盤：擲兩粒骰行棋、起地標、踩中攻擊格就打對手。",
   manifest: "/manifest.webmanifest",
   icons: {

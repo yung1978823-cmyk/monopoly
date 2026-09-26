@@ -64,9 +64,6 @@ export function TitleScreen({ onStart }: { onStart: () => void }) {
         ) : (
           <BoolionaireLogo className="text-[min(13.5cqw,4.2rem)]" />
         )}
-        <span className="mt-2 rounded-full bg-white/15 px-3 py-0.5 text-xs font-bold tracking-[0.3em] text-white/90 backdrop-blur-sm">
-          大富翁
-        </span>
       </header>
 
       {/* Start. */}
