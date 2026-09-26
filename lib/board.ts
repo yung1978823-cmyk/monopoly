@@ -15,7 +15,7 @@ export type Tile = {
 };
 
 /** Names for your four buildings, used when you build, repair or get raided. */
-export const LANDMARK_NAMES = ["北門", "東市", "南岸", "西街"] as const;
+export const LANDMARK_NAMES = ["一號樓", "二號樓", "三號樓"] as const;
 
 /** Every fourth square is 攻擊 (2, 6, 10 … 26), so each roll of two dice lands on one 22–28% of the time. */
 export const ATTACK_EVERY = 4;

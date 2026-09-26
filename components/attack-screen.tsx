@@ -4,7 +4,8 @@ import { TipHand } from "@/components/tip-hand";
 import { FX_ART, LANDMARK_NAMES, TILE_INFO } from "@/lib/board";
 import { CITIES } from "@/lib/cities";
 import { ShieldFx } from "@/components/shield-fx";
-import { builtIndexes, type GameState } from "@/lib/game";
+import { Building, LevelPips } from "@/components/building";
+import { standingIndexes, type GameState } from "@/lib/game";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
 import { useEffect, useState } from "react";
@@ -17,7 +18,7 @@ const SHIELD_MS = 1200;
 const RETURN_MS = 700;
 
 /**
- * The rival's city: their landmarks drawn on the city art. One tap on a building settles the
+ * The rival's city: their buildings drawn on the city art at their levels. One tap on a building settles the
  * fight; a hit breaks the shield (if any) on the way to smashing it, then you go back to the board.
  */
 export function AttackScreen({
@@ -31,7 +32,7 @@ export function AttackScreen({
 }) {
   const city = CITIES[state.rivalCity] ?? CITIES[0];
   const readout = state.weaponReadout;
-  const standing = builtIndexes(state.rivalLandmarks);
+  const standing = standingIndexes(state.rivalLevels);
   const picking = !state.fightSettled && standing.length > 0;
   const [flash, setFlash] = useState<Flash | null>(null);
   const [aimed, setAimed] = useState<number | null>(null);
@@ -71,7 +72,7 @@ export function AttackScreen({
 
   const status = state.fightSettled
     ? readout?.smashed != null
-      ? `打爛咗${LANDMARK_NAMES[readout.smashed]}！`
+      ? `${LANDMARK_NAMES[readout.smashed]}跌咗一級！`
       : readout?.hit
         ? "打中！"
         : "打唔中……"
@@ -99,35 +100,22 @@ export function AttackScreen({
         }}
       >
         {city.plots.map((spot, index) => {
-          const landmark = state.rivalLandmarks[index];
+          const level = state.rivalLevels[index] ?? 0;
           const smashedNow = flash?.kind === "smash" && readout?.smashed === index;
           const place = { left: `${spot.x * 100}%`, top: `${spot.y * 100}%` };
-          if (landmark === "empty") {
-            return (
-              <span
+          if (level === 0) {
+            // An empty plot, or one just knocked flat: the explosion lingers where it stood.
+            return readout?.smashed === index ? (
+              <img
                 key={index}
-                className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-bold text-[#1E3A8A]"
-                style={place}
-              >
-                未起
-              </span>
-            );
-          }
-          if (landmark === "ruined") {
-            return (
-              <span
-                key={index}
-                className={cn(
-                  "absolute flex -translate-x-1/2 -translate-y-[70%] flex-col items-center text-[min(11cqw,3rem)] leading-none",
-                  smashedNow && "animate-[smash_0.5s_ease-out]",
-                )}
+                src={FX_ART.smash}
+                alt=""
+                draggable={false}
+                className="absolute size-[min(18cqw,5rem)] -translate-x-1/2 -translate-y-[70%] object-contain animate-[smash_0.5s_ease-out]"
                 style={place}
                 data-testid={`ruined-${index}`}
-              >
-                <img src={FX_ART.smash} alt="" draggable={false} className="size-[min(16cqw,4.5rem)] object-contain" />
-                <span className="-mt-1 rounded-full bg-[#5b4a42]/80 px-2 text-[10px] font-bold text-white">已打爛</span>
-              </span>
-            );
+              />
+            ) : null;
           }
           return (
             <button
@@ -143,10 +131,18 @@ export function AttackScreen({
               aria-label={`攻擊${LANDMARK_NAMES[index]}`}
               data-testid={`target-${index}`}
             >
-              {/* Stand-in building until the 3D renders land. */}
-              <span className="text-[min(13cqw,3.6rem)] leading-none drop-shadow-[0_6px_6px_rgba(0,0,0,0.3)]">
-                {city.building}
+              <span className={cn(smashedNow && "animate-[smash_0.5s_ease-out]")}>
+                <Building level={level} className="text-[min(14cqw,3.8rem)]" />
               </span>
+              <LevelPips level={level} className="mt-1" />
+              {smashedNow ? (
+                <img
+                  src={FX_ART.smash}
+                  alt=""
+                  draggable={false}
+                  className="pointer-events-none absolute left-1/2 top-1/3 size-[min(22cqw,6rem)] max-w-none -translate-x-1/2 -translate-y-1/2 animate-[pop_0.3s_ease-out]"
+                />
+              ) : null}
               {/* Small target ring over the building. */}
               <span
                 className={cn(
@@ -234,7 +230,7 @@ export function AttackScreen({
               )}
             >
               {flash.kind === "smash"
-                ? "💥 打爛咗！"
+                ? "💥 跌一級！"
                 : flash.kind === "hit"
                   ? "打中！"
                   : "打唔中"}

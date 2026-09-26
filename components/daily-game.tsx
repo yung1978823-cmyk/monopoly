@@ -1,6 +1,7 @@
 "use client";
 
 import { AttackScreen } from "@/components/attack-screen";
+import { MyCity } from "@/components/my-city";
 import { BoardRing, type Burst } from "@/components/board-ring";
 import { DieFace } from "@/components/die-face";
 import { TipHand } from "@/components/tip-hand";
@@ -10,14 +11,12 @@ import { CITIES, plotCount } from "@/lib/cities";
 import {
   STORAGE_KEY,
   attackPower,
-  builtIndexes,
-  canBuild,
-  countBuilt,
+  cheapestUpgrade,
+  standingIndexes,
+  totalLevels,
   createGame,
   holdsNft,
-  nextBuildCost,
   parseSave,
-  raiseTarget,
   reduce,
   type GameState,
 } from "@/lib/game";
@@ -36,7 +35,7 @@ type PendingWalk = {
   from: number;
   step: number;
   enemyDice: [number, number] | null;
-  rivalBuilt: number;
+  rivalLevels: number[];
   rivalCity: number;
   rivalNfts: number;
   chest: number;
@@ -133,8 +132,8 @@ export function DailyGame() {
   const [pending, setPending] = useState<PendingWalk | null>(null);
   /** The roll whose attack intro has already played. */
   const [introSeen, setIntroSeen] = useState(-1);
-  /** The last build or repair, for its little celebration over the 🏗️ button. */
-  const [buildFx, setBuildFx] = useState<{ key: number; icon: string } | null>(null);
+  /** Whether your own town (opened with 🏗️) is showing instead of the board. */
+  const [cityOpen, setCityOpen] = useState(false);
   const dispatch = useCallback((action: Parameters<typeof reduce>[1]) => {
     setState((current) => reduce(current, action));
   }, []);
@@ -261,7 +260,7 @@ export function DailyGame() {
         type: "move",
         faces: move.faces,
         enemyDice: move.enemyDice,
-        rivalBuilt: move.rivalBuilt,
+        rivalLevels: move.rivalLevels,
         rivalCity: move.rivalCity,
         rivalNfts: move.rivalNfts,
         chest: move.chest,
@@ -279,20 +278,17 @@ export function DailyGame() {
     const from = state.position;
     const nextIndex = (from + steps) % TILES.length;
     const enemyDice = TILES[nextIndex]?.kind === "attack" ? rollPair() : null;
-    // Each 攻擊 square meets a rival in a random city, with 0 up to that city's plots built.
+    // Each 攻擊 square meets a rival in a random city, one building per plot at a random level 0–5.
     const rivalCity = Math.floor(Math.random() * CITIES.length);
-    const rivalBuilt = Math.floor(Math.random() * (plotCount(rivalCity) + 1));
+    const rivalLevels = Array.from({ length: plotCount(rivalCity) }, () => Math.floor(Math.random() * 6));
     const chest = 3 + Math.floor(Math.random() * 4);
     const rivalNfts = 1 + Math.floor(Math.random() * 5);
-    setPending({ faces, steps, from, step: 0, enemyDice, rivalBuilt, rivalCity, rivalNfts, chest, running: true, committed: false });
+    setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalNfts, chest, running: true, committed: false });
   }
 
   function onBuild() {
-    if (!canBuild(state)) return;
-    const slot = raiseTarget(state);
-    dispatch({ type: "build" });
-    play("build");
-    setBuildFx({ key: Date.now(), icon: slot !== null && state.landmarks[slot] === "ruined" ? "🔧" : "🏰" });
+    if (pending?.running) return;
+    setCityOpen(true);
   }
 
   function onWeapon(target: number | null = null) {
@@ -300,14 +296,14 @@ export function DailyGame() {
     dispatch({ type: "weapon", target, roll: Math.random() });
   }
 
-  /** Test helper: the rival hits one of your standing landmarks. */
+  /** Test helper: someone knocks one of your standing buildings down a level. */
   function onRaided() {
-    const standing = builtIndexes(state.landmarks);
+    const standing = standingIndexes(state.levels);
     if (standing.length === 0) return;
     dispatch({ type: "raided", target: standing[Math.floor(Math.random() * standing.length)] });
   }
 
-  const weapon = countBuilt(state.landmarks);
+  const weapon = totalLevels(state.levels);
   const power = attackPower(state);
   const shownStep = pending?.step ?? 0;
   const tokenIndex = pending ? (pending.from + shownStep) % TILES.length : state.position;
@@ -316,10 +312,8 @@ export function DailyGame() {
     : [];
   const arrived = pending !== null && shownStep > 0;
   const countdown = booted && now > 0 ? msUntilNextDie(state.dice, state.lastRefillAt, now) : null;
-  const buildCost = nextBuildCost(state);
-  const buildable = canBuild(state);
-  const buildSlot = raiseTarget(state);
-  const repairing = buildSlot !== null && state.landmarks[buildSlot] === "ruined";
+  const buildCost = cheapestUpgrade(state);
+  const buildable = buildCost !== null && state.points >= buildCost;
 
   const resetBoard = () => {
     if (!resetArmed) {
@@ -334,6 +328,16 @@ export function DailyGame() {
   };
 
   const intro = state.phase === "search" && introSeen !== state.rollCount;
+
+  if (cityOpen && state.phase === "walk") {
+    return (
+      <MyCity
+        state={state}
+        onUpgrade={(building) => dispatch({ type: "upgrade", building })}
+        onClose={() => setCityOpen(false)}
+      />
+    );
+  }
 
   if (state.phase === "search" && !intro) {
     return (
@@ -416,35 +420,29 @@ export function DailyGame() {
         <button
           type="button"
           onClick={onBuild}
-          disabled={!buildable || pending?.running === true}
-          className="absolute bottom-[max(env(safe-area-inset-bottom),1rem)] left-5 flex cursor-pointer flex-col items-center disabled:cursor-default disabled:opacity-50"
-          aria-label={buildCost === null ? "地標已建齊" : `${repairing ? "修理" : "起地標"}，要 ${buildCost} 金幣`}
+          disabled={pending?.running === true}
+          className="absolute bottom-[max(env(safe-area-inset-bottom),1rem)] left-5 flex cursor-pointer flex-col items-center disabled:cursor-default"
+          aria-label="你個城"
           data-testid="raise"
         >
-          <span className="flex size-14 items-center justify-center rounded-2xl border-[3px] border-[#FBD000] bg-[#43B047] text-3xl shadow-[0_4px_0_#2E8B3E]">
-            {repairing ? "🔧" : "🏗️"}
+          <span
+            className={cn(
+              "flex size-14 items-center justify-center rounded-2xl border-[3px] border-[#FBD000] bg-[#43B047] text-3xl shadow-[0_4px_0_#2E8B3E]",
+              buildable && "animate-[glow_1.8s_ease-in-out_infinite]",
+            )}
+          >
+            🏗️
           </span>
-          {buildable && !pending?.running && state.landmarks.every((item) => item === "empty") ? (
+          {buildable && !pending?.running && state.levels.every((level) => level === 0) ? (
             <TipHand className="-top-11 left-1/2 -translate-x-1/2" />
           ) : null}
-          {buildFx ? (
-            <span key={buildFx.key} className="pointer-events-none absolute -top-16 flex flex-col items-center" aria-hidden>
-              <span className="animate-[float-up_1.6s_ease-out_0.2s_both] rounded-full border-2 border-white bg-[#E52521] px-2 text-sm font-black text-white shadow-md">
-                ⚔️+5
-              </span>
-              <span className="relative text-4xl animate-[burst_1.4s_ease-out_both]">
-                <img
-                  src={FX_ART.sparkle}
-                  alt=""
-                  draggable={false}
-                  className="absolute left-1/2 top-1/2 size-24 max-w-none -translate-x-1/2 -translate-y-1/2 object-contain"
-                />
-                <span className="relative">{buildFx.icon}</span>
-              </span>
-            </span>
-          ) : null}
           {buildCost === null ? null : (
-            <span className="-mt-2 rounded-full bg-white px-2 text-xs font-black tabular-nums text-[#1E3A8A] shadow">
+            <span
+              className={cn(
+                "-mt-2 rounded-full bg-white px-2 text-xs font-black tabular-nums text-[#1E3A8A] shadow",
+                !buildable && "opacity-60",
+              )}
+            >
               <img src={TILE_INFO.coin.art} alt="" className="mr-0.5 inline size-3.5 align-[-2px]" />
               {buildCost}
             </span>

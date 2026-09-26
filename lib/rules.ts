@@ -2,7 +2,13 @@ export const DICE_CAP = 20;
 /** One die comes back every 3 minutes, up to DICE_CAP. */
 export const REFILL_MS = 3 * 60 * 1000;
 export const DAILY_DST_CAP = 5;
-export const LANDMARK_SLOTS = 4;
+/** Your town has three buildings, each raised through five levels. */
+export const BUILDINGS = 3;
+export const MAX_LEVEL = 5;
+/** Money to raise a building to level 1, 2, 3, 4 and 5. Tunable. */
+export const LEVEL_COSTS = [5, 10, 20, 30, 50] as const;
+/** Attack (and defence) each standing level adds. */
+export const LEVEL_ATTACK = 2;
 /** Up to five NFTs can be placed; each adds the same +2 attack, so no single one decides a fight. */
 export const NFT_SLOTS = 5;
 export const NFT_ATTACK = 2;
@@ -41,15 +47,12 @@ export const CHEST_MIN = 3;
 export const CHEST_MAX = 6;
 export const CHEST_DEFAULT = 4;
 
-/** Points spent to raise the 1st, 2nd, 3rd and 4th landmark. Tunable. */
-export const BUILD_COSTS = [5, 10, 15, 20] as const;
-
-/** Cost of the next landmark given how many are already built, or null when all four stand. */
-export function buildCost(built: number): number | null {
-  return BUILD_COSTS[built] ?? null;
+/** Cost to raise a building from `level` to the next, or null at the top level. */
+export function levelCost(level: number): number | null {
+  return LEVEL_COSTS[level] ?? null;
 }
 
-/** A smashed landmark comes back for half its build price, rounded up. */
+/** A level knocked down by an attacker comes back for half its price, rounded up. */
 export function repairCost(fullCost: number): number {
   return Math.ceil(fullCost / 2);
 }

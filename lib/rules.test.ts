@@ -1,21 +1,21 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  BUILD_COSTS,
+  LEVEL_COSTS,
   DICE_CAP,
   REFILL_MS,
   addTestDie,
   applyRefill,
-  buildCost,
+  levelCost,
   formatClock,
   msUntilNextDie,
   spendDice,
 } from "./rules";
 
-describe("landmark cost", () => {
-  it("rises with each landmark and stops after four", () => {
-    assert.deepEqual([0, 1, 2, 3].map(buildCost), [...BUILD_COSTS]);
-    assert.equal(buildCost(4), null);
+describe("building levels", () => {
+  it("cost more each level and stop after level 5", () => {
+    assert.deepEqual([0, 1, 2, 3, 4].map(levelCost), [...LEVEL_COSTS]);
+    assert.equal(levelCost(5), null);
   });
 });
 

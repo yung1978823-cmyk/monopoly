@@ -4,17 +4,17 @@ import { TILES, TILE_POSITIONS } from "./board";
 import {
   STARTING_DICE,
   attackPower,
-  canBuild,
-  countBuilt,
+  canUpgrade,
+  cheapestUpgrade,
   createGame,
   holdsNft,
-  nextBuildCost,
+  totalLevels,
+  upgradeCost,
   nftCount,
   parseSave,
   reduce,
-  type Landmark,
 } from "./game";
-import { BUILD_COSTS, DICE_CAP, REFILL_MS, hitChance, smashPoints } from "./rules";
+import { DICE_CAP, LEVEL_COSTS, REFILL_MS, hitChance, smashPoints } from "./rules";
 
 const NOW = Date.parse("2026-09-24T08:00:00");
 const DAY = "2026-09-24";
@@ -32,8 +32,8 @@ describe("daily board", () => {
     assert.deepEqual(state.nfts, [null, null, null, null, null]);
     assert.equal(state.rivalHasNft, true);
     assert.equal(state.dstTakenToday, 0);
-    assert.deepEqual(state.landmarks, ["empty", "empty", "empty", "empty"]);
-    assert.equal(countBuilt(state.rivalLandmarks), 2);
+    assert.deepEqual(state.levels, [0, 0, 0]);
+    assert.equal(totalLevels(state.rivalLevels), 3);
   });
 
   it("loads the walk board even when the save was a fight", () => {
@@ -52,17 +52,20 @@ describe("daily board", () => {
     }
   });
 
-  it("reads a save with a smashed landmark and the old DST field", () => {
+  it("reads a save with knocked-down levels and the old DST field", () => {
     const old = {
       ...start(),
-      landmarks: ["built", "ruined", "empty", "empty"],
+      levels: [3, 1, 0],
+      best: [3, 2, 0],
       dstTakenToday: undefined,
       rivalStolenToday: 3,
     };
     const loaded = parseSave(JSON.stringify({ v: 1, state: old }), NOW, DAY);
     assert.ok(loaded);
-    assert.deepEqual(loaded.landmarks, ["built", "ruined", "empty", "empty"]);
+    assert.deepEqual(loaded.levels, [3, 1, 0]);
+    assert.deepEqual(loaded.best, [3, 2, 0]);
     assert.equal(loaded.dstTakenToday, 3);
+    assert.equal(parseSave(JSON.stringify({ v: 1, state: { ...old, levels: [6, 0, 0] } }), NOW, DAY), null);
   });
 
   it("opens 搜尋敵人 when the walk lands on 攻擊", () => {
@@ -104,12 +107,12 @@ describe("daily board", () => {
     }
   });
 
-  it("meets a rival with the given number of standing landmarks on each 攻擊 square", () => {
-    const none = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 0, now: NOW });
-    assert.deepEqual(none.rivalLandmarks, ["empty", "empty", "empty", "empty"]);
-    const three = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 3, now: NOW });
-    assert.deepEqual(three.rivalLandmarks, ["built", "built", "built", "empty"]);
-    assert.match(three.log[0]?.text ?? "", /佢有 3 座建築/);
+  it("meets a rival with the given building levels on each 攻擊 square", () => {
+    const none = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [0, 0, 0], now: NOW });
+    assert.deepEqual(none.rivalLevels, [0, 0, 0]);
+    const strong = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [5, 3, 1], now: NOW });
+    assert.deepEqual(strong.rivalLevels, [5, 3, 1]);
+    assert.match(strong.log[0]?.text ?? "", /合共 9 級/);
   });
 
   it("remembers which city the rival met on 攻擊 lives in", () => {
@@ -121,28 +124,28 @@ describe("daily board", () => {
     assert.equal(loaded?.rivalCity, 2);
   });
 
-  it("gives a rival no more landmarks than their city has plots", () => {
-    const desert = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 4, rivalCity: 1, now: NOW });
-    assert.deepEqual(desert.rivalLandmarks, ["built", "built", "empty", "empty"]);
-    assert.match(desert.log[0]?.text ?? "", /佢有 2 座建築/);
-    const town = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 4, rivalCity: 0, now: NOW });
-    assert.equal(countBuilt(town.rivalLandmarks), 3);
+  it("gives a rival one building per plot in their city", () => {
+    const desert = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [4, 2], rivalCity: 1, now: NOW });
+    assert.deepEqual(desert.rivalLevels, [4, 2]);
+    const wrong = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [4, 2, 1], rivalCity: 1, now: NOW });
+    assert.equal(wrong.rivalLevels.length, 2, "a desert rival has only two plots");
   });
 
   it("gives a shield only to a rival holding an NFT", () => {
-    const nft = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 2, now: NOW });
+    const nft = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [2, 1, 0], now: NOW });
     assert.equal(nft.enemyShield, true);
     const plain = reduce(
       { ...start(), rivalHasNft: false },
-      { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 2, now: NOW },
+      { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [2, 1, 0], now: NOW },
     );
     assert.equal(plain.enemyShield, false);
     // No shield: the first hit already needs a target and smashes it, for points only.
-    const strong = { ...plain, landmarks: ["built", "built", "built", "built"] as Landmark[] };
+    const strong = { ...plain, levels: [5, 5, 5] };
     assert.equal(reduce(strong, { type: "weapon" }), strong);
     const hit = reduce(strong, { type: "weapon", target: 1 });
     assert.equal(hit.weaponReadout?.shieldBreak, false);
     assert.equal(hit.weaponReadout?.smashed, 1);
+    assert.deepEqual(hit.rivalLevels, [2, 0, 0], "knocked down one level");
     assert.equal(hit.weaponReadout?.dst, 0);
     // Flipping the rival's NFT before the first strike brings the shield with it.
     assert.equal(reduce(plain, { type: "set-rival-nft", value: true }).enemyShield, true);
@@ -150,7 +153,7 @@ describe("daily board", () => {
 
   it("scores without smashing when the rival has nothing standing", () => {
     const fight = {
-      ...reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 0, now: NOW }),
+      ...reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [0, 0, 0], now: NOW }),
       enemyShield: false,
     };
     const hit = reduce(fight, { type: "weapon", roll: 0.1 });
@@ -160,36 +163,28 @@ describe("daily board", () => {
 
   it("does not smash on a miss", () => {
     const fight = {
-      ...reduce(start(), { type: "move", faces: [1, 1], enemyDice: [6, 6], rivalBuilt: 4, now: NOW }),
+      ...reduce(start(), { type: "move", faces: [1, 1], enemyDice: [6, 6], rivalLevels: [3, 3, 3], now: NOW }),
       enemyShield: false,
     };
     const miss = reduce(fight, { type: "weapon", target: 2 });
     assert.equal(miss.weaponReadout?.hit, false);
     assert.equal(miss.weaponReadout?.smashed, null);
-    assert.equal(miss.rivalLandmarks[2], "built");
+    assert.equal(miss.rivalLevels[2], 3);
   });
 
-  it("repairs a smashed landmark for half price, before building a new one", () => {
-    let state: ReturnType<typeof start> = {
-      ...start(),
-      points: 100,
-      landmarks: ["built", "built", "built", "empty"] as Landmark[],
-    };
+  it("knocks a raided building down a level and repairs it for half price", () => {
+    let state = { ...start(), points: 100, levels: [3, 3, 0], best: [3, 3, 0] };
     state = reduce(state, { type: "raided", target: 1 });
-    assert.deepEqual(state.landmarks, ["built", "ruined", "built", "empty"]);
+    assert.deepEqual(state.levels, [3, 2, 0]);
     assert.equal(state.points, 100, "being hit earns nothing");
-    assert.match(state.log[0]?.text ?? "", /被打冇分/);
-    assert.equal(nextBuildCost(state), 8, "half of the 15 a third landmark costs, rounded up");
-    state = reduce(state, { type: "build" });
-    assert.deepEqual(state.landmarks, ["built", "built", "built", "empty"]);
-    assert.equal(state.points, 92);
-    assert.match(state.log[0]?.text ?? "", /修好東市/);
-    assert.equal(nextBuildCost(state), 20);
-  });
-
-  it("ignores a raid on a landmark that is not standing", () => {
-    const state = start();
-    assert.equal(reduce(state, { type: "raided", target: 0 }), state);
+    assert.match(state.log[0]?.text ?? "", /被打冇錢/);
+    assert.equal(upgradeCost(state, 1), 10, "half of the 20 level 3 costs");
+    state = reduce(state, { type: "upgrade", building: 1 });
+    assert.deepEqual(state.levels, [3, 3, 0]);
+    assert.equal(state.points, 90);
+    assert.match(state.log[0]?.text ?? "", /修返二號樓/);
+    assert.equal(upgradeCost(state, 1), 30, "past the old best it is full price again");
+    assert.equal(reduce(state, { type: "raided", target: 2 }), state, "nothing standing on the third plot");
   });
 
   it("does not walk while a fight is open", () => {
@@ -198,7 +193,7 @@ describe("daily board", () => {
   });
 
   it("settles a fight in one tap, breaking the shield on the way to the smash", () => {
-    let state = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalBuilt: 2, rivalNfts: 1, now: NOW });
+    let state = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [3, 2, 0], rivalNfts: 1, now: NOW });
     assert.equal(state.enemyShield, true);
     assert.equal(reduce(state, { type: "weapon", roll: 0 }), state, "must pick a standing landmark");
     // You 10 against their 10 + 2 buildings × 5 + 1 NFT × 2 = 22: the 15% floor.
@@ -210,7 +205,7 @@ describe("daily board", () => {
     assert.equal(missed.weaponReadout?.pointsGained, 0);
     assert.equal(missed.enemyShield, true);
     assert.equal(missed.fightSettled, true);
-    assert.equal(missed.rivalLandmarks[0], "built");
+    assert.equal(missed.rivalLevels[0], 3);
     assert.equal(missed.strikes, 1, "counts fights for the first-time pointer");
     const lucky = reduce(state, { type: "weapon", target: 0, roll: 0.1 });
     assert.equal(lucky.weaponReadout?.hit, true, "even a weak attacker lands 15% of the time");
@@ -219,27 +214,27 @@ describe("daily board", () => {
     state = {
       ...state,
       nfts: ["nft-a", null, null, null, null],
-      rivalLandmarks: ["built", "empty", "empty", "empty"] as Landmark[],
+      rivalLevels: [3, 0, 0],
       rivalNfts: 1,
       enemyShield: true,
       fightSettled: false,
       points: 0,
     };
-    // A weaker attacker: 10 + 1 NFT × 2 = 12 against 10 + 1 building × 5 + 1 NFT × 2 = 17.
+    // A weaker attacker: 10 + 1 NFT × 2 = 12 against 10 + 3 levels × 2 + 1 NFT × 2 = 18.
     const scored = reduce(state, { type: "weapon", target: 0, roll: 0.2 });
     assert.equal(scored.weaponReadout?.attackTotal, 12);
-    assert.equal(scored.weaponReadout?.defenseTotal, 17);
-    assert.equal(scored.weaponReadout?.chance, 30);
+    assert.equal(scored.weaponReadout?.defenseTotal, 18);
+    assert.equal(scored.weaponReadout?.chance, 26);
     assert.equal(scored.weaponReadout?.shieldBreak, true);
     assert.equal(scored.weaponReadout?.pointsGained, 5, "1 for the shield and 4 for smashing a stronger rival");
     assert.equal(scored.weaponReadout?.dst, 4);
     assert.equal(scored.dstTakenToday, 4);
     assert.equal(scored.enemyShield, false);
     assert.equal(scored.weaponReadout?.smashed, 0);
-    assert.equal(scored.rivalLandmarks[0], "ruined");
+    assert.equal(scored.rivalLevels[0], 2, "knocked from level 3 to 2");
     assert.match(scored.log[0]?.text ?? "", /搬走 4 DST/);
     assert.equal(reduce(scored, { type: "weapon", target: 0 }), scored);
-    assert.equal(parseSave(JSON.stringify({ v: 1, state: scored }), NOW, DAY)?.weaponReadout?.chance, 30);
+    assert.equal(parseSave(JSON.stringify({ v: 1, state: scored }), NOW, DAY)?.weaponReadout?.chance, 26);
 
     const noPlayer = reduce({ ...state, nfts: [null, null, null, null, null] }, { type: "weapon", target: 0, roll: 0 });
     assert.equal(noPlayer.weaponReadout?.dst, 0);
@@ -281,29 +276,25 @@ describe("daily board", () => {
     assert.equal(holdsNft(state), false);
   });
 
-  it("spends points to raise landmarks, costing more each time", () => {
+  it("raises each of three buildings through five levels, costing more each level", () => {
     const broke = start();
-    assert.equal(canBuild(broke), false);
-    assert.equal(reduce(broke, { type: "build" }), broke);
+    assert.equal(canUpgrade(broke, 0), false);
+    assert.equal(reduce(broke, { type: "upgrade", building: 0 }), broke);
 
-    let state = { ...start(), points: 100 };
-    const total = BUILD_COSTS.reduce((sum, cost) => sum + cost, 0);
-    for (const cost of BUILD_COSTS) {
-      assert.equal(nextBuildCost(state), cost);
+    let state = { ...start(), points: 1000 };
+    for (const cost of LEVEL_COSTS) {
+      assert.equal(upgradeCost(state, 2), cost);
       const before = state.points;
-      state = reduce(state, { type: "build" });
+      state = reduce(state, { type: "upgrade", building: 2 });
       assert.equal(state.points, before - cost);
     }
-    assert.equal(countBuilt(state.landmarks), 4);
-    assert.equal(state.points, 100 - total);
-    assert.equal(nextBuildCost(state), null);
-    assert.equal(reduce(state, { type: "build" }), state);
-  });
-
-  it("builds the first empty landmark wherever you stand", () => {
-    const state = reduce({ ...start(), position: 17, points: 5 }, { type: "build" });
-    assert.deepEqual(state.landmarks, ["built", "empty", "empty", "empty"]);
-    assert.match(state.log[0]?.text ?? "", /花 5 分，起了北門/);
+    assert.deepEqual(state.levels, [0, 0, 5]);
+    assert.equal(upgradeCost(state, 2), null, "level 5 is the top");
+    assert.equal(reduce(state, { type: "upgrade", building: 2 }), state);
+    assert.equal(reduce(state, { type: "upgrade", building: 3 }), state, "only three buildings");
+    assert.equal(cheapestUpgrade(state), 5);
+    assert.equal(attackPower(state), 20, "10 + 5 levels × 2");
+    assert.match(state.log[0]?.text ?? "", /升咗三號樓，而家第 5 級/);
   });
 
   it("pays each square its reward and remembers the stop", () => {

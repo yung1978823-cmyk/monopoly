@@ -11,19 +11,19 @@ import {
   HIT_MIN,
   NFT_ATTACK,
   NFT_SLOTS,
+  BUILDINGS,
+  LEVEL_ATTACK,
+  MAX_LEVEL,
   POINTS,
   hitChance,
+  levelCost,
   nftAttack,
   smashPoints,
   addTestDie,
   applyRefill,
-  buildCost,
   repairCost,
   spendDice,
 } from "./rules";
-
-/** A landmark slot: never built, standing, or smashed by an attacker and waiting for repair. */
-export type Landmark = "empty" | "built" | "ruined";
 
 export type LogTone = "you" | "rule";
 
@@ -48,7 +48,7 @@ export type WeaponReadout = {
   dst: number;
   pointsGained: number;
   shieldBreak: boolean;
-  /** The rival landmark this attack smashed, if any. */
+  /** The rival building this attack knocked down a level, if any. */
   smashed: number | null;
 };
 
@@ -68,8 +68,12 @@ export type GameState = {
   dice: number;
   lastRefillAt: number;
   points: number;
-  landmarks: Landmark[];
-  rivalLandmarks: Landmark[];
+  /** Your three buildings' levels, 0 (empty plot) to 5. */
+  levels: number[];
+  /** The highest level each building has reached; levels below it are repairs at half price. */
+  best: number[];
+  /** The current rival's building levels, one per plot in their city. */
+  rivalLevels: number[];
   /** Which of CITIES the current rival lives in. */
   rivalCity: number;
   /** The five NFT slots: each holds an NFT id or is empty. Any NFT placed means you hold one. */
@@ -102,8 +106,8 @@ export type Action =
       type: "move";
       faces: DiePair;
       enemyDice?: DiePair | null;
-      /** How many landmarks the rival met on an 攻擊 square has standing (0–4). */
-      rivalBuilt?: number;
+      /** The levels of the rival met on an 攻擊 square, one per plot in their city (0–5). */
+      rivalLevels?: number[];
       /** Which of CITIES that rival lives in. */
       rivalCity?: number;
       /** How many NFTs that rival has placed (1–5), when they hold any. */
@@ -114,18 +118,18 @@ export type Action =
     }
   | { type: "weapon"; target?: number | null; /** A random number in [0, 1) deciding the hit. */ roll?: number }
   | { type: "raided"; target: number }
+  | { type: "upgrade"; building: number }
   | { type: "return-walk" }
-  | { type: "build" }
   | { type: "place-nft"; slot: number; id: string }
   | { type: "remove-nft"; slot: number }
   | { type: "set-rival-nft"; value: boolean }
   | { type: "reset"; now: number; dayKey: string }
   | { type: "hydrate"; state: GameState; now: number; dayKey: string };
 
-export const STORAGE_KEY = "dafuweng-daily-board-v3";
+export const STORAGE_KEY = "dafuweng-daily-board-v4";
 export const STARTING_DICE = 2;
 
-const emptyLandmarks = (): Landmark[] => ["empty", "empty", "empty", "empty"];
+const noLevels = (): number[] => Array.from({ length: BUILDINGS }, () => 0);
 const emptyNfts = (): (string | null)[] => Array.from({ length: NFT_SLOTS }, () => null);
 
 /** How many NFTs sit in your slots. */
@@ -138,14 +142,19 @@ export function holdsNft(state: Pick<GameState, "nfts">): boolean {
   return nftCount(state) > 0;
 }
 
-/** The rival's power, on the same scale as yours: 10, +5 per standing building, +2 per NFT. */
-export function rivalPower(state: Pick<GameState, "rivalLandmarks" | "rivalNfts">): number {
-  return 10 + countBuilt(state.rivalLandmarks) * 5 + nftAttack(state.rivalNfts);
+/** All standing levels added up, 0–15 for a full town. */
+export function totalLevels(levels: readonly number[]): number {
+  return levels.reduce((sum, level) => sum + level, 0);
 }
 
-/** Attack power: 10, +5 per standing building, plus +2 per NFT placed. */
-export function attackPower(state: Pick<GameState, "landmarks" | "nfts">): number {
-  return 10 + countBuilt(state.landmarks) * 5 + nftAttack(nftCount(state));
+/** The rival's power, on the same scale as yours: 10, +2 per standing level, +2 per NFT. */
+export function rivalPower(state: Pick<GameState, "rivalLevels" | "rivalNfts">): number {
+  return 10 + totalLevels(state.rivalLevels) * LEVEL_ATTACK + nftAttack(state.rivalNfts);
+}
+
+/** Attack power: 10, +2 per standing level, plus +2 per NFT placed. */
+export function attackPower(state: Pick<GameState, "levels" | "nfts">): number {
+  return 10 + totalLevels(state.levels) * LEVEL_ATTACK + nftAttack(nftCount(state));
 }
 
 export function createGame(now: number, dayKey: string): GameState {
@@ -155,8 +164,9 @@ export function createGame(now: number, dayKey: string): GameState {
     dice: STARTING_DICE,
     lastRefillAt: now,
     points: 0,
-    landmarks: emptyLandmarks(),
-    rivalLandmarks: ["built", "built", "empty", "empty"],
+    levels: noLevels(),
+    best: noLevels(),
+    rivalLevels: [2, 1, 0],
     rivalCity: 0,
     nfts: emptyNfts(),
     rivalHasNft: true,
@@ -177,36 +187,36 @@ export function createGame(now: number, dayKey: string): GameState {
   };
 }
 
-export function countBuilt(landmarks: readonly Landmark[]): number {
-  return landmarks.filter((landmark) => landmark === "built").length;
+/** Buildings that still stand (level 1 or more) — the ones an attacker can hit. */
+export function standingIndexes(levels: readonly number[]): number[] {
+  return levels.flatMap((level, index) => (level > 0 ? [index] : []));
 }
 
-export function builtIndexes(landmarks: readonly Landmark[]): number[] {
-  return landmarks.flatMap((landmark, index) => (landmark === "built" ? [index] : []));
+/** Whether raising this building next would restore a level an attacker knocked down. */
+export function isRepair(state: Pick<GameState, "levels" | "best">, building: number): boolean {
+  return (state.levels[building] ?? 0) < (state.best[building] ?? 0);
 }
 
-/** Which landmark the next build raises: a smashed one first (cheaper to repair), else the first empty one. */
-export function raiseTarget(state: GameState): number | null {
-  const ruined = state.landmarks.indexOf("ruined");
-  if (ruined !== -1) return ruined;
-  const open = state.landmarks.indexOf("empty");
-  return open === -1 ? null : open;
+/** Money to raise this building one level (half for a knocked-down level), or null at level 5. */
+export function upgradeCost(state: Pick<GameState, "levels" | "best">, building: number): number | null {
+  const level = state.levels[building];
+  if (level === undefined) return null;
+  const full = levelCost(level);
+  if (full === null) return null;
+  return isRepair(state, building) ? repairCost(full) : full;
 }
 
-/**
- * Points needed for the next build, or null when all four stand. A new landmark costs the
- * next step of BUILD_COSTS; repairing a smashed one costs half of that.
- */
-export function nextBuildCost(state: GameState): number | null {
-  const index = raiseTarget(state);
-  const full = buildCost(countBuilt(state.landmarks));
-  if (index === null || full === null) return null;
-  return state.landmarks[index] === "ruined" ? repairCost(full) : full;
+export function canUpgrade(state: GameState, building: number): boolean {
+  const cost = upgradeCost(state, building);
+  return cost !== null && state.points >= cost;
 }
 
-export function canBuild(state: GameState): boolean {
-  const cost = nextBuildCost(state);
-  return cost !== null && raiseTarget(state) !== null && state.points >= cost;
+/** The cheapest next level anywhere in town, for the price badge on 🏗️; null when all are maxed. */
+export function cheapestUpgrade(state: GameState): number | null {
+  const costs = state.levels
+    .map((_, building) => upgradeCost(state, building))
+    .filter((cost): cost is number => cost !== null);
+  return costs.length > 0 ? Math.min(...costs) : null;
 }
 
 function pushLog(state: GameState, tone: LogTone, text: string): GameState {
@@ -233,11 +243,9 @@ export function luckOf(dice: DiePair): number {
   return dice[0] + dice[1];
 }
 
-function readLandmarks(value: unknown): Landmark[] | null {
-  if (!Array.isArray(value) || value.length !== 4) return null;
-  if (!value.every((item) => item === "empty" || item === "built" || item === "ruined")) {
-    return null;
-  }
+function readLevels(value: unknown, length: number): number[] | null {
+  if (!Array.isArray(value) || value.length !== length) return null;
+  if (!value.every((level) => inRange(level, 0, MAX_LEVEL))) return null;
   return [...value];
 }
 
@@ -259,11 +267,12 @@ function readWeapon(value: unknown): WeaponReadout | null {
   const readout = value as Partial<WeaponReadout>;
   const { weapon, attackTotal, defenseTotal, enemyLuck, hit, dst, pointsGained, shieldBreak } = readout;
   const chance = inRange(readout.chance, HIT_MIN, HIT_MAX) ? readout.chance : HIT_BASE;
-  const smashed = inRange(readout.smashed, 0, 3) ? readout.smashed : null;
+  const smashed = inRange(readout.smashed, 0, BUILDINGS - 1) ? readout.smashed : null;
+  const top = 10 + BUILDINGS * MAX_LEVEL * LEVEL_ATTACK + NFT_SLOTS * NFT_ATTACK;
   if (
-    !inRange(weapon, 0, 4) ||
-    !inRange(attackTotal, 10, 30 + nftAttack(NFT_SLOTS)) ||
-    !inRange(defenseTotal, 10, 25 + NFT_SLOTS * NFT_ATTACK) ||
+    !inRange(weapon, 0, BUILDINGS * MAX_LEVEL) ||
+    !inRange(attackTotal, 10, top) ||
+    !inRange(defenseTotal, 10, top) ||
     !inRange(enemyLuck, 2, 12) ||
     typeof hit !== "boolean" ||
     !inRange(dst, 0, DAILY_DST_CAP) ||
@@ -283,9 +292,12 @@ export function sanitizeState(
   if (!raw || typeof raw !== "object") return null;
   const value = raw as Partial<GameState> & { rivalStolenToday?: unknown };
   if (!inRange(value.position, 0, TILES.length - 1)) return null;
-  const landmarks = readLandmarks(value.landmarks);
-  const rivalLandmarks = readLandmarks(value.rivalLandmarks);
-  if (!landmarks || !rivalLandmarks) return null;
+  const levels = readLevels(value.levels, BUILDINGS);
+  const bestRead = readLevels(value.best, BUILDINGS);
+  const rivalCity = inRange(value.rivalCity, 0, CITIES.length - 1) ? value.rivalCity : 0;
+  const rivalLevels = readLevels(value.rivalLevels, plotCount(rivalCity));
+  if (!levels || !rivalLevels) return null;
+  const best = levels.map((level, index) => Math.max(level, bestRead?.[index] ?? 0));
   const clampInt = (input: unknown, min: number, max: number, fallback: number) => {
     if (typeof input !== "number" || !Number.isFinite(input)) return fallback;
     return Math.max(min, Math.min(max, Math.floor(input)));
@@ -307,9 +319,10 @@ export function sanitizeState(
     dice: clampInt(value.dice, 0, DICE_CAP, 0),
     lastRefillAt: typeof value.lastRefillAt === "number" ? value.lastRefillAt : now,
     points: clampInt(value.points, 0, 1_000_000, 0),
-    landmarks,
-    rivalLandmarks,
-    rivalCity: inRange(value.rivalCity, 0, CITIES.length - 1) ? value.rivalCity : 0,
+    levels,
+    best,
+    rivalLevels,
+    rivalCity,
     nfts: readNfts(value.nfts),
     rivalHasNft: value.rivalHasNft !== false,
     rivalNfts: value.rivalHasNft === false ? 0 : clampInt(value.rivalNfts, 1, NFT_SLOTS, 1),
@@ -451,19 +464,16 @@ export function reduce(state: GameState, action: Action): GameState {
       const enemyLuck = searching ? luckOf(enemyFaces) : null;
       const rivalCity =
         searching && inRange(action.rivalCity, 0, CITIES.length - 1) ? action.rivalCity : state.rivalCity;
-      // A rival can't have more landmarks than their city has plots.
+      // One building per plot in the rival's city, each 0–5; anything else falls back to what we had.
       const plots = plotCount(rivalCity);
-      const rivalBuilt = Math.min(
-        plots,
-        inRange(action.rivalBuilt, 0, 4) ? action.rivalBuilt : countBuilt(state.rivalLandmarks),
-      );
-      const rivalLandmarks: Landmark[] = searching
-        ? [0, 1, 2, 3].map((slot) => (slot < rivalBuilt ? "built" : "empty"))
-        : state.rivalLandmarks;
+      const given = readLevels(action.rivalLevels, plots);
+      const rivalLevels = searching
+        ? (given ?? Array.from({ length: plots }, (_, index) => state.rivalLevels[index] ?? 0))
+        : state.rivalLevels;
       const passed = moved.landing.passedStart ? "經過起點。" : "";
       const change = moved.landing.points;
       const effect = searching
-        ? `搜尋敵人，配到阿強，佢有 ${rivalBuilt} 座建築。`
+        ? `搜尋敵人，配到${CITIES[rivalCity].rival.name}，佢啲建築合共 ${totalLevels(rivalLevels)} 級。`
         : moved.landing.dice > 0
           ? "多一粒骰。"
           : "";
@@ -478,7 +488,7 @@ export function reduce(state: GameState, action: Action): GameState {
         rollCount: state.rollCount + 1,
         walkFaces: faces,
         lastRivalFaces: searching ? enemyFaces : null,
-        rivalLandmarks,
+        rivalLevels,
         rivalCity,
         rivalNfts: state.rivalHasNft ? (inRange(action.rivalNfts, 1, NFT_SLOTS) ? action.rivalNfts : 1) : 0,
         enemyLuck,
@@ -495,14 +505,14 @@ export function reduce(state: GameState, action: Action): GameState {
     }
     case "weapon": {
       if (state.phase !== "search" || state.enemyLuck === null || state.fightSettled) return state;
-      // One tap settles the fight: the attacker picks a standing landmark (if any), and a hit
-      // breaks the shield on the way through before smashing it.
-      const standing = builtIndexes(state.rivalLandmarks);
+      // One tap settles the fight: the attacker picks a standing building (if any), and a hit
+      // breaks the shield on the way through before knocking that building down a level.
+      const standing = standingIndexes(state.rivalLevels);
       const target = action.target ?? null;
       if (standing.length > 0 && (target === null || !standing.includes(target))) {
         return state;
       }
-      const weapon = countBuilt(state.landmarks);
+      const weapon = totalLevels(state.levels);
       const attackTotal = attackPower(state);
       const defenseTotal = rivalPower(state);
       const chance = hitChance(attackTotal, defenseTotal);
@@ -523,10 +533,10 @@ export function reduce(state: GameState, action: Action): GameState {
       }
       const enemyShield = state.enemyShield && !hit;
       const fightSettled = true;
-      const rivalLandmarks =
+      const rivalLevels =
         smashed === null
-          ? state.rivalLandmarks
-          : state.rivalLandmarks.map((item, index) => (index === smashed ? ("ruined" as const) : item));
+          ? state.rivalLevels
+          : state.rivalLevels.map((level, index) => (index === smashed ? level - 1 : level));
       const weaponReadout: WeaponReadout = {
         weapon,
         attackTotal,
@@ -541,7 +551,7 @@ export function reduce(state: GameState, action: Action): GameState {
       };
       const verdict = shieldBreak ? "盾破，打中" : hit ? "打中" : "打唔中";
       const pay = dst > 0 ? `搬走 ${dst} DST。` : "DST 0。";
-      const smashText = smashed === null ? "" : `打爛咗阿強嘅${LANDMARK_NAMES[smashed]}。`;
+      const smashText = smashed === null ? "" : `打低咗${CITIES[state.rivalCity].rival.name}嘅${LANDMARK_NAMES[smashed]}一級。`;
       const nextPoints = state.points + pointsGained;
       return pushLog(
         {
@@ -549,7 +559,7 @@ export function reduce(state: GameState, action: Action): GameState {
           points: nextPoints,
           dstTakenToday: state.dstTakenToday + dst,
           strikes: state.strikes + 1,
-          rivalLandmarks,
+          rivalLevels,
           enemyShield,
           fightSettled,
           weaponReadout,
@@ -562,33 +572,29 @@ export function reduce(state: GameState, action: Action): GameState {
       if (state.phase !== "search") return state;
       return { ...state, phase: "walk" };
     }
-    case "build": {
-      const index = raiseTarget(state);
-      const cost = nextBuildCost(state);
-      if (index === null || cost === null || state.points < cost) return state;
-      const repairing = state.landmarks[index] === "ruined";
-      const landmarks = state.landmarks.map((item, itemIndex) =>
-        itemIndex === index ? ("built" as const) : item,
-      );
-      const next: GameState = { ...state, landmarks, points: state.points - cost };
+    case "upgrade": {
+      const building = action.building;
+      const cost = upgradeCost(state, building);
+      if (!inRange(building, 0, BUILDINGS - 1) || cost === null || state.points < cost) return state;
+      const repairing = isRepair(state, building);
+      const levels = state.levels.map((level, index) => (index === building ? level + 1 : level));
+      const best = state.best.map((top, index) => Math.max(top, levels[index]));
+      const next: GameState = { ...state, levels, best, points: state.points - cost };
       return pushLog(
         next,
         "you",
-        `你花 ${cost} 分，${repairing ? "修好" : "起了"}${LANDMARK_NAMES[index]}。武器變成 ${countBuilt(landmarks)}。分數剩 ${next.points}。`,
+        `你花 ${cost} 金幣，${repairing ? "修返" : "升咗"}${LANDMARK_NAMES[building]}，而家第 ${levels[building]} 級。金幣剩 ${next.points}。`,
       );
     }
     case "raided": {
-      // Another player's hit lands on one of your standing landmarks.
-      if (state.landmarks[action.target] !== "built") return state;
-      const landmarks = state.landmarks.map((item, index) =>
-        index === action.target ? ("ruined" as const) : item,
-      );
-      // Being hit earns nothing; the loss is the repair bill.
-      const next: GameState = { ...state, landmarks };
+      // Another player's hit knocks one of your standing buildings down a level.
+      if (!inRange(action.target, 0, BUILDINGS - 1) || state.levels[action.target] < 1) return state;
+      const levels = state.levels.map((level, index) => (index === action.target ? level - 1 : level));
+      // Being hit earns nothing; the loss is the repair bill (half price back to the old level).
       return pushLog(
-        next,
+        { ...state, levels },
         "rule",
-        `阿強攻擊你，打爛咗你嘅${LANDMARK_NAMES[action.target]}。被打冇分，修返要半價。`,
+        `有人攻擊你，${LANDMARK_NAMES[action.target]}跌咗一級。被打冇錢，修返要半價。`,
       );
     }
     default:
