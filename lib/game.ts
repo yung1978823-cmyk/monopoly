@@ -6,9 +6,9 @@ import {
   CHEST_MIN,
   DAILY_DST_CAP,
   DICE_CAP,
-  NFT_ATTACK,
   NFT_SLOTS,
   POINTS,
+  nftAttack,
   addTestDie,
   applyRefill,
   buildCost,
@@ -124,9 +124,9 @@ export function holdsNft(state: Pick<GameState, "nfts">): boolean {
   return nftCount(state) > 0;
 }
 
-/** Attack power: 10, +5 per standing building, +NFT_ATTACK per NFT placed. */
+/** Attack power: 10, +5 per standing building, plus the NFT bonus (+1, +3, +5, +7, +9). */
 export function attackPower(state: Pick<GameState, "landmarks" | "nfts">): number {
-  return 10 + countBuilt(state.landmarks) * 5 + nftCount(state) * NFT_ATTACK;
+  return 10 + countBuilt(state.landmarks) * 5 + nftAttack(nftCount(state));
 }
 
 export function createGame(now: number, dayKey: string): GameState {
@@ -240,7 +240,7 @@ function readWeapon(value: unknown): WeaponReadout | null {
   const smashed = inRange(readout.smashed, 0, 3) ? readout.smashed : null;
   if (
     !inRange(weapon, 0, 4) ||
-    !inRange(attackTotal, 10, 30 + NFT_SLOTS * NFT_ATTACK) ||
+    !inRange(attackTotal, 10, 30 + nftAttack(NFT_SLOTS)) ||
     !inRange(defenseTotal, 2, 32) ||
     !inRange(enemyLuck, 2, 12) ||
     typeof hit !== "boolean" ||
