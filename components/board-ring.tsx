@@ -1,7 +1,7 @@
 import { BOARD_ART, BOARD_CENTRE, TILES, TILE_POSITIONS, type Tile } from "@/lib/board";
 import type { Landmark } from "@/lib/game";
 import { cn } from "cn";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 function landmarkOf(landmarks: Landmark[], index: number | null): Landmark | null {
   if (index === null) return null;
@@ -27,20 +27,15 @@ function overlayOf(tile: Tile, built: boolean, ruined: boolean): { tint: string;
 export function BoardRing({
   position,
   landmarks,
-  points,
-  defense,
-  purseLabel,
-  placeLabel,
+  centre = null,
   trail = [],
   stopIndex = null,
   className,
 }: {
   position: number;
   landmarks: Landmark[];
-  points: number;
-  defense: number;
-  purseLabel: string;
-  placeLabel: string;
+  /** Shown in the middle of the board, e.g. the dice being rolled. */
+  centre?: ReactNode;
   trail?: number[];
   stopIndex?: number | null;
   className?: string;
@@ -103,23 +98,21 @@ export function BoardRing({
         aria-current="true"
       >
         <span className="flex size-[clamp(26px,8vw,42px)] items-center justify-center rounded-full border-[3px] border-[#FBD000] bg-[#1E3A8A] text-[clamp(11px,3vw,16px)] font-black text-[#FFFFFF] shadow-[0_6px_10px_rgba(30,58,138,0.45)]">
-          你
+          🧛
         </span>
         <span className="-mt-0.5 h-2 w-2 rotate-45 bg-[#FBD000]" />
       </div>
 
-      <div
-        className="absolute flex w-[34%] -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center text-[#FFFFFF]"
-        style={{ left: `${BOARD_CENTRE.x * 100}%`, top: `${BOARD_CENTRE.y * 100}%` }}
-      >
-        <p className="text-[10px] tracking-[0.22em] text-[#FBD000]">分數</p>
-        <p className="text-4xl font-black tabular-nums text-[#FFFFFF] drop-shadow sm:text-5xl" data-testid="points">
-          {points}
-        </p>
-        <p className="mt-1 text-xs">武器 {defense}／4</p>
-        <p className="text-xs text-[#FFFFFF]">{purseLabel}</p>
-        <p className="mt-1 text-[10px] text-[#FBD000]">{placeLabel}</p>
-      </div>
+      {/* The board's green centre shows the dice while they roll; otherwise it stays clear. */}
+      {centre ? (
+        <div
+          className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-[3%] animate-[pop_0.35s_ease-out]"
+          style={{ left: `${BOARD_CENTRE.x * 100}%`, top: `${BOARD_CENTRE.y * 100}%` }}
+          data-testid="walk-result"
+        >
+          {centre}
+        </div>
+      ) : null}
     </div>
   );
 }

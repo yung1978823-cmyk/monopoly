@@ -230,7 +230,6 @@ export function DailyGame() {
   const trail = pending
     ? Array.from({ length: shownStep }, (_, index) => (pending.from + index + 1) % TILES.length)
     : [];
-  const here = TILES[tokenIndex]?.name ?? "起點";
   const arrived = pending !== null && shownStep > 0;
   const countdown = booted && now > 0 ? msUntilNextDie(state.dice, state.lastRefillAt, now) : null;
   const buildCost = nextBuildCost(state);
@@ -285,32 +284,31 @@ export function DailyGame() {
           <BoardRing
             position={tokenIndex}
             landmarks={state.landmarks}
-            points={state.points}
-            defense={weapon}
-            purseLabel={state.hasNft ? "有 NFT" : "沒有 NFT"}
-            placeLabel={arrived ? `行到第 ${shownStep} 格` : `停在${here}`}
             trail={trail}
             stopIndex={arrived ? tokenIndex : null}
+            centre={
+              pending ? (
+                <>
+                  <DieFace value={pending.faces[0]} />
+                  <DieFace value={pending.faces[1]} />
+                </>
+              ) : null
+            }
           />
         </div>
       </div>
-      {/* Top bar: points, dice, today's DST, menu. */}
-      <header className="relative z-30 flex items-center gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-full border-[3px] border-[#FBD000] bg-[#1E3A8A] text-lg font-black text-[#FFFFFF] shadow-md">
-          你
+      {/* Top bar: dice and points only; everything else lives behind the menu. */}
+      <header className="relative z-30 flex items-center justify-between gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
+        <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-[#1E3A8A] py-1 pl-2 pr-3 text-lg font-black tabular-nums text-white shadow-md" data-testid="dice-count">
+          🎲 {state.dice}
         </div>
-        <div className="flex flex-1 items-center justify-between rounded-full border-2 border-[#FBD000] bg-[#FFFFFF] px-3 py-1.5 shadow-md">
-          <span className="text-sm font-black tabular-nums" data-testid="hud-points">
-            ⭐ {state.points}
-          </span>
-          <span className="text-sm font-bold tabular-nums text-[#2E8B3E]" data-testid="dst-today">
-            DST {state.dstTakenToday}／{DAILY_DST_CAP}
-          </span>
+        <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-white py-1 pl-2 pr-3 text-lg font-black tabular-nums text-[#1E3A8A] shadow-md" data-testid="hud-points">
+          ⭐ {state.points}
         </div>
         <button
           type="button"
           onClick={() => setMenuOpen(true)}
-          className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#E52521] text-xl text-[#FFFFFF] shadow-md"
+          className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#E52521] text-xl text-white shadow-md"
           aria-label="設定"
           data-testid="menu"
         >
@@ -324,67 +322,42 @@ export function DailyGame() {
         </p>
       ) : null}
 
-      {/* The board fills the middle of the screen. */}
-      <section className="relative z-20 flex min-h-0 flex-1 items-center justify-center">
-        {pending ? (
-          <div
-            className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#1E3A8A]/85 px-4 py-2 shadow-lg"
-            data-testid="walk-result"
-          >
-            <DieFace value={pending.faces[0]} />
-            <DieFace value={pending.faces[1]} />
-            <p className="text-xl font-black text-[#FFFFFF]" data-testid="last-walk">
-              {arrived ? `${shownStep}／${pending.steps}` : `擲出 ${pending.steps}`}
-            </p>
-          </div>
-        ) : null}
-      </section>
+      <section className="relative z-20 min-h-0 flex-1" />
 
-      {/* Bottom bar: build on the left, the big roll button in the middle. */}
-      <footer className="relative z-30 flex items-end justify-between gap-3 rounded-t-[32px] bg-[#FFFFFF] px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 shadow-[0_-6px_20px_rgba(30,58,138,0.25)]">
+      {/* Bottom bar: one big GO; building sits to the side as an icon. */}
+      <footer className="relative z-30 flex items-end justify-center px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-2">
         <button
           type="button"
           onClick={onBuild}
           disabled={!buildable || pending?.running === true}
-          className="flex w-20 cursor-pointer flex-col items-center gap-1 text-xs font-bold disabled:cursor-default disabled:opacity-50"
+          className="absolute bottom-[max(env(safe-area-inset-bottom),1rem)] left-5 flex cursor-pointer flex-col items-center disabled:cursor-default disabled:opacity-50"
+          aria-label={buildCost === null ? "地標已建齊" : `${repairing ? "修理" : "起地標"}，要 ${buildCost} 分`}
           data-testid="raise"
         >
-          <span className="flex size-12 items-center justify-center rounded-2xl border-2 border-[#FBD000] bg-[#43B047] text-2xl shadow-md">
-            🏗️
+          <span className="flex size-14 items-center justify-center rounded-2xl border-[3px] border-[#FBD000] bg-[#43B047] text-3xl shadow-[0_4px_0_#2E8B3E]">
+            {repairing ? "🔧" : "🏗️"}
           </span>
-          {buildCost === null
-            ? "已建齊"
-            : `${repairing ? "修理" : "起地標"} ${buildCost}`}
+          {buildCost === null ? null : (
+            <span className="-mt-2 rounded-full bg-white px-2 text-xs font-black tabular-nums text-[#1E3A8A] shadow">
+              ⭐{buildCost}
+            </span>
+          )}
         </button>
 
-        <div className="-mt-12 flex flex-col items-center gap-1.5">
+        <div className="flex flex-col items-center gap-1">
           <button
             type="button"
             onClick={onWalk}
             disabled={state.dice < 1 || pending?.running === true}
-            className="flex size-28 cursor-pointer flex-col items-center justify-center rounded-[36px] border-[5px] border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-[#FFFFFF] shadow-[0_8px_0_#8E1210,0_14px_24px_rgba(30,58,138,0.45)] transition-transform active:translate-y-1.5 active:shadow-[0_2px_0_#8E1210] disabled:cursor-default disabled:opacity-60"
+            className="flex size-28 cursor-pointer items-center justify-center rounded-full border-[6px] border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-5xl font-black tracking-wide text-white shadow-[0_8px_0_#8E1210,0_14px_24px_rgba(30,58,138,0.45)] transition-transform active:translate-y-1.5 active:shadow-[0_2px_0_#8E1210] disabled:cursor-default disabled:opacity-60"
+            aria-label="擲骰"
             data-testid="roll-move"
           >
-            <span className="text-4xl font-black leading-none tracking-wide">GO</span>
-            <span className="mt-1 text-xs font-bold">擲骰行棋</span>
+            GO
           </button>
-          <span className="rounded-full bg-[#1E3A8A] px-4 py-0.5 text-sm font-black tabular-nums text-[#FFFFFF]" data-testid="dice-count">
-            🎲 {state.dice}／{DICE_CAP}
+          <span className="h-5 rounded-full bg-white/85 px-2 text-xs font-bold tabular-nums text-[#1E3A8A]" data-testid="need-two">
+            {countdown ? `🎲+1 ⏱ ${formatClock(countdown)}` : null}
           </span>
-          <span className="h-4 text-[10px] font-semibold text-[#3B5BA9]" data-testid="need-two">
-            {state.dice < 1
-              ? "擲骰行棋要 1 顆"
-              : countdown
-                ? `下一顆 ${formatClock(countdown)}`
-                : null}
-          </span>
-        </div>
-
-        <div className="flex w-20 flex-col items-center gap-1 text-xs font-bold">
-          <span className="flex size-12 items-center justify-center rounded-2xl border-2 border-[#FBD000] bg-[#E52521] text-2xl text-[#FFFFFF] shadow-md">
-            ⚔️
-          </span>
-          武器 {weapon}／4
         </div>
       </footer>
 
@@ -402,9 +375,14 @@ export function DailyGame() {
                 ✕
               </button>
             </div>
-            <p className="text-xs leading-5 text-[#3B5BA9]">
-              擲兩粒骰行棋，只扣 1 顆。七格攻擊，踩中就搜尋敵人。起地標要用分數。
-            </p>
+            <div className="flex flex-wrap gap-2 text-sm font-bold text-[#1E3A8A]">
+              <span className="rounded-full bg-[#EAF4FF] px-3 py-1">⚔️ 武器 {weapon}／4</span>
+              {state.hasNft ? (
+                <span className="rounded-full bg-[#E8F7E8] px-3 py-1 text-[#2E8B3E]" data-testid="dst-today">
+                  DST {state.dstTakenToday}／{DAILY_DST_CAP}
+                </span>
+              ) : null}
+            </div>
             <NftToggles
               hasNft={state.hasNft}
               rivalHasNft={state.rivalHasNft}
