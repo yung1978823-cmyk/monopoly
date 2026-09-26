@@ -105,7 +105,8 @@ export function PanZoom({
     [natural, frame, clamp],
   );
 
-  // Open on the board, zoomed in; re-centre when the screen is resized or rotated.
+  // Open on the board, zoomed in. A ResizeObserver also catches the first real layout (the
+  // screen can still be sizing up when this mounts) and any resize or rotation later.
   useLayoutEffect(() => {
     const open = () => {
       const next = centreOn(focus.current, startScale);
@@ -115,8 +116,14 @@ export function PanZoom({
       }
     };
     open();
-    window.addEventListener("resize", open);
-    return () => window.removeEventListener("resize", open);
+    // And once more just after mount, in case the first measure came too early.
+    const again = window.setTimeout(open, 60);
+    const watch = new ResizeObserver(open);
+    if (box.current) watch.observe(box.current);
+    return () => {
+      window.clearTimeout(again);
+      watch.disconnect();
+    };
   }, [centreOn, focus, startScale]);
 
   // Follow the token: when it leaves the middle of the frame, glide it back to the centre.
