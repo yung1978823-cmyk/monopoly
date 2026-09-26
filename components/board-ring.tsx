@@ -25,7 +25,7 @@ const TINT: Record<TileKind, string | null> = {
   coin: null,
   chest: "rgba(255,140,40,0.9)",
   lucky: "rgba(4,156,216,0.9)",
-  attack: "rgba(229,37,33,0.88)",
+  attack: "rgba(255,255,255,0.92)",
   jail: "rgba(70,80,110,0.9)",
   tax: "rgba(140,70,160,0.9)",
 };
