@@ -9,11 +9,14 @@ import { useEffect, useState } from "react";
 
 type Flash = { kind: "shield" | "smash" | "hit" | "miss"; key: number };
 
-const FLASH_MS = 1700;
+const FLASH_MS = 1500;
+const SHIELD_MS = 1200;
+/** Pause after the last pop-up before heading back to the board on its own. */
+const RETURN_MS = 700;
 
 /**
- * The rival's city: their four landmarks drawn on the city art. With a shield up you strike
- * once to break it; after that you tap a standing landmark to smash it.
+ * The rival's city: their landmarks drawn on the city art. One tap on a building settles the
+ * fight; a hit breaks the shield (if any) on the way to smashing it, then you go back to the board.
  */
 export function AttackScreen({
   state,
@@ -32,27 +35,24 @@ export function AttackScreen({
   // Show the totals the last strike used; a smash lowers the rival's defence afterwards.
   const attackTotal = readout?.attackTotal ?? 10 + weapon * 5;
   const defenseTotal = readout?.defenseTotal ?? rivalPower * 5 + (state.enemyLuck ?? 0);
-  const picking = !state.fightSettled && !state.enemyShield && standing.length > 0;
+  const picking = !state.fightSettled && standing.length > 0;
   const [flash, setFlash] = useState<Flash | null>(null);
   const [aimed, setAimed] = useState<number | null>(null);
 
-  // Play the result of each strike once: shield, smash, plain hit or miss.
+  // Play the result once: the shield pop-up first if it broke, then the smash, hit or miss,
+  // and then head back to the board by itself.
   useEffect(() => {
     if (!readout) return;
-    const kind: Flash["kind"] = readout.shieldBreak
-      ? "shield"
-      : readout.smashed !== null
-        ? "smash"
-        : readout.hit
-          ? "hit"
-          : "miss";
-    const show = window.setTimeout(() => setFlash({ kind, key: Date.now() }), 0);
-    const hide = window.setTimeout(() => setFlash(null), FLASH_MS);
-    return () => {
-      window.clearTimeout(show);
-      window.clearTimeout(hide);
-    };
-  }, [readout]);
+    const kind: Flash["kind"] = readout.smashed !== null ? "smash" : readout.hit ? "hit" : "miss";
+    const lead = readout.shieldBreak ? SHIELD_MS : 0;
+    const timers = [
+      readout.shieldBreak ? window.setTimeout(() => setFlash({ kind: "shield", key: Date.now() }), 0) : 0,
+      window.setTimeout(() => setFlash({ kind, key: Date.now() + 1 }), lead),
+      window.setTimeout(() => setFlash(null), lead + FLASH_MS),
+      window.setTimeout(onReturn, lead + FLASH_MS + RETURN_MS),
+    ];
+    return () => timers.forEach((id) => window.clearTimeout(id));
+  }, [readout, onReturn]);
 
   function strike(target: number | null) {
     if (state.fightSettled) return;
@@ -66,13 +66,9 @@ export function AttackScreen({
       : readout?.hit
         ? "打中！"
         : "打唔中……"
-    : state.enemyShield
-      ? "阿強有 NFT，有一面盾。先打破佢！"
-      : standing.length > 0
-        ? state.rivalHasNft
-          ? "盾破咗！撳一座建築打落去"
-          : "阿強冇 NFT，冇盾。撳一座建築打落去"
-        : "阿強一座建築都冇，直接攻擊";
+    : standing.length > 0
+      ? `${state.enemyShield ? "🛡️ " : ""}撳一座建築 🔨`
+      : "一座建築都冇，直接打！";
 
   return (
     <main
@@ -204,7 +200,7 @@ export function AttackScreen({
             className="h-16 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-[#E52521] text-2xl font-black text-white shadow-[0_6px_0_#8E1210] active:translate-y-1 active:shadow-[0_2px_0_#8E1210]"
             data-testid="weapon"
           >
-            🔨 {state.enemyShield ? "打個盾" : "攻擊"}
+            🔨 攻擊
           </button>
         )}
       </footer>
@@ -222,7 +218,7 @@ export function AttackScreen({
               style={{ backgroundImage: `url(${SHIELD_ART})` }}
             >
               <p className="mb-4 rounded-full bg-white/95 px-5 py-2 text-xl font-black text-[#E52521]">
-                盾擋住！盾破咗 +1 分
+                🛡️ 盾破！+1
               </p>
             </div>
           ) : (
@@ -232,7 +228,13 @@ export function AttackScreen({
                 flash.kind === "miss" ? "bg-[#3B5BA9]" : "bg-[#E52521]",
               )}
             >
-              {flash.kind === "smash" ? "💥 打爛咗！" : flash.kind === "hit" ? "打中！" : "打唔中"}
+              {flash.kind === "smash"
+                ? "💥 打爛咗！"
+                : flash.kind === "hit"
+                  ? "打中！"
+                  : state.enemyShield
+                    ? "🛡️ 擋住！"
+                    : "打唔中"}
             </p>
           )}
         </div>

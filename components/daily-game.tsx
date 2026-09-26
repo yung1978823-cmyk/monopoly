@@ -24,6 +24,8 @@ import { cn } from "cn";
 import { useCallback, useEffect, useState } from "react";
 
 const STEP_MS = 240;
+/** How long the 🔨 swoop plays before the attack screen opens. */
+const INTRO_MS = 1100;
 
 type PendingWalk = {
   faces: [number, number];
@@ -111,9 +113,13 @@ export function DailyGame() {
   const [resetArmed, setResetArmed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pending, setPending] = useState<PendingWalk | null>(null);
+  /** The roll whose attack intro has already played. */
+  const [introSeen, setIntroSeen] = useState(-1);
   const dispatch = useCallback((action: Parameters<typeof reduce>[1]) => {
     setState((current) => reduce(current, action));
   }, []);
+  // Stable, so the attack screen's auto-return timer isn't restarted on every clock tick.
+  const returnToBoard = useCallback(() => dispatch({ type: "return-walk" }), [dispatch]);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -180,6 +186,14 @@ export function DailyGame() {
     const id = window.setTimeout(() => setResetArmed(false), 4000);
     return () => window.clearTimeout(id);
   }, [resetArmed]);
+
+  // Landing on 攻擊 plays a short 🔨 swoop over the board, then opens the rival's city.
+  useEffect(() => {
+    if (state.phase !== "search" || introSeen === state.rollCount) return;
+    const roll = state.rollCount;
+    const id = window.setTimeout(() => setIntroSeen(roll), INTRO_MS);
+    return () => window.clearTimeout(id);
+  }, [state.phase, state.rollCount, introSeen]);
 
   function rollPair(): [number, number] {
     return [rollDie(), rollDie()];
@@ -274,12 +288,14 @@ export function DailyGame() {
     setMenuOpen(false);
   };
 
-  if (state.phase === "search") {
+  const intro = state.phase === "search" && introSeen !== state.rollCount;
+
+  if (state.phase === "search" && !intro) {
     return (
       <AttackScreen
         state={state}
         onStrike={(target) => onWeapon(target)}
-        onReturn={() => dispatch({ type: "return-walk" })}
+        onReturn={returnToBoard}
       />
     );
   }
@@ -387,6 +403,18 @@ export function DailyGame() {
           </span>
         </div>
       </footer>
+
+      {intro ? (
+        <div
+          className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-[radial-gradient(circle,rgba(229,37,33,0.55)_0%,rgba(142,18,16,0.85)_75%)] animate-[pop_0.3s_ease-out]"
+          data-testid="attack-intro"
+        >
+          <span className="relative text-[min(38cqw,11rem)] leading-none drop-shadow-[0_10px_16px_rgba(0,0,0,0.45)]">
+            <span className="block animate-[hammer_0.6s_ease-out]">🔨</span>
+            <span className="absolute -bottom-4 -right-6 text-[0.5em] animate-[pop_0.4s_ease-out_0.45s_both]">💥</span>
+          </span>
+        </div>
+      ) : null}
 
       {/* Settings sheet. */}
       {menuOpen ? (

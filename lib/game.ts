@@ -216,7 +216,7 @@ function readWeapon(value: unknown): WeaponReadout | null {
     !inRange(enemyLuck, 2, 12) ||
     typeof hit !== "boolean" ||
     !inRange(dst, 0, DAILY_DST_CAP) ||
-    !inRange(pointsGained, 0, 5) ||
+    !inRange(pointsGained, 0, 6) ||
     typeof shieldBreak !== "boolean"
   ) {
     return null;
@@ -435,10 +435,11 @@ export function reduce(state: GameState, action: Action): GameState {
     }
     case "weapon": {
       if (state.phase !== "search" || state.enemyLuck === null || state.fightSettled) return state;
-      // Once the shield is down, a hit smashes a landmark, so the attacker must pick a standing one.
+      // One tap settles the fight: the attacker picks a standing landmark (if any), and a hit
+      // breaks the shield on the way through before smashing it.
       const standing = builtIndexes(state.rivalLandmarks);
       const target = action.target ?? null;
-      if (!state.enemyShield && standing.length > 0 && (target === null || !standing.includes(target))) {
+      if (standing.length > 0 && (target === null || !standing.includes(target))) {
         return state;
       }
       const weapon = countBuilt(state.landmarks);
@@ -448,21 +449,18 @@ export function reduce(state: GameState, action: Action): GameState {
       const bothNft = state.hasNft && state.rivalHasNft;
       let pointsGained = 0;
       let dst = 0;
-      let shieldBreak = false;
-      let enemyShield = state.enemyShield;
-      let fightSettled = true;
       let smashed: number | null = null;
-      if (hit && state.enemyShield) {
-        pointsGained = 1;
-        shieldBreak = true;
-        enemyShield = false;
-        fightSettled = false;
-      } else if (hit) {
-        pointsGained = Math.min(5, Math.max(1, attackTotal - defenseTotal));
+      const shieldBreak = hit && state.enemyShield;
+      if (hit) {
+        const smashPoints = Math.min(5, Math.max(1, attackTotal - defenseTotal));
+        // Breaking a shield adds 1 point; DST only follows the smash itself.
+        pointsGained = smashPoints + (shieldBreak ? 1 : 0);
         const room = Math.max(0, DAILY_DST_CAP - state.dstTakenToday);
-        dst = bothNft ? Math.min(pointsGained, room) : 0;
+        dst = bothNft ? Math.min(smashPoints, room) : 0;
         if (standing.length > 0) smashed = target;
       }
+      const enemyShield = state.enemyShield && !hit;
+      const fightSettled = true;
       const rivalLandmarks =
         smashed === null
           ? state.rivalLandmarks
@@ -478,7 +476,7 @@ export function reduce(state: GameState, action: Action): GameState {
         shieldBreak,
         smashed,
       };
-      const verdict = shieldBreak ? "盾破" : hit ? "打中" : "打唔中";
+      const verdict = shieldBreak ? "盾破，打中" : hit ? "打中" : "打唔中";
       const pay = dst > 0 ? `搬走 ${dst} DST。` : "DST 0。";
       const smashText = smashed === null ? "" : `打爛咗阿強嘅${LANDMARK_NAMES[smashed]}。`;
       const nextPoints = state.points + pointsGained;
