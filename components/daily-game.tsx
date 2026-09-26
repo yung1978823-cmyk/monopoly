@@ -113,6 +113,7 @@ function burstOf(state: GameState): Burst | null {
     key: state.rollCount,
     index: state.position,
     icon: TILE_INFO[landing.kind].icon,
+    art: TILE_INFO[landing.kind].art,
     text: parts.join(" "),
     bad: landing.kind === "jail" || landing.kind === "tax",
   };
@@ -443,7 +444,12 @@ export function DailyGame() {
           data-testid="attack-intro"
         >
           <span className="relative text-[min(38cqw,11rem)] leading-none drop-shadow-[0_10px_16px_rgba(0,0,0,0.45)]">
-            <span className="block animate-[hammer_0.6s_ease-out]">🔨</span>
+            <img
+              src={TILE_INFO.attack.art}
+              alt=""
+              draggable={false}
+              className="block size-[min(42cqw,12rem)] object-contain animate-[hammer_0.6s_ease-out]"
+            />
             <span className="absolute -bottom-4 -right-6 text-[0.5em] animate-[pop_0.4s_ease-out_0.45s_both]">💥</span>
           </span>
         </div>

@@ -26,12 +26,13 @@ export const TAX_SQUARE = 21;
 export const CHEST_SQUARES = [4, 11, 17, 25] as const;
 export const LUCKY_SQUARES = [9, 23] as const;
 
-export const TILE_INFO: Record<TileKind, { name: string; icon: string }> = {
-  start: { name: "起點", icon: "🏁" },
-  coin: { name: "金幣", icon: "🪙" },
-  chest: { name: "寶箱", icon: "🎁" },
-  lucky: { name: "幸運骰", icon: "🎲" },
-  attack: { name: "攻擊", icon: "🔨" },
+/** Each square's name, its emoji stand-in, and its drawn picture once one exists. */
+export const TILE_INFO: Record<TileKind, { name: string; icon: string; art?: string }> = {
+  start: { name: "起點", icon: "🏁", art: "/art/tiles/start.png" },
+  coin: { name: "金幣", icon: "🪙", art: "/art/tiles/coin.png" },
+  chest: { name: "寶箱", icon: "🎁", art: "/art/tiles/chest.png" },
+  lucky: { name: "幸運骰", icon: "🎲", art: "/art/tiles/lucky.png" },
+  attack: { name: "攻擊", icon: "🔨", art: "/art/tiles/attack.png" },
   jail: { name: "監獄", icon: "🚔" },
   tax: { name: "稅局", icon: "🧾" },
 };

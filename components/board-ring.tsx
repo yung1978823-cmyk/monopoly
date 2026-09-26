@@ -13,6 +13,8 @@ export type Burst = {
   key: number;
   index: number;
   icon: string;
+  /** The drawn picture, when the square has one. */
+  art?: string;
   /** e.g. "+2⭐" or "−3⭐"; empty for none. */
   text: string;
   bad: boolean;
@@ -55,7 +57,7 @@ export function BoardRing({
       {TILES.map((tile, index) => {
         const spot = TILE_POSITIONS[index];
         const tint = TINT[tile.kind];
-        const icon = TILE_INFO[tile.kind].icon;
+        const { icon, art } = TILE_INFO[tile.kind];
         const onTrail = trail.includes(index);
         const stopped = stopIndex === index;
         const scale = depthScale(spot.y);
@@ -92,7 +94,16 @@ export function BoardRing({
               )}
               aria-hidden
             >
-              {icon}
+              {art ? (
+                <img
+                  src={art}
+                  alt=""
+                  draggable={false}
+                  className={cn("object-contain", tile.kind === "coin" ? "w-[62%]" : "w-[82%]")}
+                />
+              ) : (
+                icon
+              )}
             </span>
           </div>
         );
@@ -138,7 +149,11 @@ export function BoardRing({
                 burst.bad ? "animate-[pop_0.25s_ease-out,fade-out_0.5s_ease-in_1.3s_forwards]" : "animate-[burst_1.4s_ease-out_both]",
               )}
             >
-              {burst.icon}
+              {burst.art ? (
+                <img src={burst.art} alt="" draggable={false} className="size-[clamp(34px,11vw,58px)] object-contain" />
+              ) : (
+                burst.icon
+              )}
             </span>
           </span>
           {!burst.bad ? (
