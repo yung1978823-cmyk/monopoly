@@ -124,7 +124,7 @@ export function holdsNft(state: Pick<GameState, "nfts">): boolean {
   return nftCount(state) > 0;
 }
 
-/** Attack power: 10, +5 per standing building, plus the NFT bonus (+1, +3, +5, +7, +9). */
+/** Attack power: 10, +5 per standing building, plus +2 per NFT placed. */
 export function attackPower(state: Pick<GameState, "landmarks" | "nfts">): number {
   return 10 + countBuilt(state.landmarks) * 5 + nftAttack(nftCount(state));
 }

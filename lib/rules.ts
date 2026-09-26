@@ -2,13 +2,13 @@ export const DICE_CAP = 20;
 export const REFILL_MS = 30 * 60 * 1000;
 export const DAILY_DST_CAP = 5;
 export const LANDMARK_SLOTS = 4;
-/** Up to five NFTs can be placed. The 1st adds +1 attack, the 2nd +3, then +5, +7, +9. */
+/** Up to five NFTs can be placed; each adds the same +2 attack, so no single one decides a fight. */
 export const NFT_SLOTS = 5;
-export const NFT_BONUS = [1, 3, 5, 7, 9] as const;
+export const NFT_ATTACK = 2;
 
-/** Total attack the placed NFTs add: 1 → +1, 2 → +4, 3 → +9, 4 → +16, 5 → +25. */
+/** Total attack the placed NFTs add: +2 each, up to +10. */
 export function nftAttack(count: number): number {
-  return NFT_BONUS.slice(0, Math.max(0, count)).reduce((sum, bonus) => sum + bonus, 0);
+  return Math.max(0, Math.min(NFT_SLOTS, count)) * NFT_ATTACK;
 }
 
 /** What each square pays. Penalties are small and never take points below zero. */

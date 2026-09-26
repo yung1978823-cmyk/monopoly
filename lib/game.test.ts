@@ -220,7 +220,7 @@ describe("daily board", () => {
       fightSettled: false,
     };
     const scored = reduce(state, { type: "weapon", target: 0 });
-    assert.equal(scored.weaponReadout?.attackTotal, 31, "10 + 4 buildings × 5 + the first NFT's +1");
+    assert.equal(scored.weaponReadout?.attackTotal, 32, "10 + 4 buildings × 5 + 1 NFT × 2");
     assert.equal(scored.weaponReadout?.defenseTotal, 7);
     assert.equal(scored.weaponReadout?.shieldBreak, true);
     assert.equal(scored.weaponReadout?.pointsGained, 6, "1 for the shield and 5 for the smash");
@@ -255,10 +255,10 @@ describe("daily board", () => {
     state = reduce(state, { type: "place-nft", slot: 3, id: "mummy" });
     assert.equal(holdsNft(state), true);
     assert.equal(nftCount(state), 2);
-    assert.equal(attackPower(state), 14, "10 + 1 + 3");
+    assert.equal(attackPower(state), 14, "10 + 2 NFTs × 2");
     let full = state;
     for (const [slot, id] of [[1, "a"], [2, "b"], [4, "c"]] as const) full = reduce(full, { type: "place-nft", slot, id });
-    assert.equal(attackPower(full), 35, "10 + 1 + 3 + 5 + 7 + 9");
+    assert.equal(attackPower(full), 20, "10 + 5 NFTs × 2");
     assert.equal(reduce(state, { type: "place-nft", slot: 0, id: "zombie" }), state, "slot taken");
     assert.equal(reduce(state, { type: "place-nft", slot: 1, id: "vampire" }), state, "same NFT twice");
     assert.equal(reduce(state, { type: "place-nft", slot: 5, id: "zombie" }), state, "only five slots");
