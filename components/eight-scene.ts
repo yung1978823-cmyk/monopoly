@@ -10,7 +10,7 @@
  * Everything here is show only: the rules live in lib/eight.ts and the screen calls these
  * functions to play back the events a move produced.
  */
-import { EDGE_STEPS, FORKS, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, SQUARES, keyOf, type Spot } from "@/lib/eight";
+import { BOARDS, EDGE_STEPS, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
 
 const THREE_URL = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
 let loading: Promise<any> | null = null;
@@ -81,10 +81,74 @@ function spotPoint(spot: Spot): [number, number] {
   return [ax + (bx - ax) * t, az + (bz - az) * t];
 }
 
-const GROUP_COLOURS = [0xe52521, 0xf59e0b, 0x22a447, 0x38bdf8, 0x3949ab, 0xec4899, 0x9a5b2e, 0x14b8a6];
-const OFFSETS: [number, number][] = [[-0.22, -0.2], [0.22, -0.2], [-0.22, 0.2], [0.22, 0.2]];
+/** 海島: a ring of 20 around the lighthouse; square 0 faces the viewer. */
+const ISLAND_R = 4.1;
+function islandPoint(i: number): [number, number] {
+  const a = (2 * Math.PI * i) / ISLAND_LOOP;
+  return [ISLAND_R * Math.sin(a), ISLAND_R * Math.cos(a)];
+}
 
-export function createBoardScene(T: any, container: HTMLElement, colours: string[], decor?: Decor): BoardScene {
+type TilePlan = { key: string; x: number; z: number; yaw: number; outward: [number, number] | null };
+type Layout = {
+  tiles: TilePlan[];
+  spotPoint: (spot: Spot) => [number, number];
+  /** Where tax coins fly to and bats circle. */
+  hub: [number, number, number];
+  stations: [number, number][];
+  /** Wide-shot distance for tall, square-ish and wide screens. */
+  wide: [number, number, number];
+  wideTarget: [number, number];
+};
+
+function layoutFor(board: BoardId): Layout {
+  if (board === "island") {
+    const tiles: TilePlan[] = [];
+    for (let i = 0; i < ISLAND_LOOP; i++) {
+      const [x, z] = islandPoint(i);
+      const a = (2 * Math.PI * i) / ISLAND_LOOP;
+      tiles.push({ key: `o${i}`, x, z, yaw: a, outward: [Math.sin(a), Math.cos(a)] });
+    }
+    const R = ISLAND_R + 2.2;
+    return {
+      tiles,
+      spotPoint: (spot) => islandPoint(spot.on === "loop" ? spot.i : 0),
+      hub: [0, 3, 0],
+      stations: [[R, 1.5], [-R, 1.5], [R * 0.7, -R * 0.7], [-R * 0.7, -R * 0.7], [2.2, R], [-2.2, R]],
+      wide: [34, 24, 19],
+      wideTarget: [0, 0.3],
+    };
+  }
+  const tiles: TilePlan[] = [];
+  for (let i = 0; i < LOOP; i++) {
+    if (i === MIDDLE_AGAIN) continue;
+    const [x, z] = loopPoint(i);
+    const cx = x < 0 ? -D : D;
+    const dx = Math.sign(Math.round((x - cx) * 100)), dz = Math.sign(Math.round(z * 100));
+    tiles.push({ key: keyOf({ on: "loop", i }), x, z, yaw: TURN, outward: dx && dz ? [dx, dz] : null });
+  }
+  for (const road of ["L", "R"] as const) {
+    for (let k = 1; k <= ROAD_LENGTH; k++) {
+      const [x, z] = spotPoint({ on: road, k });
+      tiles.push({ key: `${road}${k}`, x, z, yaw: TURN, outward: null });
+    }
+  }
+  return {
+    tiles,
+    spotPoint,
+    hub: [0, 2.5, -D + 0.3],
+    stations: [[-2 * D - 1.6, 0], [2 * D + 1.6, 0], [-D, D + 1.2], [D, D + 1.2], [-D, -D - 1.2], [D, -D - 1.2]],
+    wide: [50, 34, 26],
+    wideTarget: [0, 0.4],
+  };
+}
+
+const GROUP_COLOURS = [0xe52521, 0xf59e0b, 0x22a447, 0x38bdf8, 0x3949ab, 0xec4899, 0x9a5b2e, 0x14b8a6];
+/** Up to six tokens share a square: two rows of three. */
+const OFFSETS: [number, number][] = [[-0.26, -0.18], [0, -0.18], [0.26, -0.18], [-0.26, 0.18], [0, 0.18], [0.26, 0.18]];
+
+export function createBoardScene(T: any, container: HTMLElement, colours: string[], decor?: Decor, board: BoardId = "eight"): BoardScene {
+  const layout = layoutFor(board);
+  const island = board === "island";
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let speed = 1;
   const pace = () => speed * (reduceMotion ? 10 : 1);
@@ -107,16 +171,17 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
   sky.height = 256;
   const sg = sky.getContext("2d")!;
   const grad = sg.createLinearGradient(0, 0, 0, 256);
-  grad.addColorStop(0, "#2a1260");
-  grad.addColorStop(0.5, "#8a3ea8");
-  grad.addColorStop(0.85, "#f08a8a");
-  grad.addColorStop(1, "#ffc98a");
+  const skyStops = island ? ["#2f8fe0", "#6cc3f5", "#bfe9ff", "#fff3d6"] : ["#2a1260", "#8a3ea8", "#f08a8a", "#ffc98a"];
+  grad.addColorStop(0, skyStops[0]);
+  grad.addColorStop(0.5, skyStops[1]);
+  grad.addColorStop(0.85, skyStops[2]);
+  grad.addColorStop(1, skyStops[3]);
   sg.fillStyle = grad;
   sg.fillRect(0, 0, 4, 256);
   const skyTex = new T.CanvasTexture(sky);
   skyTex.encoding = T.sRGBEncoding;
   scene.background = skyTex;
-  scene.fog = new T.Fog(0x7a3a8f, 50, 110);
+  scene.fog = new T.Fog(island ? 0xa9dcf5 : 0x7a3a8f, 50, 110);
 
   const camera = new T.PerspectiveCamera(38, 1, 0.1, 200);
   scene.add(new T.HemisphereLight(0xfff1e0, 0x5b3b7a, 0.85));
@@ -136,7 +201,7 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
     return mesh;
   };
   const Y = new T.Vector3(0, 1, 0);
-  const toLocal = (v: any) => v.clone().applyAxisAngle(Y, -TURN);
+  const toLocal = (v: any, yaw = TURN) => v.clone().applyAxisAngle(Y, -yaw);
 
   function roundedSquare(size: number, r: number) {
     const s = new T.Shape(), h = size / 2;
@@ -152,18 +217,29 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
   }
 
   // Water, moon, stone deck, two diamond lawns.
-  const water = new T.Mesh(new T.CircleGeometry(80, 64), mat(0x2b4c7e, 0.25, { metalness: 0.2 }));
+  const water = new T.Mesh(new T.CircleGeometry(80, 64), mat(island ? 0x2bb3c9 : 0x2b4c7e, 0.25, { metalness: 0.2 }));
   water.rotation.x = -Math.PI / 2;
   water.position.y = -0.9;
   scene.add(water);
   const moon = new T.Mesh(new T.SphereGeometry(3, 32, 24), new T.MeshBasicMaterial({ color: 0xfff4c8, fog: false }));
   moon.position.set(-22, 20, -48);
   scene.add(moon);
-  const deck = shadowy(new T.Mesh(slab(1, 0.8, 0.12, 0.02), mat(0x8d7aa8, 0.85)));
-  deck.scale.set(4 * D + 3.4, 1, 2 * D + 3.4);
-  deck.position.y = -0.95;
+  // The island is sand with a grass middle; the 八字 board sits on a stone deck with two lawns.
+  const deck = island
+    ? shadowy(new T.Mesh(new T.CylinderGeometry(ISLAND_R + 1.7, ISLAND_R + 2.3, 1, 48), mat(0xf2d9a0, 0.9)))
+    : shadowy(new T.Mesh(slab(1, 0.8, 0.12, 0.02), mat(0x8d7aa8, 0.85)));
+  if (island) deck.position.y = -0.5;
+  else {
+    deck.scale.set(4 * D + 3.4, 1, 2 * D + 3.4);
+    deck.position.y = -0.95;
+  }
   scene.add(deck);
-  for (const x of [-D, D]) {
+  if (island) {
+    const grass = shadowy(new T.Mesh(new T.CylinderGeometry(ISLAND_R - 0.8, ISLAND_R - 0.6, 0.12, 40), mat(0x5fae4a, 0.8)));
+    grass.position.y = 0.02;
+    scene.add(grass);
+  }
+  for (const x of island ? [] : [-D, D]) {
     const lawn = shadowy(new T.Mesh(slab(EDGE_STEPS * PITCH - 1.2, 0.1, 0.4, 0.05), mat(0x5fae4a, 0.8)));
     lawn.rotation.y = TURN;
     lawn.position.set(x, -0.02, 0);
@@ -172,11 +248,11 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
 
   // ---------- Tiles ----------
   const lotGeo = slab(1.06, 0.22, 0.2, 0.06), bigGeo = slab(1.4, 0.22, 0.26, 0.06);
-  type Tile = { group: any; body: any; base: number; inward: any; house: any };
+  type Tile = { group: any; body: any; base: number; inward: any; house: any; yaw: number };
   const tiles: Record<string, Tile> = {};
   const floaters: { obj: any; base?: number; spin?: boolean; bat?: number }[] = [];
 
-  function decorate(kind: string, group: any) {
+  function decorate(kind: string, group: any, yaw: number) {
     if (kind === "start") {
       const arrow = new T.Shape();
       arrow.moveTo(0, 0.5); arrow.lineTo(0.4, 0.04); arrow.lineTo(0.15, 0.04); arrow.lineTo(0.15, -0.45);
@@ -185,7 +261,8 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
       g.rotateX(-Math.PI / 2);
       const a = shadowy(new T.Mesh(g, mat(0xe52521)));
       a.position.y = TOP;
-      const dir = toLocal(new T.Vector3(1, 0, 1));
+      const [ax, az] = layout.spotPoint({ on: "loop", i: 0 }), [bx, bz] = layout.spotPoint({ on: "loop", i: 1 });
+      const dir = toLocal(new T.Vector3(bx - ax, 0, bz - az), yaw);
       a.rotation.y = Math.atan2(-dir.x, -dir.z);
       group.add(a);
     }
@@ -245,6 +322,21 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
       group.add(plane);
       floaters.push({ obj: plane, base: TOP + 0.6, spin: true });
     }
+    if (kind === "dock") {
+      const boat = new T.Group();
+      const hull = shadowy(new T.Mesh(new T.BoxGeometry(0.8, 0.18, 0.36), mat(0x9a5b2e, 0.6)));
+      hull.position.y = 0.09;
+      boat.add(hull);
+      const mast = shadowy(new T.Mesh(new T.CylinderGeometry(0.025, 0.025, 0.6, 8), mat(0x7c4a1e, 0.6)));
+      mast.position.y = 0.45;
+      boat.add(mast);
+      const sail = shadowy(new T.Mesh(new T.ConeGeometry(0.22, 0.45, 3), mat(0xffffff, 0.5)));
+      sail.position.set(0.1, 0.5, 0);
+      boat.add(sail);
+      boat.position.y = TOP;
+      group.add(boat);
+      floaters.push({ obj: boat, base: TOP, spin: false });
+    }
     if (kind === "chance") {
       const q = new T.Group();
       const arc = shadowy(new T.Mesh(new T.TorusGeometry(0.2, 0.07, 10, 24, Math.PI * 1.5), mat(0xffffff, 0.25)));
@@ -277,22 +369,22 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
   }
 
   const PLAIN: Record<string, number> = {
-    start: 0xfbd000, jail: 0x64748b, chest: 0xf2c230, fly: 0x38bdf8, chance: 0x8b5cf6, tax: 0x334155, fork: 0xffffff, cross: 0xff7a59,
+    start: 0xfbd000, jail: 0x64748b, chest: 0xf2c230, fly: 0x38bdf8, dock: 0x38bdf8, chance: 0x8b5cf6, tax: 0x334155, fork: 0xffffff, cross: 0xff7a59,
   };
-  function makeTile(key: string, x: number, z: number, outward: any) {
-    const square = SQUARES[key];
+  function makeTile(key: string, x: number, z: number, outward: any, yaw: number) {
+    const square = BOARDS[board].squares[key];
     const group = new T.Group();
     group.position.set(x, 0, z);
-    group.rotation.y = TURN;
+    group.rotation.y = yaw;
     scene.add(group);
     const base = square.kind === "lot" ? (square.gold ? 0xffe9a8 : 0xfff4dc) : PLAIN[square.kind];
-    const big = ["start", "jail", "chest", "fly", "cross"].includes(square.kind);
+    const big = ["start", "jail", "chest", "fly", "dock", "cross"].includes(square.kind);
     const body = shadowy(new T.Mesh(big ? bigGeo : lotGeo, mat(base, 0.32)));
     group.add(body);
-    const tile: Tile = { group, body, base, inward: toLocal(new T.Vector3(0, 0, -0.16)), house: null };
+    const tile: Tile = { group, body, base, inward: toLocal(new T.Vector3(0, 0, -0.16), yaw), house: null, yaw };
     tiles[key] = tile;
     if (square.kind === "lot" && outward) {
-      const o = toLocal(outward);
+      const o = toLocal(outward, yaw);
       const ox = Math.round(o.x), oz = Math.round(o.z);
       const band = shadowy(new T.Mesh(new T.BoxGeometry(ox ? 0.26 : 0.9, 0.07, oz ? 0.26 : 0.9), mat(GROUP_COLOURS[square.group % 8], 0.4)));
       band.position.set(ox * 0.34, TOP + 0.02, oz * 0.34);
@@ -304,26 +396,98 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
       gem.position.set(0.3, TOP + 0.12, 0.3);
       group.add(gem);
     }
-    decorate(square.kind, group);
+    decorate(square.kind, group, yaw);
   }
-  for (let i = 0; i < LOOP; i++) {
-    if (i === MIDDLE_AGAIN) continue;
-    const [x, z] = loopPoint(i);
-    const cx = x < 0 ? -D : D;
-    const dx = Math.sign(Math.round((x - cx) * 100)), dz = Math.sign(Math.round(z * 100));
-    makeTile(keyOf({ on: "loop", i }), x, z, dx && dz ? new T.Vector3(dx, 0, dz) : null);
+  for (const plan of layout.tiles) {
+    makeTile(plan.key, plan.x, plan.z, plan.outward ? new T.Vector3(plan.outward[0], 0, plan.outward[1]) : null, plan.yaw);
   }
-  for (const road of ["L", "R"] as const) {
-    for (let k = 1; k <= ROAD_LENGTH; k++) {
-      const [x, z] = spotPoint({ on: road, k });
-      makeTile(`${road}${k}`, x, z, null);
-    }
-  }
-
   // ---------- Castle in the top notch, treasure in the bottom one ----------
-  const castleZ = -D + 0.3;
+  const castleZ = layout.hub[2];
   const roof = mat(0xc0264b, 0.4);
-  {
+  if (island) {
+    // Lighthouse in the middle, palms around it, a pier out to sea by the dock square.
+    const white = mat(0xffffff, 0.5), red = mat(0xe52521, 0.45), dark = mat(0x1f2937, 0.5);
+    const tower = shadowy(new T.Mesh(new T.CylinderGeometry(0.42, 0.62, 3, 24), white));
+    tower.position.y = 1.5;
+    scene.add(tower);
+    for (const y of [0.55, 1.45, 2.35]) {
+      const band = shadowy(new T.Mesh(new T.CylinderGeometry(0.56 - y * 0.05, 0.6 - y * 0.05, 0.4, 24), red));
+      band.position.y = y;
+      scene.add(band);
+    }
+    const gallery = shadowy(new T.Mesh(new T.CylinderGeometry(0.62, 0.62, 0.1, 24), dark));
+    gallery.position.y = 3.05;
+    scene.add(gallery);
+    const lamp = new T.Mesh(new T.CylinderGeometry(0.32, 0.32, 0.45, 16), new T.MeshBasicMaterial({ color: 0xfff3a0 }));
+    lamp.position.y = 3.35;
+    scene.add(lamp);
+    const cap = shadowy(new T.Mesh(new T.ConeGeometry(0.5, 0.6, 24), roof));
+    cap.position.y = 3.85;
+    scene.add(cap);
+    const beam = new T.Mesh(new T.ConeGeometry(0.5, 4, 16, 1, true), new T.MeshBasicMaterial({ color: 0xfff3a0, transparent: true, opacity: 0.25, side: T.DoubleSide, depthWrite: false }));
+    beam.rotation.z = Math.PI / 2;
+    beam.position.set(2, 0, 0);
+    const beamPivot = new T.Group();
+    beamPivot.position.y = 3.35;
+    beamPivot.add(beam);
+    scene.add(beamPivot);
+    floaters.push({ obj: beamPivot, base: 3.35, spin: true });
+    for (let n = 0; n < 4; n++) {
+      const a = (n / 4) * Math.PI * 2 + 0.6, r = 1.9;
+      const palm = new T.Group();
+      for (let k = 0; k < 5; k++) {
+        const seg = shadowy(new T.Mesh(new T.CylinderGeometry(0.08, 0.1, 0.36, 8), mat(0x9a6a3a, 0.8)));
+        seg.position.set(k * 0.04, 0.18 + k * 0.34, 0);
+        palm.add(seg);
+      }
+      for (let k = 0; k < 6; k++) {
+        const leaf = shadowy(new T.Mesh(new T.ConeGeometry(0.16, 0.9, 4), mat(0x2e9e44, 0.6)));
+        leaf.position.set(0.2, 1.8, 0);
+        leaf.rotation.set(0, (k / 6) * Math.PI * 2, 1.2);
+        const hold = new T.Group();
+        hold.position.set(0.2, 1.75, 0);
+        leaf.position.set(0, 0, 0);
+        hold.rotation.y = (k / 6) * Math.PI * 2;
+        leaf.rotation.set(0, 0, -1.25);
+        leaf.position.x = 0.4;
+        hold.add(leaf);
+        palm.add(hold);
+      }
+      palm.position.set(Math.cos(a) * r, 0.05, Math.sin(a) * r);
+      palm.scale.setScalar(0.8);
+      scene.add(palm);
+    }
+    // Pier from the dock square (square 10, at the back) out over the water.
+    const [px, pz] = layout.spotPoint({ on: "loop", i: 10 });
+    const pier = new T.Group();
+    for (let k = 0; k < 6; k++) {
+      const plank = shadowy(new T.Mesh(new T.BoxGeometry(0.9, 0.08, 0.28), mat(0xb07a45, 0.8)));
+      plank.position.set(0, -0.05, -0.9 - k * 0.32);
+      pier.add(plank);
+    }
+    for (const x of [-0.4, 0.4]) {
+      for (const z of [-1.2, -2.4]) {
+        const post = shadowy(new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 1, 8), mat(0x7c4a1e, 0.8)));
+        post.position.set(x, -0.45, z);
+        pier.add(post);
+      }
+    }
+    const sailboat = new T.Group();
+    const hull = shadowy(new T.Mesh(new T.BoxGeometry(1.2, 0.3, 0.5), mat(0xe52521, 0.5)));
+    sailboat.add(hull);
+    const mast = shadowy(new T.Mesh(new T.CylinderGeometry(0.04, 0.04, 1.2, 8), mat(0x7c4a1e, 0.6)));
+    mast.position.y = 0.7;
+    sailboat.add(mast);
+    const sail = shadowy(new T.Mesh(new T.ConeGeometry(0.4, 0.9, 3), mat(0xffffff, 0.5)));
+    sail.position.set(0.18, 0.75, 0);
+    sailboat.add(sail);
+    sailboat.position.set(1, -0.7, -2.4);
+    sailboat.rotation.y = Math.PI / 2;
+    pier.add(sailboat);
+    floaters.push({ obj: sailboat, base: -0.7, spin: false });
+    pier.position.set(px, 0, pz);
+    scene.add(pier);
+  } else {
     const c = new T.Group();
     const stone = mat(0xd9cfe8, 0.7), dark = mat(0x5b3b7a, 0.5);
     const keep = shadowy(new T.Mesh(new T.BoxGeometry(2.6, 1.8, 2.6), stone));
@@ -427,8 +591,8 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
   }
   const hex = (css: string) => parseInt(css.replace("#", ""), 16);
   const place = (seat: number, spot: Spot) => {
-    const [x, z] = spotPoint(spot);
-    const [ox, oz] = OFFSETS[seat % 4];
+    const [x, z] = layout.spotPoint(spot);
+    const [ox, oz] = OFFSETS[seat % OFFSETS.length];
     return new T.Vector3(x + ox, TOP, z + oz);
   };
   const tokens = colours.map((css, seat) => {
@@ -491,7 +655,7 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
 
   // ---------- Camera: 40° down; close on the player, wide between turns ----------
   const ELEV = (40 * Math.PI) / 180;
-  const WIDE = { dist: 26, target: new T.Vector3(0, 0, 0.4) };
+  const WIDE = { dist: layout.wide[2], target: new T.Vector3(layout.wideTarget[0], 0, layout.wideTarget[1]) };
   const CLOSE = 13;
   const cam = { target: WIDE.target.clone(), dist: WIDE.dist };
   const goal = { target: WIDE.target.clone(), dist: WIDE.dist, follow: -1 };
@@ -539,7 +703,7 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
     canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
     camera.aspect = w / h;
-    WIDE.dist = w / h < 0.8 ? 50 : w / h < 1.3 ? 34 : 26;
+    WIDE.dist = w / h < 0.8 ? layout.wide[0] : w / h < 1.3 ? layout.wide[1] : layout.wide[2];
     if (goal.follow < 0) goal.dist = WIDE.dist;
     camera.updateProjectionMatrix();
   }
@@ -706,7 +870,7 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
     g.add(car);
     return g;
   }
-  const STATION_SPOTS: [number, number, number][] = [[-2 * D - 1.6, 0, 0], [2 * D + 1.6, 0, 0], [-D, 0, D + 1.2], [D, 0, D + 1.2], [-D, 0, -D - 1.2], [D, 0, -D - 1.2]];
+  const STATION_SPOTS: [number, number, number][] = layout.stations.map(([x, z]) => [x, 0, z]);
   function applyDecor(next: Decor) {
     for (const key of houseTiles.splice(0)) {
       const tile = tiles[key];
@@ -729,13 +893,13 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
     }
     roof.color.setHex(next.facade ? 0xfbd000 : 0xc0264b);
     roof.metalness = next.facade ? 0.6 : 0;
-    deck.material.color.setHex(next.facade ? 0xb89a6a : 0x8d7aa8);
+    deck.material.color.setHex(island ? (next.facade ? 0xffe08a : 0xf2d9a0) : next.facade ? 0xb89a6a : 0x8d7aa8);
     while (decorGroup.children.length) decorGroup.remove(decorGroup.children[0]);
     for (let n = 0; n < Math.min(next.stations, STATION_SPOTS.length); n++) {
       const s = station();
       const [x, y, z] = STATION_SPOTS[n];
       s.position.set(x, y, z);
-      s.rotation.y = x < -D - 1 ? Math.PI / 2 : x > D + 1 ? -Math.PI / 2 : z < 0 ? Math.PI : 0;
+      s.rotation.y = Math.atan2(-x, -z); // face the middle of the board
       s.scale.setScalar(0.8);
       decorGroup.add(s);
     }
@@ -823,7 +987,7 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
     },
     async coinsFly(fromSeat, toSeat, count) {
       const from = tokens[fromSeat].position.clone();
-      const to = toSeat === null ? new T.Vector3(0, 2.5, castleZ) : tokens[toSeat].position.clone();
+      const to = toSeat === null ? new T.Vector3(layout.hub[0], layout.hub[1], layout.hub[2]) : tokens[toSeat].position.clone();
       const jobs: Promise<void>[] = [];
       for (let n = 0; n < Math.min(Math.max(count, 1) * 2, 12); n++) {
         const coin = new T.Mesh(coinGeo, coinMat);

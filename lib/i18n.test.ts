@@ -43,6 +43,9 @@ describe("languages", () => {
       "阿殭",
       "阿木",
       "阿強",
+      "阿狼",
+      "阿鬼",
+      "阿蝠",
     ];
     const missing = texts.filter((text) => translate("en", text) === text || /[一-鿿]/.test(translate("en", text)));
     assert.deepEqual(missing, []);

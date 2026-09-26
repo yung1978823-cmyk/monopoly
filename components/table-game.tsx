@@ -17,10 +17,13 @@ import {
   standings,
   type TableAction,
   type TableEvent,
+  type BoardId,
   type TableRules,
   type TableState,
 } from "@/lib/eight";
-import { hostReport, type Realm } from "@/lib/realm";
+import { hostReport, tableReward, type Realm, type Stock } from "@/lib/realm";
+import { addStock } from "@/lib/realm";
+import { loadWallet, saveWallet } from "@/components/wallet-store";
 import { useLang } from "@/lib/i18n";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
@@ -32,7 +35,24 @@ const CAST = [
   { name: "阿殭", avatar: "/art/avatars/jiangshi.jpg", colour: "#2563EB", bot: true },
   { name: "阿木", avatar: "/art/avatars/mummy.jpg", colour: "#D97706", bot: true },
   { name: "阿強", avatar: "/art/avatars/zombie.jpg", colour: "#16A34A", bot: true },
+  // Two more guests so a 領地 can seat six; no drawn faces yet, so they show an emoji.
+  { name: "阿狼", avatar: "", colour: "#DB2777", bot: true },
+  { name: "阿鬼", avatar: "", colour: "#0891B2", bot: true },
+  { name: "阿蝠", avatar: "", colour: "#9333EA", bot: true },
 ];
+const EMOJI: Record<string, string> = { 阿狼: "🐺", 阿鬼: "👻", 阿蝠: "🦇" };
+
+/** A player's face: the drawn avatar, or an emoji in a coloured circle. */
+function Face({ seat, className }: { seat: { name: string; avatar: string; colour: string }; className?: string }) {
+  if (seat.avatar) {
+    return <img src={seat.avatar} alt="" className={cn("rounded-full object-cover", className)} style={{ borderColor: seat.colour }} />;
+  }
+  return (
+    <span className={cn("flex items-center justify-center rounded-full", className)} style={{ borderColor: seat.colour, background: seat.colour }} aria-hidden>
+      {EMOJI[seat.name] ?? "🙂"}
+    </span>
+  );
+}
 
 export type Player = (typeof CAST)[number];
 export { CAST };
@@ -99,7 +119,7 @@ function Lobby({ onStart, onExit }: { onStart: (opponents: number) => void; onEx
               data-testid={`opponents-${count}`}
             >
               {CAST.slice(1, count + 1).map((seat) => (
-                <img key={seat.name} src={seat.avatar} alt="" className="size-8 rounded-full border-2 border-white object-cover" />
+                <Face key={seat.name} seat={seat} className="size-8 border-2 border-white" />
               ))}
             </button>
           ))}
@@ -107,12 +127,7 @@ function Lobby({ onStart, onExit }: { onStart: (opponents: number) => void; onEx
         <div className="flex items-center gap-2">
           {CAST.slice(0, opponents + 1).map((seat) => (
             <div key={seat.name} className="flex flex-col items-center">
-              <img
-                src={seat.avatar}
-                alt=""
-                className="size-14 rounded-full border-[3px] object-cover shadow-md"
-                style={{ borderColor: seat.colour }}
-              />
+              <Face seat={seat} className="size-14 border-[3px] text-3xl shadow-md" />
               <span className="-mt-2 rounded-full px-2 text-xs font-black text-white" style={{ background: seat.colour }}>
                 {t(seat.name)}
               </span>
@@ -160,15 +175,23 @@ export function EightBoard({
   rules,
   decor,
   realm,
+  board = "eight",
+  guestTicket,
 }: {
   players: Player[];
   onExit: () => void;
   onAgain: () => void;
   rules?: Partial<TableRules>;
   decor?: Decor;
+  /** Hosting on your own land: every seat is a guest and the end shows what you earned. */
   realm?: Realm;
+  board?: BoardId;
+  /** Playing on someone else's land: the ticket you paid to get in. */
+  guestTicket?: number;
 }) {
-  const [table, setTable] = useState<TableState>(() => newTable(players, rules));
+  const [table, setTable] = useState<TableState>(() => newTable(players, rules, board));
+  const publicTable = !realm && guestTicket === undefined;
+  const [reward, setReward] = useState<Stock | null>(null);
   const [loaded, setLoaded] = useState<"loading" | "ready" | "failed">("loading");
   const [busy, setBusy] = useState(true);
   const [fast, setFast] = useState(false);
@@ -339,7 +362,7 @@ export function EightBoard({
     loadThree()
       .then((T) => {
         if (cancelled || !mount.current) return;
-        scene = createBoardScene(T, mount.current, stateRef.current.seats.map((seat) => seat.colour), decorRef.current);
+        scene = createBoardScene(T, mount.current, stateRef.current.seats.map((seat) => seat.colour), decorRef.current, stateRef.current.board);
         sceneRef.current = scene;
         setLoaded("ready");
         aim(scene, stateRef.current.current);
@@ -401,6 +424,17 @@ export function EightBoard({
     return () => window.clearInterval(id);
   }, [waiting, table.tick, run]);
 
+  // Public table: your finish pays materials for your 領地 (private-land games pay none).
+  const awarded = useRef(false);
+  useEffect(() => {
+    if (!publicTable || table.phase !== "over" || awarded.current || table.seats[0]?.bot) return;
+    awarded.current = true;
+    const gain = tableReward(standings(table).indexOf(0), table.seats.length);
+    saveWallet(addStock(loadWallet(), gain));
+    const id = window.setTimeout(() => setReward(gain), 0);
+    return () => window.clearTimeout(id);
+  }, [publicTable, table]);
+
   const me = table.seats[0];
   const mine = !busy && loaded === "ready" && table.current === 0 && table.phase !== "over" && !me.bankrupt;
   const turnsEach = table.rules.turnsEach;
@@ -437,7 +471,7 @@ export function EightBoard({
               )}
               data-testid={`seat-${index}`}
             >
-              <img src={seat.avatar} alt="" className="size-9 rounded-full border-[3px] object-cover" style={{ borderColor: seat.colour }} />
+              <Face seat={seat} className="size-9 border-[3px] text-lg" />
               <span className="text-[11px] font-black leading-tight">{t(seat.name)}</span>
               <span key={seat.cash} className="flex items-center gap-0.5 text-sm font-black tabular-nums animate-[bump_0.35s_ease-out]">
                 <Coin />
@@ -553,8 +587,8 @@ export function EightBoard({
                       seat === 0 ? "border-[#FBD000] bg-[#FFF8D6]" : "border-[#E5EAF2]",
                     )}
                   >
-                    <span className="w-7 text-center text-xl">{["🥇", "🥈", "🥉", "4"][place]}</span>
-                    <img src={player.avatar} alt="" className="size-10 rounded-full border-[3px] object-cover" style={{ borderColor: player.colour }} />
+                    <span className="w-7 text-center text-xl">{["🥇", "🥈", "🥉", "4", "5", "6"][place]}</span>
+                    <Face seat={player} className="size-10 border-[3px] text-xl" />
                     <span className="flex-1 font-black">{t(player.name)}</span>
                     <span className="flex items-center gap-0.5 font-black tabular-nums">
                       <Coin />
@@ -570,6 +604,14 @@ export function EightBoard({
               })}
             </ol>
             {realm ? <HostReport realm={realm} guests={table.seats.length} houseRent={table.hostIncome} /> : null}
+            {guestTicket !== undefined ? (
+              <p className="mt-3 text-center text-sm font-black text-[#4C1D95]">{t("你入場付咗門票 {n}", { n: guestTicket })}</p>
+            ) : null}
+            {reward ? (
+              <p className="mt-3 rounded-2xl bg-[#FFF8D6] p-2 text-center text-sm font-black" data-testid="table-reward">
+                {t("材料獎勵：🪵{w} 🧱{s} 🪙{g}", { w: reward.wood, s: reward.stone, g: reward.gold })}
+              </p>
+            ) : null}
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -609,7 +651,7 @@ function HostReport({ realm, guests, houseRent }: { realm: Realm; guests: number
       <h3 className="text-center text-base">{t("🏰 主人收入")}</h3>
       {realm.ticket === 0 ? <p className="text-center text-xs">{t("免費場：分數局，冇門票")}</p> : null}
       {row(t("門票 {n} × {g} 位客", { n: realm.ticket, g: guests }), `+${report.tickets}`)}
-      {row(t("公司抽成（臨時 10%）"), `−${report.cut}`)}
+      {row(t("地稅 1.5%"), `−${report.tax}`)}
       {row(t("租金屋收租"), `+${report.houseRent}`)}
       {row(t("呢一局淨收"), `${report.net}`, true)}
       {report.tables > 1 ? row(t("{n} 張枱坐滿，每輪大約", { n: report.tables }), `${report.perRound}`) : null}

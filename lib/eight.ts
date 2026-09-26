@@ -17,6 +17,8 @@ export const HOUSE_CUT = 2;
 export const STAKE = ENTRY_FEE - HOUSE_CUT;
 
 export const TURNS_EACH = 12;
+/** Up to six at a table (a 領地 seats 2–6; the public table 2–4). */
+export const MAX_SEATS = 6;
 export const START_PAY = 2;
 export const BAIL = 1;
 export const CHEST_PAY = 3;
@@ -55,7 +57,7 @@ export const FORKS: Record<number, { road: Road; exit: number }> = {
 };
 export const ROAD_LENGTH = 3;
 
-export type SquareKind = "start" | "chest" | "cross" | "fly" | "jail" | "chance" | "tax" | "fork" | "lot";
+export type SquareKind = "start" | "chest" | "cross" | "fly" | "dock" | "jail" | "chance" | "tax" | "fork" | "lot";
 export type Square = { key: string; kind: SquareKind; price: number; gold: boolean; group: number };
 
 const SPECIAL: Record<number, SquareKind> = {
@@ -102,6 +104,48 @@ export const SQUARES: Record<string, Square> = (() => {
 export const LOT_KEYS = Object.values(SQUARES)
   .filter((square) => square.kind === "lot")
   .map((square) => square.key);
+
+// ---------- Other boards (the 領地 lands use their own boards) ----------
+
+export type BoardId = "eight" | "island";
+
+/** Everything the rules need to know about a board's shape. */
+export type Board = {
+  id: BoardId;
+  squares: Record<string, Square>;
+  lotKeys: string[];
+  jail: number;
+  keyOf: (spot: Spot) => string;
+  nextSpot: (spot: Spot, takeRoad?: boolean) => Spot;
+  isFork: (spot: Spot) => boolean;
+};
+
+/** 海島 (island): a plain ring of 20 around a lighthouse, with a pier where a boat sails you off. */
+export const ISLAND_LOOP = 20;
+export const ISLAND_JAIL = 15;
+const ISLAND_SPECIAL: Record<number, SquareKind> = { 0: "start", 3: "chance", 5: "chest", 8: "tax", 10: "dock", 13: "chance", 15: "jail", 18: "chest" };
+const ISLAND_SQUARES: Record<string, Square> = (() => {
+  const squares: Record<string, Square> = {};
+  for (let i = 0; i < ISLAND_LOOP; i += 1) {
+    const kind = ISLAND_SPECIAL[i] ?? "lot";
+    const group = Math.floor(i / 5);
+    squares[`o${i}`] = { key: `o${i}`, kind, price: kind === "lot" ? (group === 3 ? 3 : 2) : 0, gold: false, group };
+  }
+  return squares;
+})();
+
+export const BOARDS: Record<BoardId, Board> = {
+  eight: { id: "eight", squares: SQUARES, lotKeys: LOT_KEYS, jail: JAIL, keyOf, nextSpot, isFork },
+  island: {
+    id: "island",
+    squares: ISLAND_SQUARES,
+    lotKeys: Object.values(ISLAND_SQUARES).filter((s) => s.kind === "lot").map((s) => s.key),
+    jail: ISLAND_JAIL,
+    keyOf: (spot) => (spot.on === "loop" ? `o${spot.i}` : `${spot.on}${spot.k}`),
+    nextSpot: (spot) => ({ on: "loop", i: ((spot.on === "loop" ? spot.i : 0) + 1) % ISLAND_LOOP }),
+    isFork: () => false,
+  },
+};
 
 export function isFork(spot: Spot): boolean {
   return spot.on === "loop" && FORKS[spot.i] !== undefined;
@@ -199,6 +243,7 @@ export type TableState = {
   /** Bumps on every action. */
   tick: number;
   rules: TableRules;
+  board: BoardId;
   /** Rent paid to the host's rent houses this game. */
   hostIncome: number;
 };
@@ -210,16 +255,19 @@ export type TableAction =
 export function newTable(
   players: { name: string; avatar: string; colour: string; bot: boolean }[],
   rules: Partial<TableRules> = {},
+  board: BoardId = "eight",
 ): TableState {
+  const B = BOARDS[board];
   const houses = Object.fromEntries(
     Object.entries(rules.houses ?? {})
-      .filter(([key]) => SQUARES[key]?.kind === "lot")
+      .filter(([key]) => B.squares[key]?.kind === "lot")
       .map(([key, rent]) => [key, Math.max(0, Math.min(RENT_CAP, Math.floor(rent)))]),
   );
   return {
     rules: { turnsEach: rules.turnsEach ?? TURNS_EACH, houses, cards: rules.cards?.length ? rules.cards : CARDS },
+    board,
     hostIncome: 0,
-    seats: players.slice(0, 4).map((player) => ({
+    seats: players.slice(0, MAX_SEATS).map((player) => ({
       ...player,
       cash: STAKE,
       spot: { on: "loop", i: 0 },
@@ -238,8 +286,8 @@ export function newTable(
   };
 }
 
-export function rentOf(key: string, level: number): number {
-  return RENTS[level] * (SQUARES[key]?.gold ? 2 : 1);
+export function rentOf(key: string, level: number, board: BoardId = "eight"): number {
+  return RENTS[level] * (BOARDS[board].squares[key]?.gold ? 2 : 1);
 }
 
 /** Cash plus what land and levels cost to put down. */
@@ -247,7 +295,7 @@ export function netWorth(state: TableState, seat: number): number {
   const player = state.seats[seat];
   if (!player || player.bankrupt) return 0;
   return Object.entries(state.deeds).reduce(
-    (sum, [key, deed]) => (deed.owner === seat ? sum + SQUARES[key].price + (deed.level - 1) * UPGRADE_PRICE : sum),
+    (sum, [key, deed]) => (deed.owner === seat ? sum + BOARDS[state.board].squares[key].price + (deed.level - 1) * UPGRADE_PRICE : sum),
     player.cash,
   );
 }
@@ -298,7 +346,7 @@ function pay(state: TableState, seat: number, amount: number, to: number | null,
 
 function step(state: TableState, seat: number, takeRoad: boolean, events: TableEvent[]): TableState {
   const player = state.seats[seat];
-  const to = nextSpot(player.spot, takeRoad);
+  const to = BOARDS[state.board].nextSpot(player.spot, takeRoad);
   const passedStart = to.on === "loop" && to.i === 0;
   events.push({ kind: "step", seat, to, passedStart });
   return withSeat(state, seat, { spot: to, cash: player.cash + (passedStart ? START_PAY : 0) });
@@ -308,7 +356,7 @@ function step(state: TableState, seat: number, takeRoad: boolean, events: TableE
 function walk(state: TableState, seat: number, events: TableEvent[]): TableState {
   let next = state;
   while (next.stepsLeft > 0) {
-    if (isFork(next.seats[seat].spot)) {
+    if (BOARDS[next.board].isFork(next.seats[seat].spot)) {
       events.push({ kind: "fork", seat });
       return { ...next, phase: "fork" };
     }
@@ -320,8 +368,9 @@ function walk(state: TableState, seat: number, events: TableEvent[]): TableState
 /** What the square under the seat does. */
 function land(state: TableState, seat: number, events: TableEvent[], depth: number): TableState {
   const player = state.seats[seat];
-  const key = keyOf(player.spot);
-  const square = SQUARES[key];
+  const B = BOARDS[state.board];
+  const key = B.keyOf(player.spot);
+  const square = B.squares[key];
   switch (square.kind) {
     case "lot": {
       const house = state.rules.houses[key];
@@ -344,7 +393,7 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
         events.push({ kind: "upgraded", seat, key, level });
         return { ...withSeat(state, seat, { cash: player.cash - UPGRADE_PRICE }), deeds: { ...state.deeds, [key]: { owner: seat, level } } };
       }
-      const rent = rentOf(key, deed.level);
+      const rent = rentOf(key, deed.level, state.board);
       events.push({ kind: "rent", seat, to: deed.owner, amount: Math.min(rent, player.cash), key });
       return pay(state, seat, rent, deed.owner, events);
     }
@@ -357,9 +406,10 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
     case "tax":
       events.push({ kind: "tax", seat, amount: Math.min(TAX, player.cash) });
       return pay(state, seat, TAX, null, events);
-    case "fly": {
+    case "fly":
+    case "dock": {
       if (depth > 0) return state;
-      const forSale = LOT_KEYS.filter((lot) => state.rules.houses[lot] === undefined);
+      const forSale = B.lotKeys.filter((lot) => state.rules.houses[lot] === undefined);
       const empty = forSale.filter((lot) => !state.deeds[lot]);
       const pool = empty.length > 0 ? empty : forSale;
       const to = spotOf(pool[((state.draw.fly % pool.length) + pool.length) % pool.length]);
@@ -377,7 +427,7 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
       }
       if (card.kind === "jail") {
         events.push({ kind: "jailed", seat });
-        return withSeat(state, seat, { spot: { on: "loop", i: JAIL }, jailed: true });
+        return withSeat(state, seat, { spot: { on: "loop", i: B.jail }, jailed: true });
       }
       // Forward along the loop (forks are passed straight), then deal with that square once.
       let next = state;
