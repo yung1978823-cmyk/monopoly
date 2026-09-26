@@ -12,16 +12,15 @@ const LOGO_ART: string | null = "/art/logo.webp";
 export function TitleScreen({ onStart }: { onStart: () => void }) {
   const [progress, setProgress] = useState(0);
 
+  // A timer rather than animation frames, so the bar still fills when the page is in the background.
   useEffect(() => {
-    const started = performance.now();
-    let frame = 0;
-    const tick = (time: number) => {
-      const next = Math.min(1, (time - started) / LOAD_MS);
+    const started = Date.now();
+    const id = window.setInterval(() => {
+      const next = Math.min(1, (Date.now() - started) / LOAD_MS);
       setProgress(next);
-      if (next < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
+      if (next >= 1) window.clearInterval(id);
+    }, 50);
+    return () => window.clearInterval(id);
   }, []);
 
   const ready = progress >= 1;
