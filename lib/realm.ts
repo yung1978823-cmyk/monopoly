@@ -6,7 +6,8 @@
  *  - Three kinds of land, each with its own new board: 海島, 山城, 火山.
  *  - Buildings are not bought with money alone: each needs materials (木材, 石磚, 金塊).
  *  - It is private land: 2–6 people play there; the owner sets the ticket (max 20) and the
- *    fewest players a game starts with. The company takes 1.5% of the ticket money as 地稅.
+ *    fewest players a game starts with. The company takes 2.5% of the ticket money as 地稅
+ *    (a 20 ticket pays 0.5).
  *  - For now computer guests stand in for real players; a real wallet comes later, so money and
  *    materials sit behind a small "wallet" record that can be swapped for the chain.
  *
@@ -26,7 +27,7 @@ export const LANDS: Record<LandKind, { price: number; slots: number; squares: nu
 };
 
 /** 地稅: the company's share of the ticket money on private land. */
-export const LAND_TAX = 0.015;
+export const LAND_TAX = 0.025;
 export const MAX_TICKET = 20;
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 6;
@@ -213,12 +214,12 @@ export function rulesOf(realm: Realm): Partial<TableRules> {
   };
 }
 
-/** What one game paid: tickets in, 1.5% 地稅 to the company, rent houses on top. */
+/** What one game paid: tickets in, 2.5% 地稅 to the company, rent houses on top. */
 export function hostReport(realm: Realm, guests: number, houseRent: number) {
   const tickets = realm.ticket * guests;
-  const tax = Math.round(tickets * LAND_TAX * 100) / 100;
-  const net = Math.round((tickets - tax + houseRent) * 100) / 100;
-  return { tickets, tax, houseRent, net, perRound: Math.round(net * tablesOf(realm) * 100) / 100, tables: tablesOf(realm) };
+  const tax = Math.round(tickets * LAND_TAX * 1000) / 1000;
+  const net = Math.round((tickets - tax + houseRent) * 1000) / 1000;
+  return { tickets, tax, houseRent, net, perRound: Math.round(net * tablesOf(realm) * 1000) / 1000, tables: tablesOf(realm) };
 }
 
 // ---------- Other people's land, for the 領地列表 (practice: computer owners) ----------

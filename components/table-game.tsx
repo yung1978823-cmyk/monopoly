@@ -21,7 +21,7 @@ import {
   type TableRules,
   type TableState,
 } from "@/lib/eight";
-import { hostReport, tableReward, type Realm, type Stock } from "@/lib/realm";
+import { LAND_TAX, hostReport, tableReward, type Realm, type Stock } from "@/lib/realm";
 import { addStock } from "@/lib/realm";
 import { loadWallet, saveWallet } from "@/components/wallet-store";
 import { useLang } from "@/lib/i18n";
@@ -651,7 +651,7 @@ function HostReport({ realm, guests, houseRent }: { realm: Realm; guests: number
       <h3 className="text-center text-base">{t("🏰 主人收入")}</h3>
       {realm.ticket === 0 ? <p className="text-center text-xs">{t("免費場：分數局，冇門票")}</p> : null}
       {row(t("門票 {n} × {g} 位客", { n: realm.ticket, g: guests }), `+${report.tickets}`)}
-      {row(t("地稅 1.5%"), `−${report.tax}`)}
+      {row(t("地稅 {n}%", { n: LAND_TAX * 100 }), `−${report.tax}`)}
       {row(t("租金屋收租"), `+${report.houseRent}`)}
       {row(t("呢一局淨收"), `${report.net}`, true)}
       {report.tables > 1 ? row(t("{n} 張枱坐滿，每輪大約", { n: report.tables }), `${report.perRound}`) : null}

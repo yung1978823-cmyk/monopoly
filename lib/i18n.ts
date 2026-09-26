@@ -202,7 +202,6 @@ const DICT: Record<string, { hans: string; en: string }> = {
   "買一件{m}，{n} 分": { hans: "买一件{m}，{n} 分", en: "Buy one {m} for {n} points" },
   公開桌按名次都會派材料: { hans: "公开桌按名次也会派材料", en: "The public table also gives materials by place" },
   "地稅 {n}%": { hans: "地税 {n}%", en: "Land tax {n}%" },
-  "地稅 1.5%": { hans: "地税 1.5%", en: "Land tax 1.5%" },
   最少人數: { hans: "最少人数", en: "Fewest players" },
   "{a} 至 {b} 人，夠人先開局": { hans: "{a} 至 {b} 人，人够才开局", en: "{a} to {b}; the game starts once enough join" },
   材料唔夠: { hans: "材料不够", en: "Not enough materials" },

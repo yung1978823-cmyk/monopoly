@@ -111,13 +111,15 @@ describe("領地: tickets, players and 地稅", () => {
     assert.equal(setMinPlayers(emptyRealm(), 0).minPlayers, 2);
   });
 
-  it("takes 1.5% of the ticket money as 地稅", () => {
+  it("takes 2.5% of the ticket money as 地稅: 0.5 on a 20 ticket", () => {
     const realm = setTicket(buyLand(emptyRealm(), newWallet(), "island").realm, 10);
     const report = hostReport(realm, 4, 3);
-    assert.equal(LAND_TAX, 0.015);
+    assert.equal(LAND_TAX, 0.025);
     assert.equal(report.tickets, 40);
-    assert.equal(report.tax, 0.6);
-    assert.equal(report.net, 42.4);
+    assert.equal(report.tax, 1);
+    assert.equal(report.net, 42);
+    assert.equal(hostReport(setTicket(realm, 20), 1, 0).tax, 0.5);
+    assert.equal(hostReport(setTicket(realm, 5), 1, 0).tax, 0.125);
   });
 
   it("every published deck pays out nothing on average", () => {
