@@ -63,7 +63,7 @@ function loadGltfLoader(T: any): Promise<any> {
  */
 export const ACTORS: Record<string, { url: string; walkPace: number }> = {
   vampire: { url: "/models/vampire.glb", walkPace: 2.4 },
-  jiangshi: { url: "/models/jiangshi.glb", walkPace: 1.8 },
+  jiangshi: { url: "/models/jiangshi.glb", walkPace: 1.5 },
   mummy: { url: "/models/mummy.glb", walkPace: 2.2 },
   zombie: { url: "/models/zombie.glb", walkPace: 2.2 },
 };
