@@ -397,17 +397,6 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     bits.forEach((b, n) => breathers.push({ obj: b, phase: n * 2, period: 4 + n, shadow: null, glow: null, base: b.position.y, glowY: 0, amp: 0.2 }));
   }
 
-  // ---------- Far away: distant floating rocks, drifting slower than the board ----------
-  const far = new T.Group();
-  scene.add(far);
-  {
-    for (let k = 0; k < 12; k++) {
-      const a = (k / 12) * Math.PI * 2 + Math.random() * 0.3, d = 26 + Math.random() * 14;
-      const rock = islandMesh(1.5 + Math.random() * 2.5, 900 + k * 7, 0x3f6b4a);
-      rock.group.position.set(Math.cos(a) * d, -6 + Math.random() * 9, Math.sin(a) * d);
-      far.add(rock.group);
-    }
-  }
   // Outer space behind the board replaces the dark floor (and the islands' shadows on it).
   const backdrop = createSpace(T, scene, camera, { reduceMotion });
   for (const b of breathers) if (b.shadow) b.shadow.visible = false;
@@ -884,9 +873,6 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const yaw = view.yaw + sway, flat = Math.cos(view.elev) * view.dist;
     camera.position.set(target.x + Math.sin(yaw) * flat, Math.sin(view.elev) * view.dist, target.z + Math.cos(yaw) * flat);
     camera.lookAt(target);
-    // The far layer turns along with the camera by half, so it seems to drift at half the speed.
-    far.rotation.y = yaw * 0.5;
-    far.position.y = (view.elev - 0.9) * 6;
     // The rune: glows and pulses on your go; the stone dips a little when tapped.
     rune.level += ((rune.ready ? 1 : 0) - rune.level) * Math.min(1, dt * 4);
     const pulse = rune.level * (0.75 + 0.25 * Math.sin(now / 420));
