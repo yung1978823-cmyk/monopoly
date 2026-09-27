@@ -701,6 +701,8 @@ export function createBoardScene(
       void tween(220, (k) => token.position.lerpVectors(from, to, k));
     }
   }
+  /** When each seat last moved; a little after that, it turns round to face the camera. */
+  const lastMoved: number[] = colours.map(() => 0);
   const face = (seat: number, target: any) => {
     const p = tokens[seat].position;
     tokens[seat].rotation.y = Math.atan2(target.x - p.x, target.z - p.z);
@@ -936,6 +938,14 @@ export function createBoardScene(
       goal.target.set(p.x, 0, p.z - 0.6);
     }
     rigs.forEach((rig) => rig.mixer.update(dt * speed));
+    // Standing still: turn (smoothly) to face the camera, never back or side on.
+    const clock = performance.now();
+    tokens.forEach((token, seat) => {
+      if (gone.has(seat) || clock - lastMoved[seat] < 450) return;
+      const want = Math.atan2(camera.position.x - token.position.x, camera.position.z - token.position.z);
+      const delta = ((want - token.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      if (Math.abs(delta) > 0.01) token.rotation.y += delta * Math.min(1, dt * 5);
+    });
     const ease = 1 - Math.pow(0.03, dt * speed);
     if (!dragged || goal.follow < 0) cam.target.lerp(goal.target, ease);
     cam.dist += (goal.dist - cam.dist) * ease;
@@ -1146,6 +1156,7 @@ export function createBoardScene(
       dice.forEach((d) => (d.visible = false));
     },
     async stepTo(seat, spot) {
+      lastMoved[seat] = performance.now();
       const token = tokens[seat];
       const left = squareOf(spots[seat]);
       spots[seat] = spot;
@@ -1170,6 +1181,7 @@ export function createBoardScene(
       squash(keyOf(spot));
     },
     async flyTo(seat, spot) {
+      lastMoved[seat] = performance.now() + 1200;
       const token = tokens[seat];
       const left = squareOf(spots[seat]);
       spots[seat] = spot;
@@ -1184,6 +1196,7 @@ export function createBoardScene(
         token.rotation.y += 0.2;
       });
       walking(seat, false);
+      lastMoved[seat] = performance.now();
       squash(keyOf(spot));
     },
     async own(key, seat, level) {
