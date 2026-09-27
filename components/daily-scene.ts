@@ -165,6 +165,26 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     return { group: g, top: grass };
   }
 
+  /** The picture for each kind of square (the meat one is drawn from its emoji until its picture comes). */
+  const iconCache: Record<string, any> = {};
+  function iconTex(kind: string) {
+    if (!iconCache[kind]) {
+      if (kind === "meat") {
+        const c = document.createElement("canvas");
+        c.width = c.height = 128;
+        const g = c.getContext("2d")!;
+        g.font = "96px serif";
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText("🍖", 64, 70);
+        iconCache[kind] = new T.CanvasTexture(c);
+      } else {
+        iconCache[kind] = new T.TextureLoader().load(`/art/icons/${kind}.webp`);
+      }
+      iconCache[kind].encoding = T.sRGBEncoding;
+    }
+    return iconCache[kind];
+  }
   /** A word label standing over a square, always facing the camera. */
   function label(text: string, colour: string) {
     const c = document.createElement("canvas");
@@ -203,9 +223,14 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const isle = islandMesh(big ? 1.3 : 1.1, 200 + i * 23, TOPS[tile.kind]);
     isle.group.position.set(x, 0, z);
     scene.add(isle.group);
-    const tag = label(labels[i] ?? tile.name, `#${TOPS[tile.kind].toString(16).padStart(6, "0")}`);
+    // No words over the squares (Sky): a picture of what the square does instead, floating above it.
+    void label;
+    void labels;
+    const tag = new T.Sprite(new T.SpriteMaterial({ map: iconTex(tile.kind), transparent: true, depthWrite: false }));
+    const iconSize = big ? 0.95 : 0.8;
+    tag.scale.set(iconSize, iconSize, 1);
+    tag.center.set(0.5, 0.15);
     tag.position.set(0, TOP + 0.55, 0);
-    tag.visible = false; // Sky: no words over the squares
     isle.group.add(tag);
     const shadow = new T.Mesh(new T.PlaneGeometry(1.8, 1.8), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
@@ -827,7 +852,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     }
     // The label of the square you stand on lifts above your head so it stays readable.
     islands.forEach((isle, i) => {
-      const want = heroState.ready && i === shipAt.index ? TOP + HERO_HEIGHT + 0.45 : TOP + 0.55;
+      const want = heroState.ready && i === shipAt.index ? TOP + HERO_HEIGHT + 0.45 : TOP + 0.3 + Math.sin(now / 700 + i * 0.9) * 0.06;
       isle.tag.position.y += (want - isle.tag.position.y) * Math.min(1, dt * 8);
     });
     // Floating words.
