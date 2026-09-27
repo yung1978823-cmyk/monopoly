@@ -14,6 +14,7 @@ import {
   nftCount,
   parseSave,
   reduce,
+  type GameState,
 } from "./game";
 import { rollElement } from "./pet";
 import { DICE_CAP, LEVEL_COSTS, REFILL_MS, hitChance, smashPoints } from "./rules";
@@ -417,7 +418,7 @@ describe("daily board", () => {
     const fed = { ...state, meat: 999, juice: 999 };
     assert.equal(reduce(fed, { type: "grow-pet" }), fed, "an egg can't be fed: it hatches by rolling");
     // 59 rolls on the board: still an egg; the 60th hatches it.
-    let rolling = { ...state, dice: 20, pet: { ...state.pet!, rolls: 58 } };
+    let rolling: GameState = { ...state, dice: 20, pet: { ...state.pet!, rolls: 58 } };
     rolling = reduce(rolling, { type: "move", faces: [2, 3], now: NOW });
     assert.deepEqual([rolling.pet?.stage, rolling.pet?.rolls], [0, 59]);
     rolling = reduce(rolling, { type: "move", faces: [2, 2], now: NOW });
