@@ -652,7 +652,7 @@ export function createSpace(
   T: any,
   scene: any,
   camera: any,
-  opts: { reduceMotion?: boolean; picture?: SpacePicture; extras?: boolean; far?: number; meteor?: boolean },
+  opts: { reduceMotion?: boolean; picture?: SpacePicture; extras?: boolean; far?: number; meteor?: boolean; ringed?: boolean; rocks?: boolean },
 ): Backdrop {
   const still = !!opts.reduceMotion;
   const pic = opts.picture ?? BOARD_SPACE;
@@ -699,7 +699,7 @@ export function createSpace(
   const shoot = { at: 3, u: 0, v: 0, du: 0, dv: 0 };
   // The ringed planet, floating on the left.
   const ringed = flat(load("/art/space-ringed.webp"));
-  ringed.visible = extras;
+  ringed.visible = !!opts.ringed;
   sky.add(ringed);
   // The comet (drawn on black, so it's added as light), streaking by now and then.
   const comet = flat(load("/art/space-comet.webp"), { blending: T.AdditiveBlending, opacity: 0 });
@@ -714,7 +714,7 @@ export function createSpace(
   const meteorRun = { at: 4, u0: 0, v0: 0, u1: 0, v1: 0, dur: 2.6 };
   // Asteroids drifting and tumbling round the board, in the world (so the board passes in front).
   const rockTex = load("/art/space-rock.webp");
-  const rocks = (extras ? [0, 1, 2, 3] : []).map((i) => {
+  const rocks = (opts.rocks ? [0, 1, 2, 3] : []).map((i) => {
     const r = new T.Sprite(new T.SpriteMaterial({ map: rockTex, transparent: true, depthWrite: false, fog: false }));
     scene.add(r);
     return { r, a0: i * 1.7 + 0.4, dist: 15 + i * 4, y: -5 + i * 3.2, size: 1.2 + (i % 3) * 0.7, spin: (i % 2 ? 1 : -1) * (0.2 + i * 0.07), speed: 0.03 + (3 - i) * 0.01 };

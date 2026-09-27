@@ -205,6 +205,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     scene.add(isle.group);
     const tag = label(labels[i] ?? tile.name, `#${TOPS[tile.kind].toString(16).padStart(6, "0")}`);
     tag.position.set(0, TOP + 0.55, 0);
+    tag.visible = false; // Sky: no words over the squares
     isle.group.add(tag);
     const shadow = new T.Mesh(new T.PlaneGeometry(1.8, 1.8), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
