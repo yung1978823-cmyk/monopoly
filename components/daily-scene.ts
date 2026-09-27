@@ -256,7 +256,8 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
         new T.PlaneGeometry(4.4, 4.4),
         new T.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, ...(glow ? { blending: T.AdditiveBlending, opacity: 0 } : {}) }),
       );
-      m.rotation.x = -Math.PI / 2;
+      // Lie flat, turned so GO reads upright from the home camera angle.
+      m.rotation.set(-Math.PI / 2, 0, HOME_YAW);
       m.position.y = TOP + (glow ? 0.03 : 0.02);
       big.group.add(m);
       return m;
