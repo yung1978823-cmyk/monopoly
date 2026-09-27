@@ -642,10 +642,23 @@ function beamTex(T: any) {
  * and stars more, which gives depth. On top: stars twinkle, shooting stars streak by, nebula glows
  * drift and breathe, the small blue planet floats and turns, and stardust drifts round the board.
  */
-export function createSpace(T: any, scene: any, camera: any, opts: { reduceMotion?: boolean }): Backdrop {
+type SpacePicture = { url: string; w: number; h: number; planet: { url: string; x: number; y: number; px: number; depth: number } };
+/** The first-layer board's picture (the small blue planet top right is cut out so it can float). */
+export const BOARD_SPACE: SpacePicture = { url: "/art/space.webp", w: 941, h: 1672, planet: { url: "/art/space-planet.webp", x: 826, y: 162, px: 114, depth: 1.35 } };
+/** The public table's picture (its striped planet top right is cut out). */
+export const TABLE_SPACE: SpacePicture = { url: "/art/table-space.webp", w: 941, h: 1672, planet: { url: "/art/table-planet.webp", x: 792, y: 174, px: 154, depth: 1 } };
+
+export function createSpace(
+  T: any,
+  scene: any,
+  camera: any,
+  opts: { reduceMotion?: boolean; picture?: SpacePicture; extras?: boolean; far?: number },
+): Backdrop {
   const still = !!opts.reduceMotion;
-  const IMG_W = 941, IMG_H = 1672, D = 200;
-  const PLANET = { u: 826 / IMG_W, v: 162 / IMG_H, size: 114 / IMG_W };
+  const pic = opts.picture ?? BOARD_SPACE;
+  const extras = opts.extras ?? true;
+  const IMG_W = pic.w, IMG_H = pic.h, D = opts.far ?? 200;
+  const PLANET = { u: pic.planet.x / IMG_W, v: pic.planet.y / IMG_H, size: pic.planet.px / IMG_W };
   const load = (url: string) => {
     const t = new T.TextureLoader().load(url);
     t.encoding = T.sRGBEncoding;
@@ -656,13 +669,13 @@ export function createSpace(T: any, scene: any, camera: any, opts: { reduceMotio
   if (!camera.parent) scene.add(camera);
   const sky = new T.Group();
   camera.add(sky);
-  const back = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ map: load("/art/space.webp"), depthWrite: false, fog: false }));
+  const back = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ map: load(pic.url), depthWrite: false, fog: false, toneMapped: false }));
   back.position.z = -D;
   back.renderOrder = -100;
   sky.add(back);
   const flat = (map: any, extra: Record<string, unknown> = {}) =>
-    new T.Sprite(new T.SpriteMaterial(Object.assign({ map, transparent: true, depthWrite: false, fog: false }, extra)));
-  const planet = flat(load("/art/space-planet.webp"));
+    new T.Sprite(new T.SpriteMaterial(Object.assign({ map, transparent: true, depthWrite: false, fog: false, toneMapped: false }, extra)));
+  const planet = flat(load(pic.planet.url));
   sky.add(planet);
   // Twinkling stars (in picture units, -0.5…0.5 across and down).
   const dot = dotTex(T);
@@ -686,14 +699,16 @@ export function createSpace(T: any, scene: any, camera: any, opts: { reduceMotio
   const shoot = { at: 3, u: 0, v: 0, du: 0, dv: 0 };
   // The ringed planet, floating on the left.
   const ringed = flat(load("/art/space-ringed.webp"));
+  ringed.visible = extras;
   sky.add(ringed);
   // The comet (drawn on black, so it's added as light), streaking by now and then.
   const comet = flat(load("/art/space-comet.webp"), { blending: T.AdditiveBlending, opacity: 0 });
+  comet.visible = extras;
   sky.add(comet);
   const cometRun = { at: 6 };
   // Asteroids drifting and tumbling round the board, in the world (so the board passes in front).
   const rockTex = load("/art/space-rock.webp");
-  const rocks = [0, 1, 2, 3].map((i) => {
+  const rocks = (extras ? [0, 1, 2, 3] : []).map((i) => {
     const r = new T.Sprite(new T.SpriteMaterial({ map: rockTex, transparent: true, depthWrite: false, fog: false }));
     scene.add(r);
     return { r, a0: i * 1.7 + 0.4, dist: 15 + i * 4, y: -5 + i * 3.2, size: 1.2 + (i % 3) * 0.7, spin: (i % 2 ? 1 : -1) * (0.2 + i * 0.07), speed: 0.03 + (3 - i) * 0.01 };
@@ -732,7 +747,7 @@ export function createSpace(T: any, scene: any, camera: any, opts: { reduceMotio
     back.position.set(sx, sy, -D);
     const at = (u: number, v: number, depth: number, z = -D + 1) => [sx * depth + u * pw, sy * depth - v * ph, z] as const;
     const t = clock;
-    const [px, py] = at(PLANET.u - 0.5, PLANET.v - 0.5, 1.35);
+    const [px, py] = at(PLANET.u - 0.5, PLANET.v - 0.5, pic.planet.depth);
     planet.position.set(px, py + Math.sin(t * 0.6) * ph * 0.006, -D + 2);
     planet.scale.set(PLANET.size * pw, PLANET.size * pw, 1);
     planet.material.rotation = Math.sin(t * 0.25) * 0.08;

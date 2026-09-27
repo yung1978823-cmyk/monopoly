@@ -11,6 +11,7 @@
  * functions to play back the events a move produced.
  */
 import { BOARDS, EDGE_STEPS, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
+import { TABLE_SPACE, createSpace, type Backdrop } from "@/components/backdrop";
 
 const THREE_URL = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
 let loading: Promise<any> | null = null;
@@ -430,6 +431,8 @@ export function createBoardScene(
   const bobs = new Map<string, number>();
   let deckMat: any = null;
   let motes: any = null;
+  /** The outer-space backdrop (八字 board). */
+  let space: Backdrop | null = null;
   /** The two monsters, one in the middle of each diamond (八字 board only). */
   const monsters: Partial<Record<"left" | "right", { group: any; head: any; mouth: any; phase: number }>> = {};
   if (island) {
@@ -445,30 +448,9 @@ export function createBoardScene(
     grass.position.y = 0.02;
     scene.add(grass);
   } else {
-    const mist = new T.Mesh(new T.PlaneGeometry(400, 400), new T.MeshStandardMaterial({ color: 0x122418, roughness: 1 }));
-    mist.rotation.x = -Math.PI / 2;
-    mist.position.y = FLOOR;
-    mist.receiveShadow = true;
-    scene.add(mist);
-    // Far away in the haze: tall rock pillars with grass caps. They drift slower than the board (parallax).
-    for (let i = 0; i < 16; i++) {
-      const a = (i / 16) * Math.PI * 2, r = 55 + (i % 4) * 10, h = 14 + (i % 5) * 5;
-      const pillar = new T.Mesh(new T.CylinderGeometry(3 + (i % 3) * 1.5, 4 + (i % 3) * 1.5, h, 7), new T.MeshStandardMaterial({ color: 0x3f5a3a, flatShading: true }));
-      pillar.position.set(Math.cos(a) * r, h / 2 - 8, Math.sin(a) * r);
-      const cap = new T.Mesh(new T.CylinderGeometry(4 + (i % 3) * 1.5, 3.2 + (i % 3) * 1.5, 1.4, 7), new T.MeshStandardMaterial({ color: 0x4e8a37, flatShading: true }));
-      cap.position.set(pillar.position.x, h - 8 + 0.6, pillar.position.z);
-      far.add(pillar, cap);
-    }
-    // Shafts of light slanting down through the canopy, and motes of light drifting up.
-    for (let i = 0; i < 5; i++) {
-      const ray = new T.Mesh(
-        new T.CylinderGeometry(0.6, 1.8, 26, 12, 1, true),
-        new T.MeshBasicMaterial({ color: 0xfff3b0, transparent: true, opacity: 0.025, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide }),
-      );
-      ray.position.set(-12 + i * 6, 10, -10 - (i % 2) * 4);
-      ray.rotation.z = 0.35;
-      scene.add(ray);
-    }
+    // Outer space all round (the public table's own picture), in place of the old forest floor.
+    space = createSpace(T, scene, camera, { reduceMotion, picture: TABLE_SPACE, extras: false, far: 180 });
+    // Motes of stardust drifting up.
     const count = 200, pos = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
       pos[i * 3] = (Math.random() - 0.5) * 24;
@@ -477,7 +459,7 @@ export function createBoardScene(
     }
     const geo = new T.BufferGeometry();
     geo.setAttribute("position", new T.BufferAttribute(pos, 3));
-    motes = new T.Points(geo, new T.PointsMaterial({ size: 0.12, map: glowTex, color: 0xd9ff9c, transparent: true, depthWrite: false, blending: T.AdditiveBlending }));
+    motes = new T.Points(geo, new T.PointsMaterial({ size: 0.12, map: glowTex, color: 0xdfe6ff, transparent: true, depthWrite: false, blending: T.AdditiveBlending }));
     scene.add(motes);
     // The monsters' two big islands, with a few trees round the edge.
     for (const x of [-D, D]) {
@@ -643,6 +625,7 @@ export function createBoardScene(
     const shadow = new T.Mesh(new T.PlaneGeometry(1.7 * ISLE, 1.7 * ISLE), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
     shadow.position.set(x, FLOOR + 0.02, z);
+    shadow.visible = island; // nothing below to cast on in space
     scene.add(shadow);
     const glow = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: square.kind === "start" ? 0x6fe3ff : 0x9dffb0, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.5 }));
     glow.scale.set(1.4 * ISLE, 0.9, 1);
@@ -1141,6 +1124,7 @@ export function createBoardScene(
   let last = performance.now();
   function frame(now: number) {
     const dt = Math.min(0.05, (now - last) / 1000);
+    space?.update(now, dt);
     last = now;
     for (let i = anims.length - 1; i >= 0; i--) {
       const a = anims[i];
