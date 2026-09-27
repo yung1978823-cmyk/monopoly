@@ -612,7 +612,9 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     sprite.visible = false;
     return sprite;
   };
-  type PetMode = "walk" | "rest" | "fly" | "sleep" | "happy";
+  type PetMode = "walk" | "rest" | "fly" | "tour" | "sleep" | "happy";
+  /** A lap of the whole board: take off, circle over the squares, and land back where it left. */
+  const TOUR_MS = 11000, TOUR_RADIUS = 6.1, TOUR_HEIGHT = 2.4;
   let eggTap = () => undefined as void;
   let pet: {
     m: Monster;
@@ -623,6 +625,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     until: number;
     lift: number;
     spin: number;
+    tourAt: number;
     food: any;
     zzz: any;
   } | null = null;
@@ -642,12 +645,12 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     m.group.add(food, zzz);
     food.position.y = m.height / 0.95 + 0.35;
     zzz.position.y = m.height / 0.95 + 0.3;
-    pet = { m, look, angle: back, goal: back, mode: "rest", until: performance.now() + 2000, lift: 0, spin: 0, food, zzz };
+    pet = { m, look, angle: back, goal: back, mode: "rest", until: performance.now() + 2000, lift: 0, spin: 0, tourAt: 0, food, zzz };
     m.group.position.copy(petSpot(back));
     m.group.rotation.y = HOME_YAW;
   }
   function happy() {
-    if (!pet || pet.look.stage === 0) return;
+    if (!pet || pet.look.stage === 0 || pet.mode === "tour") return;
     pet.mode = "happy";
     pet.until = performance.now() + 1300;
     pet.spin = 0;
@@ -659,14 +662,15 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const hungry = pet.look.hungry;
     const mode: PetMode = hungry
       ? r < 0.55 ? "rest" : r < 0.85 ? "walk" : "sleep"
-      : r < 0.45 ? "walk" : r < 0.7 ? "rest" : r < 0.85 ? "fly" : "sleep";
+      : r < 0.4 ? "walk" : r < 0.6 ? "rest" : r < 0.72 ? "fly" : r < 0.86 ? "tour" : "sleep";
     pet.mode = mode;
     if (mode === "walk") {
       // Anywhere round the back three-quarters of the rim, clear of the dice at the front.
       pet.goal = HOME_YAW + Math.PI * (0.35 + Math.random() * 1.3);
       pet.until = now + 9000;
     } else {
-      pet.until = now + (mode === "sleep" ? 7000 + Math.random() * 5000 : mode === "fly" ? 2400 : 3000 + Math.random() * 3000);
+      if (mode === "tour") pet.tourAt = now;
+      pet.until = now + (mode === "tour" ? TOUR_MS : mode === "sleep" ? 7000 + Math.random() * 5000 : mode === "fly" ? 2400 : 3000 + Math.random() * 3000);
     }
   }
   function updatePet(now: number, dt: number) {
@@ -694,10 +698,26 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       wantYaw = faceCamera() + pet.spin;
       wantLift = 0.15;
     }
+    if (pet.mode === "tour") {
+      // Up, a full lap over the squares (the way the tokens go), and back down to where it took off.
+      const k = Math.min(1, (now - pet.tourAt) / TOUR_MS);
+      const out = Math.min(1, k / 0.15), back = Math.min(1, (1 - k) / 0.15);
+      const blend = Math.min(out, back);
+      const ease = blend * blend * (3 - 2 * blend);
+      const a = pet.angle - k * Math.PI * 2;
+      const radius = PET_RING + (TOUR_RADIUS - PET_RING) * ease;
+      const height = TOUR_HEIGHT * ease + Math.sin(k * Math.PI * 6) * 0.25 * ease;
+      pet.m.group.position.set(Math.sin(a) * radius, TOP + height, Math.cos(a) * radius);
+      pet.m.group.rotation.y = a - Math.PI / 2;
+      pet.m.setMood("fly");
+      pet.food.visible = false;
+      pet.zzz.visible = false;
+      return;
+    }
     pet.lift += (wantLift - pet.lift) * Math.min(1, dt * 3);
     pet.m.group.position.copy(petSpot(pet.angle, pet.lift));
     pet.m.group.rotation.y = pet.mode === "happy" ? wantYaw : turnToward(pet.m.group.rotation.y, wantYaw, dt * 6);
-    const mood: Mood = pet.mode === "rest" ? "rest" : pet.mode;
+    const mood: Mood = pet.mode;
     pet.m.setMood(mood);
     pet.food.visible = pet.look.hungry && pet.mode === "rest";
     pet.zzz.visible = pet.mode === "sleep";
