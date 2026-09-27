@@ -291,7 +291,10 @@ export function EightBoard({
             play("build");
             say(event.level >= 4 ? "{name} 起咗地標！" : "{name} 升到第 {n} 級", { name: who(event.seat), n: event.level });
             await Promise.all([scene.own(event.key, event.seat, event.level), scene.pulse(event.seat, true)]);
-            if (event.level >= 4) await Promise.all([scene.fireworks(event.seat, 2), scene.coinsBurst(event.seat, 4)]);
+            if (event.level >= 4) {
+              scene.cheer(event.seat);
+              await Promise.all([scene.fireworks(event.seat, 2), scene.coinsBurst(event.seat, 4)]);
+            }
             break;
           case "rent":
             play("bad");
@@ -301,6 +304,7 @@ export function EightBoard({
           case "bonus":
             play(event.reason === "chest" ? "chest" : "coin");
             say(event.reason === "chest" ? "{name} 開寶箱 +{n}" : "{name} 十字路口 +{n}", { name: who(event.seat), n: event.amount });
+            if (event.reason === "chest") scene.cheer(event.seat);
             await Promise.all([scene.coinsBurst(event.seat, event.amount), event.reason === "chest" ? scene.sparkle(event.seat) : null]);
             break;
           case "tax":
@@ -368,6 +372,7 @@ export function EightBoard({
         scene.hideDice();
         scene.focus(null);
         // The winner gets a show before the results come up.
+        scene.cheer(standings(next)[0]);
         await scene.fireworks(standings(next)[0], 3);
         if (sceneRef.current !== scene) return;
       }

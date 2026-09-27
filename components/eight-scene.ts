@@ -82,6 +82,8 @@ export type BoardScene = {
   fireworks(seat: number, shots?: number): Promise<void>;
   /** Gold twinkles rising from a seat (chests) or around the dice (doubles). */
   sparkle(seat: number | "dice"): Promise<void>;
+  /** The vampire throws his arms up (only the hero seat has the moves); doesn't hold up the game. */
+  cheer(seat: number): void;
   removeToken(seat: number): void;
   wait(ms: number): Promise<void>;
   /** 領地 buildings on show: rent houses on their squares, a gold facade, train stations. */
@@ -672,7 +674,7 @@ export function createBoardScene(
   };
 
   // ---------- The vampire takes over the hero seat's token ----------
-  let hero: { mixer: any; walk: any } | null = null;
+  let hero: { mixer: any; walk: any; cheer: any } | null = null;
   let heroIdle = 0;
   let disposed = false;
   if (heroSeat !== undefined && tokens[heroSeat]) {
@@ -695,10 +697,24 @@ export function createBoardScene(
         g.children.forEach((c: any) => (c.visible = false));
         g.add(model);
         const mixer = new T.AnimationMixer(model);
-        const walk = mixer.clipAction(gltf.animations[0]);
+        const walk = mixer.clipAction(gltf.animations.find((a: any) => a.name !== "cheer") ?? gltf.animations[0]);
         walk.play();
         walk.paused = true;
-        hero = { mixer, walk };
+        const clip = gltf.animations.find((a: any) => a.name === "cheer");
+        const cheer = clip ? mixer.clipAction(clip) : null;
+        if (cheer) {
+          cheer.setLoop(T.LoopOnce, 1);
+          cheer.clampWhenFinished = true;
+          // Back to standing when the cheer ends.
+          mixer.addEventListener("finished", (e: any) => {
+            if (e.action !== cheer) return;
+            walk.reset();
+            walk.play();
+            walk.paused = true;
+            cheer.crossFadeTo(walk, 0.3, false);
+          });
+        }
+        hero = { mixer, walk, cheer };
       })
       .catch(() => {
         // Keep the pawn.
@@ -709,6 +725,11 @@ export function createBoardScene(
     if (!hero) return;
     window.clearTimeout(heroIdle);
     if (on) {
+      if (hero.cheer?.isRunning() || hero.cheer?.getEffectiveWeight() > 0) {
+        hero.cheer.stop();
+        hero.walk.reset();
+        hero.walk.play();
+      }
       hero.walk.paused = false;
       return;
     }
@@ -1219,6 +1240,13 @@ export function createBoardScene(
         jobs.push(tween(500, (k) => shown.forEach((d) => d.scale.setScalar(1 + Math.sin(k * Math.PI) * 0.35))));
       }
       await Promise.all(jobs);
+    },
+    cheer(seat) {
+      if (seat !== heroSeat || !hero?.cheer) return;
+      window.clearTimeout(heroIdle);
+      hero.cheer.reset();
+      hero.cheer.play();
+      hero.walk.crossFadeTo(hero.cheer, 0.25, false);
     },
     async pulse(seat, gold = false) {
       const at = tokens[seat].position;
