@@ -39,6 +39,8 @@ const ZOOM = 1.15;
 const TOPS: Record<TileKind, number> = {
   start: 0xfbd000,
   coin: 0x62b843,
+  meat: 0xf08a5d,
+  steal: 0x475569,
   chest: 0xf59e0b,
   lucky: 0x38bdf8,
   attack: 0xe52521,

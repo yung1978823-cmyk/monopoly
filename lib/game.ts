@@ -1,6 +1,7 @@
 import { LANDMARK_NAMES, TILES, TILE_INFO, type TileKind } from "./board";
 import { CHARACTERS } from "./characters";
 import { THEMES } from "./themes";
+import { ELEMENTS, TOP_STAGE, daysBetween, eatForDay, growNeed, petAttack, petName, STAGE_NAMES, type Pet } from "./pet";
 import {
   CHEST_DEFAULT,
   CHEST_MAX,
@@ -39,7 +40,12 @@ export type LogEntry = {
 
 export type DiePair = [number, number];
 
-export type Phase = "walk" | "search";
+export type Phase = "walk" | "search" | "steal";
+
+/** One of the three crates in a rival's store on 🦝 偷嘢: mostly 🧪 營養液, sometimes 🍖 or coins. */
+export type StealBox = { kind: "juice" | "meat" | "coins"; amount: number };
+/** 🍖 each meat square gives. */
+export const MEAT_PER_SQUARE = 2;
 
 export type WeaponReadout = {
   weapon: number;
@@ -63,6 +69,8 @@ export type Landing = {
   points: number;
   /** Dice gained. */
   dice: number;
+  /** 🍖 gained. */
+  meat: number;
   passedStart: boolean;
 };
 
@@ -72,6 +80,14 @@ export type GameState = {
   dice: number;
   lastRefillAt: number;
   points: number;
+  /** Your monster, once picked (null until then). */
+  pet: Pet | null;
+  /** Your store of 🍖 肉 and 🧪 營養液 (monster food). */
+  meat: number;
+  juice: number;
+  /** The three crates in the rival's store while stealing, and which one you took. */
+  stealBoxes: StealBox[] | null;
+  stealPicked: number | null;
   /** Which theme (page) of your town you are building now, 0 = the first. Earlier pages are finished and locked. */
   theme: number;
   /** The five buildings' levels on the current page, 0 (empty plot) to 5. */
@@ -124,11 +140,18 @@ export type Action =
       rivalNfts?: number;
       /** Points in the chest, if the walk stops on 寶箱 (3–6). */
       chest?: number;
+      /** The chest holds 🍖 instead of coins (the same 3–6). */
+      chestMeat?: boolean;
+      /** The three crates found on 🦝 偷嘢. */
+      stealBoxes?: StealBox[];
       now: number;
     }
   | { type: "weapon"; target?: number | null; /** A random number in [0, 1) deciding the hit. */ roll?: number }
   | { type: "raided"; target: number }
   | { type: "upgrade"; building: number }
+  | { type: "pick-pet"; element: number }
+  | { type: "grow-pet" }
+  | { type: "steal-pick"; index: number }
   | { type: "return-walk" }
   | { type: "place-nft"; slot: number; id: string }
   | { type: "remove-nft"; slot: number }
@@ -172,8 +195,14 @@ export function rivalPower(state: Pick<GameState, "rivalLevels" | "rivalNfts" | 
   return 10 + state.rivalCity * THEME_ATTACK + totalLevels(state.rivalLevels) * LEVEL_ATTACK + nftAttack(state.rivalNfts);
 }
 
-/** Attack power: 10, +10 per finished page, +2 per standing level on this page, plus +2 per NFT placed. */
-export function attackPower(state: Pick<GameState, "theme" | "levels" | "nfts">): number {
+/** Attack power: your monster's (10 as an egg, up to 46 as 王者; a tenth more for a legendary NFT
+ * monster), plus +2 per NFT placed. Buildings are for defence. */
+export function attackPower(state: Pick<GameState, "pet" | "nfts">): number {
+  return petAttack(state.pet, holdsNft(state)) + nftAttack(nftCount(state));
+}
+
+/** Your defence, on the same scale as a rival's: 10, +10 per finished page, +2 per standing level on this page, +2 per NFT. */
+export function defencePower(state: Pick<GameState, "theme" | "levels" | "nfts">): number {
   return 10 + state.theme * THEME_ATTACK + totalLevels(state.levels) * LEVEL_ATTACK + nftAttack(nftCount(state));
 }
 
@@ -184,6 +213,11 @@ export function createGame(now: number, dayKey: string): GameState {
     dice: STARTING_DICE,
     lastRefillAt: now,
     points: 0,
+    pet: null,
+    meat: 0,
+    juice: 0,
+    stealBoxes: null,
+    stealPicked: null,
     theme: 0,
     levels: noLevels(),
     best: noLevels(),
@@ -272,6 +306,23 @@ function readLevels(value: unknown, length: number): number[] | null {
   return [...value, ...Array.from({ length: length - value.length }, () => 0)];
 }
 
+/** Three crates for 偷嘢 (from the screen's dice); anything malformed falls back to two 🧪 and a 🍖. */
+function readBoxes(value: unknown): StealBox[] {
+  const fallback: StealBox[] = [{ kind: "juice", amount: 2 }, { kind: "juice", amount: 1 }, { kind: "meat", amount: 3 }];
+  if (!Array.isArray(value) || value.length !== 3) return fallback;
+  const ok = value.every(
+    (box) => box && typeof box === "object" && ["juice", "meat", "coins"].includes(box.kind) && inRange(box.amount, 1, 9),
+  );
+  return ok ? value.map((box) => ({ kind: box.kind, amount: box.amount })) : fallback;
+}
+
+function readPet(value: unknown): Pet | null {
+  if (!value || typeof value !== "object") return null;
+  const pet = value as Partial<Pet>;
+  if (!inRange(pet.element, 0, ELEMENTS.length - 1) || !inRange(pet.stage, 0, TOP_STAGE)) return null;
+  return { element: pet.element, stage: pet.stage, hungry: inRange(pet.hungry, 0, 9) ? pet.hungry : 0 };
+}
+
 function readNfts(value: unknown): (string | null)[] {
   const slots = emptyNfts();
   if (!Array.isArray(value)) return slots;
@@ -342,6 +393,11 @@ export function sanitizeState(
     dice: clampInt(value.dice, 0, DICE_CAP, 0),
     lastRefillAt: typeof value.lastRefillAt === "number" ? value.lastRefillAt : now,
     points: clampInt(value.points, 0, 1_000_000, 0),
+    pet: readPet(value.pet),
+    meat: clampInt(value.meat, 0, 1_000_000, 0),
+    juice: clampInt(value.juice, 0, 1_000_000, 0),
+    stealBoxes: null,
+    stealPicked: null,
     theme: inRange(value.theme, 0, THEMES.length - 1) ? value.theme : 0,
     levels,
     best,
@@ -386,14 +442,17 @@ function landOn(
   points: number,
   dice: number,
   chest: number,
-): { position: number; points: number; dice: number; landing: Landing } {
+  chestMeat = false,
+): { position: number; points: number; dice: number; meat: number; landing: Landing } {
   const position = (from + roll) % TILES.length;
   const passedStart = from + roll >= TILES.length;
   const kind = TILES[position].kind;
   let change = passedStart ? POINTS.start : 0;
   let diceGained = 0;
   if (kind === "coin") change += POINTS.coin;
-  if (kind === "chest") change += chest;
+  let meat = kind === "meat" ? MEAT_PER_SQUARE : 0;
+  if (kind === "chest" && chestMeat) meat += chest;
+  else if (kind === "chest") change += chest;
   if (kind === "jail") change += POINTS.jail;
   if (kind === "tax") change += POINTS.tax;
   if (kind === "lucky" && dice < DICE_CAP) diceGained = 1;
@@ -403,7 +462,8 @@ function landOn(
     position,
     points: nextPoints,
     dice: dice + diceGained,
-    landing: { kind, points: nextPoints - points, dice: diceGained, passedStart },
+    meat,
+    landing: { kind, points: nextPoints - points, dice: diceGained, meat, passedStart },
   };
 }
 
@@ -425,11 +485,22 @@ function rollDay(state: GameState, now: number, dayKey: string): GameState {
     );
   }
   if (!dayChanged) return next;
-  return pushLog(
+  next = pushLog(
     { ...next, dayKey, dstTakenToday: 0 },
     "rule",
     "新的一天。今日搬走的 DST 從 0 再算，一日最多 5。",
   );
+  // The monster eats once for each day gone by (at most a week's worth).
+  if (!next.pet) return next;
+  const days = Math.min(7, Math.max(1, daysBetween(state.dayKey, dayKey)));
+  for (let day = 0; day < days; day++) {
+    const pet = next.pet as Pet;
+    const fed = eatForDay(pet, next.meat, next.juice);
+    next = { ...next, pet: fed.pet, meat: fed.meat, juice: fed.juice };
+    if (fed.dropped) next = pushLog(next, "rule", `${petName(pet)}餓咗兩日，跌返做${STAGE_NAMES[fed.pet.stage]}。`);
+    else if (!fed.ate) next = pushLog(next, "rule", `${petName(pet)}今日冇嘢食，肚餓。再餓一日會跌階段。`);
+  }
+  return next;
 }
 
 export function reduce(state: GameState, action: Action): GameState {
@@ -482,7 +553,9 @@ export function reduce(state: GameState, action: Action): GameState {
       const spent = spendDice(state.dice, state.lastRefillAt, action.now, 1);
       if (!spent) return state;
       const chest = inRange(action.chest, CHEST_MIN, CHEST_MAX) ? action.chest : CHEST_DEFAULT;
-      const moved = landOn(state.position, steps, state.points, spent.dice, chest);
+      const moved = landOn(state.position, steps, state.points, spent.dice, chest, action.chestMeat === true);
+      const stealing = TILES[moved.position]?.kind === "steal";
+      const stealBoxes = stealing ? readBoxes(action.stealBoxes) : null;
       const tile = TILES[moved.position];
       const enemyFaces = tile?.kind === "attack" ? readPair(action.enemyDice) : null;
       const searching = enemyFaces !== null;
@@ -490,7 +563,7 @@ export function reduce(state: GameState, action: Action): GameState {
       const rivalCity =
         searching && inRange(action.rivalCity, 0, THEMES.length - 1) ? action.rivalCity : state.rivalCity;
       const rivalFace =
-        searching && inRange(action.rivalFace, 0, CHARACTERS.length - 1) ? action.rivalFace : state.rivalFace;
+        (searching || stealing) && inRange(action.rivalFace, 0, CHARACTERS.length - 1) ? action.rivalFace : state.rivalFace;
       // Five buildings on the rival's page, each 0–5; anything else falls back to what we had.
       const given = readLevels(action.rivalLevels, BUILDINGS);
       const rivalLevels = searching
@@ -502,11 +575,18 @@ export function reduce(state: GameState, action: Action): GameState {
         ? `搜尋敵人，配到${CHARACTERS[rivalFace].name}（${THEMES[rivalCity].name}），佢啲建築合共 ${totalLevels(rivalLevels)} 級。`
         : moved.landing.dice > 0
           ? "多一粒骰。"
-          : "";
+          : moved.meat > 0
+            ? `攞到 ${moved.meat} 🍖。`
+            : stealing
+              ? "潛入敵人倉庫偷嘢。"
+              : "";
       const next: GameState = {
         ...state,
-        phase: searching ? "search" : "walk",
+        phase: searching ? "search" : stealing ? "steal" : "walk",
         dice: moved.dice,
+        meat: state.meat + moved.meat,
+        stealBoxes,
+        stealPicked: null,
         lastRefillAt: spent.lastRefillAt,
         position: moved.position,
         points: moved.points,
@@ -596,8 +676,38 @@ export function reduce(state: GameState, action: Action): GameState {
       );
     }
     case "return-walk": {
+      if (state.phase === "steal") return { ...state, phase: "walk", stealBoxes: null, stealPicked: null };
       if (state.phase !== "search") return state;
       return { ...state, phase: "walk" };
+    }
+    case "steal-pick": {
+      if (state.phase !== "steal" || !state.stealBoxes || state.stealPicked !== null) return state;
+      const box = state.stealBoxes[action.index];
+      if (!box) return state;
+      const next: GameState = {
+        ...state,
+        stealPicked: action.index,
+        juice: state.juice + (box.kind === "juice" ? box.amount : 0),
+        meat: state.meat + (box.kind === "meat" ? box.amount : 0),
+        points: state.points + (box.kind === "coins" ? box.amount : 0),
+      };
+      const what = box.kind === "juice" ? "🧪 營養液" : box.kind === "meat" ? "🍖" : "金幣";
+      return pushLog(next, "you", `偷到 ${box.amount} ${what}。`);
+    }
+    case "pick-pet": {
+      if (state.pet || !inRange(action.element, 0, ELEMENTS.length - 1)) return state;
+      return pushLog({ ...state, pet: { element: action.element, stage: 0, hungry: 0 } }, "you", `你揀咗${ELEMENTS[action.element].beast}（${ELEMENTS[action.element].name}），而家係一隻蛋。`);
+    }
+    case "grow-pet": {
+      const pet = state.pet;
+      const need = pet ? growNeed(pet) : null;
+      if (!pet || !need || state.meat < need[0] || state.juice < need[1]) return state;
+      const grown: Pet = { ...pet, stage: pet.stage + 1, hungry: 0 };
+      return pushLog(
+        { ...state, pet: grown, meat: state.meat - need[0], juice: state.juice - need[1] },
+        "you",
+        `餵咗 ${need[0]} 🍖 同 ${need[1]} 🧪，${petName(pet)}長大做${STAGE_NAMES[grown.stage]}！`,
+      );
     }
     case "upgrade": {
       const building = action.building;

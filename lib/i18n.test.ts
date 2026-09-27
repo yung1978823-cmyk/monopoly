@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import { CARDS } from "./eight";
 import { translate } from "./i18n";
 import { THEMES } from "./themes";
+import { ELEMENTS, STAGE_NAMES } from "./pet";
 import { DECKS } from "./realm";
 import { LANDMARK_NAMES, TILE_INFO } from "./board";
 
@@ -37,6 +38,8 @@ describe("languages", () => {
       ...CARDS.map((card) => card.text),
       ...Object.values(DECKS).flatMap((deck) => deck.map((card) => card.text)),
       ...THEMES.map((theme) => theme.name),
+      ...ELEMENTS.flatMap((element) => [element.name, element.beast, element.legend]),
+      ...STAGE_NAMES,
       ...LANDMARK_NAMES,
       ...Object.values(TILE_INFO).map((tile) => tile.name),
       "你",

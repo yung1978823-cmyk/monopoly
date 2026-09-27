@@ -4,9 +4,9 @@ export const BOARD_SIDE = 8;
 
 /**
  * What a square does when you stop on it. Every kind is shown as a picture on the board:
- * 🏁 start, 🪙 coins, 🎁 chest, 🎲 lucky die, 🔨 attack, 🚔 jail, 🧾 tax.
+ * 🏁 start, 🪙 coins, 🍖 meat (monster food), 🎁 chest, 🎲 lucky die, 🔨 attack, 🦝 steal, 🚔 jail, 🧾 tax.
  */
-export type TileKind = "start" | "coin" | "chest" | "lucky" | "attack" | "jail" | "tax";
+export type TileKind = "start" | "coin" | "meat" | "chest" | "lucky" | "attack" | "steal" | "jail" | "tax";
 
 export type Tile = {
   id: string;
@@ -17,29 +17,37 @@ export type Tile = {
 /** Names for your four buildings, used when you build, repair or get raided. */
 export const LANDMARK_NAMES = ["一號樓", "二號樓", "三號樓", "四號樓", "五號樓"] as const;
 
-/** Every fourth square is 攻擊 (2, 6, 10 … 26), so each roll of two dice lands on one 22–28% of the time. */
-export const ATTACK_EVERY = 4;
-export const ATTACK_OFFSET = 2;
-/** The two free corners hold the small penalties; a chest sits on each side; two lucky dice. */
+/**
+ * The 28 squares (2026-09-27): start 1, coins 9, 🍖 meat 5, chests 3, lucky dice 2, 攻擊 4 (one per
+ * side), 🦝 偷嘢 2 (steal 🧪 營養液 from a rival's store), jail 1, tax 1.
+ */
+export const ATTACK_SQUARES = [3, 10, 17, 24] as const;
+export const STEAL_SQUARES = [6, 20] as const;
+export const MEAT_SQUARES = [2, 11, 15, 18, 26] as const;
 export const JAIL_SQUARE = 7;
 export const TAX_SQUARE = 21;
-export const CHEST_SQUARES = [4, 11, 17, 25] as const;
+export const CHEST_SQUARES = [4, 12, 25] as const;
 export const LUCKY_SQUARES = [9, 23] as const;
 
 /** Each square's name, its emoji stand-in, and its drawn picture once one exists. */
 export const TILE_INFO: Record<TileKind, { name: string; icon: string; art?: string }> = {
   start: { name: "起點", icon: "🏁", art: "/art/tiles/start.png" },
   coin: { name: "金幣", icon: "🪙", art: "/art/tiles/coin.png" },
+  meat: { name: "肉", icon: "🍖" },
   chest: { name: "寶箱", icon: "🎁", art: "/art/tiles/chest.png" },
   lucky: { name: "幸運骰", icon: "🎲", art: "/art/tiles/lucky.png" },
   attack: { name: "攻擊", icon: "🔨", art: "/art/tiles/attack.png" },
+  steal: { name: "偷嘢", icon: "🦝" },
   jail: { name: "監獄", icon: "🚔", art: "/art/tiles/jail.png" },
   tax: { name: "稅局", icon: "🧾", art: "/art/tiles/tax.png" },
 };
 
 function kindOf(index: number): TileKind {
   if (index === 0) return "start";
-  if (index % ATTACK_EVERY === ATTACK_OFFSET) return "attack";
+  const on = (list: readonly number[]) => list.includes(index);
+  if (on(ATTACK_SQUARES)) return "attack";
+  if (on(STEAL_SQUARES)) return "steal";
+  if (on(MEAT_SQUARES)) return "meat";
   if (index === JAIL_SQUARE) return "jail";
   if (index === TAX_SQUARE) return "tax";
   if ((CHEST_SQUARES as readonly number[]).includes(index)) return "chest";

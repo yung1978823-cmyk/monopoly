@@ -1,6 +1,6 @@
 "use client";
 
-import { createCityScene, type CityScene } from "@/components/city-scene";
+import { createCityScene, type CityScene, type MonsterLook } from "@/components/city-scene";
 import { loadThree } from "@/components/eight-scene";
 import { useEffect, useRef } from "react";
 
@@ -19,6 +19,10 @@ export function CityView({
   smash = null,
   smashKey = 0,
   celebrateKey = 0,
+  resident = null,
+  attacker = null,
+  lunge = null,
+  lungeKey = 0,
 }: {
   theme: number;
   levels: readonly number[];
@@ -29,11 +33,17 @@ export function CityView({
   smash?: number | null;
   smashKey?: number;
   celebrateKey?: number;
+  /** The monster living in this town's middle, and your monster hovering in to attack (remount to change). */
+  resident?: MonsterLook | null;
+  attacker?: MonsterLook | null;
+  /** A new `lungeKey` sends the attacker swooping at building `lunge`. */
+  lunge?: number | null;
+  lungeKey?: number;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<CityScene | null>(null);
-  const latest = useRef({ theme, levels, targets, onPick });
-  latest.current = { theme, levels, targets, onPick };
+  const latest = useRef({ theme, levels, targets, onPick, resident, attacker });
+  latest.current = { theme, levels, targets, onPick, resident, attacker };
 
   useEffect(() => {
     let dead = false;
@@ -41,7 +51,10 @@ export function CityView({
       .then((T) => {
         if (dead || !box.current) return;
         const now = latest.current;
-        const scene = createCityScene(T, box.current, now.theme, now.levels, (i) => latest.current.onPick?.(i));
+        const scene = createCityScene(T, box.current, now.theme, now.levels, (i) => latest.current.onPick?.(i), {
+          resident: now.resident,
+          attacker: now.attacker,
+        });
         scene.setTargets(now.targets);
         sceneRef.current = scene;
       })
@@ -65,6 +78,10 @@ export function CityView({
     if (smashKey > 0 && smash !== null) sceneRef.current?.smash(smash);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [smashKey]);
+  useEffect(() => {
+    if (lungeKey > 0 && lunge !== null) sceneRef.current?.lunge(lunge);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lungeKey]);
   useEffect(() => {
     if (celebrateKey > 0) sceneRef.current?.celebrate();
   }, [celebrateKey]);

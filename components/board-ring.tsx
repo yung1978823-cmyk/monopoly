@@ -20,12 +20,16 @@ export type Burst = {
   money: number;
   /** Dice gained. */
   dice: number;
+  /** 🍖 gained. */
+  meat?: number;
   bad: boolean;
 };
 
 const TINT: Record<TileKind, string | null> = {
   start: "rgba(251,208,0,0.92)",
   coin: null,
+  meat: "rgba(220,90,60,0.9)",
+  steal: "rgba(60,60,70,0.9)",
   chest: "rgba(255,140,40,0.9)",
   lucky: "rgba(4,156,216,0.9)",
   attack: "rgba(255,255,255,0.92)",

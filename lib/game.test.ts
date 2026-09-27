@@ -7,6 +7,7 @@ import {
   canUpgrade,
   cheapestUpgrade,
   createGame,
+  defencePower,
   holdsNft,
   totalLevels,
   upgradeCost,
@@ -38,7 +39,7 @@ describe("daily board", () => {
   });
 
   it("loads the walk board even when the save was a fight", () => {
-    const fight = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 2], now: NOW });
+    const fight = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 2], now: NOW });
     assert.equal(fight.phase, "search");
     const loaded = reduce(start(), { type: "hydrate", state: fight, now: NOW, dayKey: DAY });
     assert.equal(loaded.phase, "walk");
@@ -71,15 +72,14 @@ describe("daily board", () => {
 
   it("opens 搜尋敵人 when the walk lands on 攻擊", () => {
     assert.equal(TILES.length, 28);
-    assert.equal(TILES.filter((tile) => tile.kind === "attack").length, 7);
     const count = (kind: string) => TILES.filter((tile) => tile.kind === kind).length;
     assert.deepEqual(
-      [count("start"), count("coin"), count("chest"), count("lucky"), count("jail"), count("tax")],
-      [1, 12, 4, 2, 1, 1],
+      [count("start"), count("coin"), count("meat"), count("chest"), count("lucky"), count("attack"), count("steal"), count("jail"), count("tax")],
+      [1, 9, 5, 3, 2, 4, 2, 1, 1],
     );
-    const state = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 2], now: NOW });
-    assert.equal(state.position, 2);
-    assert.equal(TILES[2]?.kind, "attack");
+    const state = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 2], now: NOW });
+    assert.equal(state.position, 3);
+    assert.equal(TILES[3]?.kind, "attack");
     assert.equal(state.phase, "search");
     assert.equal(state.enemyLuck, 3);
     assert.deepEqual(state.lastRivalFaces, [1, 2]);
@@ -96,7 +96,7 @@ describe("daily board", () => {
     for (const step of steps) assert.ok(step > 0.06 && step < 0.09, `step ${step}`);
   });
 
-  it("lands on 攻擊 about one roll in four from any square", () => {
+  it("lands on 攻擊 about one roll in seven from any square", () => {
     for (let from = 0; from < TILES.length; from += 1) {
       let hits = 0;
       for (let a = 1; a <= 6; a += 1) {
@@ -104,32 +104,32 @@ describe("daily board", () => {
           if (TILES[(from + a + b) % TILES.length]?.kind === "attack") hits += 1;
         }
       }
-      assert.ok(hits >= 8 && hits <= 10, `square ${from}: ${hits}/36`);
+      assert.ok(hits >= 5 && hits <= 6, `square ${from}: ${hits}/36`);
     }
   });
 
   it("meets a rival with the given building levels on each 攻擊 square", () => {
-    const none = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [0, 0, 0], now: NOW });
+    const none = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [0, 0, 0], now: NOW });
     assert.deepEqual(none.rivalLevels, [0, 0, 0, 0, 0]);
-    const strong = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [5, 3, 1, 0, 0], now: NOW });
+    const strong = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [5, 3, 1, 0, 0], now: NOW });
     assert.deepEqual(strong.rivalLevels, [5, 3, 1, 0, 0]);
     assert.match(strong.log[0]?.text ?? "", /合共 9 級/);
   });
 
   it("remembers which page (theme) the rival met on 攻擊 is on, and who they are", () => {
-    const fight = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalCity: 2, now: NOW });
+    const fight = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalCity: 2, now: NOW });
     assert.equal(fight.rivalCity, 2);
-    assert.equal(reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalFace: 3, now: NOW }).rivalFace, 3);
-    const bad = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalCity: 9, now: NOW });
+    assert.equal(reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalFace: 3, now: NOW }).rivalFace, 3);
+    const bad = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalCity: 9, now: NOW });
     assert.equal(bad.rivalCity, 0);
     const loaded = parseSave(JSON.stringify({ v: 1, state: fight }), NOW, DAY);
     assert.equal(loaded?.rivalCity, 2);
   });
 
   it("gives every rival five buildings, and counts their finished pages in their defence", () => {
-    const desert = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [4, 2, 0, 0, 1], rivalCity: 2, now: NOW });
+    const desert = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [4, 2, 0, 0, 1], rivalCity: 2, now: NOW });
     assert.deepEqual(desert.rivalLevels, [4, 2, 0, 0, 1]);
-    const wrong = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [4, 2, 1, 0, 0, 3], now: NOW });
+    const wrong = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [4, 2, 1, 0, 0, 3], now: NOW });
     assert.equal(wrong.rivalLevels.length, 5, "never more than five");
     const fight = { ...desert, enemyShield: false, rivalNfts: 0 };
     // 10 + 2 finished pages × 10 + 7 levels × 2 = 44.
@@ -137,15 +137,15 @@ describe("daily board", () => {
   });
 
   it("gives a shield only to a rival holding an NFT", () => {
-    const nft = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [2, 1, 0, 0, 0], now: NOW });
+    const nft = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [2, 1, 0, 0, 0], now: NOW });
     assert.equal(nft.enemyShield, true);
     const plain = reduce(
       { ...start(), rivalHasNft: false },
-      { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [2, 1, 0, 0, 0], now: NOW },
+      { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [2, 1, 0, 0, 0], now: NOW },
     );
     assert.equal(plain.enemyShield, false);
     // No shield: the first hit already needs a target and smashes it, for points only.
-    const strong = { ...plain, levels: [5, 5, 5, 0, 0] };
+    const strong = { ...plain, pet: { element: 0, stage: 4, hungry: 0 } };
     assert.equal(reduce(strong, { type: "weapon" }), strong);
     const hit = reduce(strong, { type: "weapon", target: 1 });
     assert.equal(hit.weaponReadout?.shieldBreak, false);
@@ -158,7 +158,7 @@ describe("daily board", () => {
 
   it("scores without smashing when the rival has nothing standing", () => {
     const fight = {
-      ...reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [0, 0, 0, 0, 0], now: NOW }),
+      ...reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [0, 0, 0, 0, 0], now: NOW }),
       enemyShield: false,
     };
     const hit = reduce(fight, { type: "weapon", roll: 0.1 });
@@ -168,7 +168,7 @@ describe("daily board", () => {
 
   it("does not smash on a miss", () => {
     const fight = {
-      ...reduce(start(), { type: "move", faces: [1, 1], enemyDice: [6, 6], rivalLevels: [3, 3, 3, 0, 0], now: NOW }),
+      ...reduce(start(), { type: "move", faces: [1, 2], enemyDice: [6, 6], rivalLevels: [3, 3, 3, 0, 0], now: NOW }),
       enemyShield: false,
     };
     const miss = reduce(fight, { type: "weapon", target: 2 });
@@ -193,12 +193,12 @@ describe("daily board", () => {
   });
 
   it("does not walk while a fight is open", () => {
-    const fight = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 2], now: NOW });
+    const fight = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 2], now: NOW });
     assert.equal(reduce(fight, { type: "move", faces: [1, 2], now: NOW }), fight);
   });
 
   it("settles a fight in one tap, breaking the shield on the way to the smash", () => {
-    let state = reduce(start(), { type: "move", faces: [1, 1], enemyDice: [1, 1], rivalLevels: [3, 2, 0, 0, 0], rivalNfts: 1, now: NOW });
+    let state = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [3, 2, 0, 0, 0], rivalNfts: 1, now: NOW });
     assert.equal(state.enemyShield, true);
     assert.equal(reduce(state, { type: "weapon", roll: 0 }), state, "must pick a standing landmark");
     // You 10 against their 10 + 2 buildings × 5 + 1 NFT × 2 = 22: the 15% floor.
@@ -298,7 +298,8 @@ describe("daily board", () => {
     assert.equal(reduce(state, { type: "upgrade", building: 2 }), state);
     assert.equal(reduce(state, { type: "upgrade", building: 5 }), state, "only five buildings");
     assert.equal(cheapestUpgrade(state), 5);
-    assert.equal(attackPower(state), 20, "10 + 5 levels × 2");
+    assert.equal(attackPower(state), 10, "buildings are for defence, not attack");
+    assert.equal(defencePower(state), 20, "10 + 5 levels × 2");
     assert.match(state.log[0]?.text ?? "", /升咗三號樓，而家第 5 級/);
   });
 
@@ -311,7 +312,7 @@ describe("daily board", () => {
     assert.equal(state.points, 100000 - 50 + 20);
     assert.match(state.log[0]?.text ?? "", /完成咗「工地小鎮」/);
     assert.equal(upgradeCost(state, 0), 8, "the second page costs 1.5× (5 → 8)");
-    assert.equal(attackPower(state), 20, "the finished page still counts: 10 + 10");
+    assert.equal(defencePower(state), 20, "the finished page still counts for defence: 10 + 10");
     // The last page, once full, stays full and can't be raided.
     let last = { ...start(), theme: 2, points: 100000, levels: [5, 5, 5, 5, 4], best: [5, 5, 5, 5, 4] };
     last = reduce(last, { type: "upgrade", building: 4 });
@@ -324,10 +325,16 @@ describe("daily board", () => {
   it("pays each square its reward and remembers the stop", () => {
     const at = (position: number, faces: [number, number], extra = {}) =>
       reduce({ ...start(), position, points: 10, dice: 5 }, { type: "move", faces, now: NOW, ...extra });
-    const coin = at(0, [1, 2]);
-    assert.equal(TILES[3]?.kind, "coin");
+    const coin = at(0, [2, 3]);
+    assert.equal(TILES[5]?.kind, "coin");
     assert.equal(coin.points, 12);
-    assert.deepEqual(coin.landing, { kind: "coin", points: 2, dice: 0, passedStart: false });
+    assert.deepEqual(coin.landing, { kind: "coin", points: 2, dice: 0, meat: 0, passedStart: false });
+
+    const meat = at(0, [1, 1]);
+    assert.equal(TILES[2]?.kind, "meat");
+    assert.equal(meat.meat, 2);
+    assert.equal(meat.points, 10);
+    assert.equal(at(0, [2, 2], { chest: 5, chestMeat: true }).meat, 5, "a chest can hold 🍖 instead of coins");
 
     const chest = at(0, [2, 2], { chest: 6 });
     assert.equal(chest.points, 16);
@@ -356,13 +363,13 @@ describe("daily board", () => {
     let state = { ...start(), dice: 0 };
     assert.equal(reduce(state, { type: "move", faces: [1, 2], now: NOW }), state);
 
-    state = reduce({ ...state, dice: 1 }, { type: "move", faces: [1, 2], now: NOW });
-    assert.equal(state.position, 3);
+    state = reduce({ ...state, dice: 1 }, { type: "move", faces: [2, 3], now: NOW });
+    assert.equal(state.position, 5);
     assert.equal(state.points, 2);
     assert.equal(state.dice, 0);
     assert.equal(state.phase, "walk");
-    assert.deepEqual(state.walkFaces, [1, 2]);
-    assert.match(state.log[0]?.text ?? "", /擲出 1 和 2。走 3 格/);
+    assert.deepEqual(state.walkFaces, [2, 3]);
+    assert.match(state.log[0]?.text ?? "", /擲出 2 和 3。走 5 格/);
   });
 
   it("pays the start bonus when the loop wraps", () => {
@@ -381,5 +388,50 @@ describe("daily board", () => {
     const next = reduce({ ...start(), dstTakenToday: 4 }, { type: "tick", now: NOW, dayKey: "2026-09-25" });
     assert.equal(next.dstTakenToday, 0);
     assert.equal(next.dayKey, "2026-09-25");
+  });
+
+  it("steals from a rival's store on 偷嘢: pick one of three crates", () => {
+    const boxes = [{ kind: "juice", amount: 3 }, { kind: "meat", amount: 4 }, { kind: "coins", amount: 5 }] as const;
+    const state = reduce({ ...start(), dice: 2 }, { type: "move", faces: [3, 3], stealBoxes: [...boxes], now: NOW });
+    assert.equal(TILES[6]?.kind, "steal");
+    assert.equal(state.phase, "steal");
+    assert.equal(reduce(state, { type: "move", faces: [1, 1], now: NOW }), state, "no walking mid-theft");
+    const took = reduce(state, { type: "steal-pick", index: 0 });
+    assert.equal(took.juice, 3);
+    assert.equal(took.stealPicked, 0);
+    assert.equal(reduce(took, { type: "steal-pick", index: 1 }), took, "one crate only");
+    const back = reduce(took, { type: "return-walk" });
+    assert.equal(back.phase, "walk");
+    assert.equal(back.stealBoxes, null);
+  });
+
+  it("raises a monster: pick one, feed it 🍖 and 🧪 to grow, and it attacks harder", () => {
+    let state = start();
+    assert.equal(reduce(state, { type: "grow-pet" }), state, "no monster yet");
+    state = reduce(state, { type: "pick-pet", element: 3 });
+    assert.deepEqual(state.pet, { element: 3, stage: 0, hungry: 0 });
+    assert.equal(reduce(state, { type: "pick-pet", element: 1 }), state, "picked once");
+    assert.equal(reduce(state, { type: "grow-pet" }), state, "not enough food");
+    state = reduce({ ...state, meat: 25, juice: 3 }, { type: "grow-pet" });
+    assert.equal(state.pet?.stage, 1);
+    assert.equal(state.meat, 5);
+    assert.equal(state.juice, 1);
+    assert.equal(attackPower(state), 16);
+    assert.equal(attackPower({ ...state, pet: { element: 3, stage: 4, hungry: 0 } }), 46);
+    assert.equal(attackPower({ ...state, pet: { element: 3, stage: 4, hungry: 0 }, nfts: ["a", null, null, null, null] }), 51 + 2, "legendary: a tenth more, plus the NFT");
+    assert.equal(parseSave(JSON.stringify({ v: 1, state }), NOW, DAY)?.pet?.stage, 1);
+  });
+
+  it("feeds the monster each day and drops it a stage after two hungry days", () => {
+    const pet = { element: 0, stage: 3, hungry: 0 };
+    const fed = reduce({ ...start(), pet, meat: 20, juice: 5 }, { type: "tick", now: NOW, dayKey: "2026-09-25" });
+    assert.deepEqual([fed.meat, fed.juice, fed.pet?.stage], [12, 3, 3], "成年 eats 8 🍖 and 2 🧪");
+    const hungry = reduce({ ...start(), pet, meat: 0, juice: 0 }, { type: "tick", now: NOW, dayKey: "2026-09-25" });
+    assert.deepEqual([hungry.pet?.stage, hungry.pet?.hungry], [3, 1]);
+    const dropped = reduce(hungry, { type: "tick", now: NOW, dayKey: "2026-09-26" });
+    assert.deepEqual([dropped.pet?.stage, dropped.pet?.hungry], [2, 0]);
+    assert.match(dropped.log[0]?.text ?? "", /跌返做少年/);
+    const away = reduce({ ...start(), pet: { element: 0, stage: 4, hungry: 0 } }, { type: "tick", now: NOW, dayKey: "2026-10-01" });
+    assert.equal(away.pet?.stage, 1, "a week away without food: back to 幼仔, never lower");
   });
 });

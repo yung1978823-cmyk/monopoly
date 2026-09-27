@@ -4,7 +4,10 @@
  * Used for your own town (tap a plot to build) and a rival's town (tap a building to strike).
  * Drag to turn and tilt, pinch to zoom, like the boards.
  */
+import { buildMonster, type Monster } from "@/components/monster";
 import { themeOf, type Theme } from "@/lib/themes";
+
+export type MonsterLook = { element: number; stage: number; legend?: boolean };
 
 export type CityScene = {
   /** Redraw the buildings at these levels; `pop` makes that building spring up with sparkles. */
@@ -13,6 +16,8 @@ export type CityScene = {
   setTargets(on: boolean): void;
   /** Knock a building down with a shake and flying rubble (its new level comes with setLevels). */
   smash(index: number): void;
+  /** Your monster (the attacker) swoops onto a building and back. */
+  lunge(index: number): void;
   /** Fireworks over the whole island (a page finished). */
   celebrate(): void;
   dispose(): void;
@@ -33,6 +38,7 @@ export function createCityScene(
   themeIndex: number,
   levels: readonly number[],
   onPick: (index: number) => void = () => undefined,
+  who: { resident?: MonsterLook | null; attacker?: MonsterLook | null } = {},
 ): CityScene {
   const theme: Theme = themeOf(themeIndex);
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -257,8 +263,14 @@ export function createCityScene(
     path.receiveShadow = true;
     island.add(path);
     // The centre piece, by theme.
+    // The theme's centre piece sits a little back and smaller when a monster lives in the middle.
     const mid = new T.Group();
     mid.position.y = TOP;
+    if (who.resident) {
+      mid.scale.setScalar(0.62);
+      mid.position.x = -Math.sin(HOME_YAW) * 1.05;
+      mid.position.z = -Math.cos(HOME_YAW) * 1.05;
+    }
     island.add(mid);
     if (theme.style === "site") {
       mid.add(box(0.2, 2.4, 0.2, 0xfbd000));
@@ -302,6 +314,31 @@ export function createCityScene(
         }
       }
     }
+  }
+  // The town's monster, on a round stone in the middle.
+  const monsters: Monster[] = [];
+  if (who.resident) {
+    const m = buildMonster(T, who.resident.element, who.resident.stage, who.resident.legend);
+    const stand = shadowy(new T.Mesh(new T.CylinderGeometry(0.75, 0.85, 0.16, 20), mat(0xcfc6b5, 0.8)));
+    stand.position.set(Math.sin(HOME_YAW) * 0.35, TOP + 0.08, Math.cos(HOME_YAW) * 0.35);
+    island.add(stand);
+    m.group.position.set(stand.position.x, TOP + 0.16, stand.position.z);
+    m.group.rotation.y = HOME_YAW;
+    m.group.scale.setScalar(1.25);
+    island.add(m.group);
+    monsters.push(m);
+  }
+  // Your monster when attacking: it hovers in front of the island.
+  let attacker: Monster | null = null;
+  const attackerHome = new T.Vector3(Math.sin(HOME_YAW) * 5.2, TOP + 1.4, Math.cos(HOME_YAW) * 5.2);
+  const lungeState = { at: -1e9, to: new T.Vector3() };
+  if (who.attacker) {
+    attacker = buildMonster(T, who.attacker.element, who.attacker.stage, who.attacker.legend);
+    attacker.group.scale.setScalar(1.3);
+    attacker.group.position.copy(attackerHome);
+    attacker.group.rotation.y = HOME_YAW + Math.PI;
+    scene.add(attacker.group);
+    monsters.push(attacker);
   }
   const floorShadow = new T.Mesh(new T.PlaneGeometry(14, 14), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
   floorShadow.rotation.x = -Math.PI / 2;
@@ -548,6 +585,20 @@ export function createCityScene(
       b.mesh.rotation.y += dt * 5;
       b.mesh.material.opacity = Math.max(0, 1 - age / b.life);
     }
+    for (const m of monsters) m.update(now);
+    if (attacker) {
+      // Swoop out to the target and back over ~0.9s; otherwise bob in the air.
+      const k = (now - lungeState.at) / 900;
+      if (k < 1) {
+        const out = k < 0.45 ? k / 0.45 : 1 - (k - 0.45) / 0.55;
+        const ease = out * out * (3 - 2 * out);
+        attacker.group.position.lerpVectors(attackerHome, lungeState.to, ease);
+        attacker.group.rotation.y = Math.atan2(lungeState.to.x - attackerHome.x, lungeState.to.z - attackerHome.z);
+      } else {
+        attacker.group.position.set(attackerHome.x, attackerHome.y + Math.sin(now / 600) * 0.15, attackerHome.z);
+        attacker.group.rotation.y = HOME_YAW;
+      }
+    }
     view.idle += dt;
     view.yaw += (view.goalYaw - view.yaw) * Math.min(1, dt * 8);
     view.elev += (view.goalElev - view.elev) * Math.min(1, dt * 8);
@@ -578,6 +629,11 @@ export function createCityScene(
       plots[index].shakeAt = performance.now();
       shakeAll = performance.now();
       burst(worldOf(index, heightOf(plots[index].level) * 0.5), 34, [theme.wall, theme.roof, 0x6b6f78, 0xff7a1a], 4.5, 1.1, 0.11);
+    },
+    lunge(index) {
+      if (!plots[index]) return;
+      lungeState.to.copy(worldOf(index, heightOf(plots[index].level) * 0.7));
+      lungeState.at = performance.now();
     },
     celebrate() {
       const colours = [0xfbd000, 0xe52521, 0x22c55e, 0x3b82f6, 0xec4899, 0xf97316];

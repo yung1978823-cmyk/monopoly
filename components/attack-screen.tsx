@@ -6,7 +6,7 @@ import { CityView } from "@/components/city-view";
 import { CHARACTERS } from "@/lib/characters";
 import { THEMES } from "@/lib/themes";
 import { ShieldFx } from "@/components/shield-fx";
-import { standingIndexes, type GameState } from "@/lib/game";
+import { holdsNft, standingIndexes, totalLevels, type GameState } from "@/lib/game";
 import { useLang } from "@/lib/i18n";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
@@ -40,6 +40,7 @@ export function AttackScreen({
   const { t } = useLang();
   const [flash, setFlash] = useState<Flash | null>(null);
   const [aimed, setAimed] = useState<number | null>(null);
+  const [aimedAt, setAimedAt] = useState(0);
 
   // Play the result once: the shield pop-up first if it broke, then the smash, hit or miss,
   // and then head back to the board by itself.
@@ -71,6 +72,7 @@ export function AttackScreen({
   function strike(target: number | null) {
     if (state.fightSettled) return;
     setAimed(target);
+    setAimedAt(Date.now());
     onStrike(target);
   }
 
@@ -100,6 +102,15 @@ export function AttackScreen({
           }}
           smash={readout?.smashed ?? null}
           smashKey={flash?.kind === "smash" ? flash.key : 0}
+          attacker={state.pet ? { element: state.pet.element, stage: state.pet.stage, legend: holdsNft(state) } : null}
+          resident={{
+            // The rival's own monster (made up from who they are and how far along they are, for the practice board).
+            element: (state.rivalFace * 2 + state.rivalCity) % 5,
+            stage: Math.min(4, 1 + state.rivalCity + Math.floor(totalLevels(state.rivalLevels) / 9)),
+            legend: state.rivalHasNft && state.rivalNfts >= 3,
+          }}
+          lunge={aimed}
+          lungeKey={aimedAt}
         />
       </div>
       {/* The same targets as buttons, for keyboards and screen readers. */}

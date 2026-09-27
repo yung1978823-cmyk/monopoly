@@ -1,6 +1,8 @@
 "use client";
 
 import { AttackScreen } from "@/components/attack-screen";
+import { PetScreen } from "@/components/pet-screen";
+import { StealScreen } from "@/components/steal-screen";
 import { MyCity } from "@/components/my-city";
 import { RealmScreen } from "@/components/realm-screen";
 import { TableGame } from "@/components/table-game";
@@ -12,6 +14,7 @@ import { TipHand } from "@/components/tip-hand";
 import { Button } from "@/components/ui/button";
 import { FX_ART, TILES, TILE_INFO } from "@/lib/board";
 import { THEMES } from "@/lib/themes";
+import { growNeed } from "@/lib/pet";
 import {
   STORAGE_KEY,
   attackPower,
@@ -23,6 +26,7 @@ import {
   parseSave,
   reduce,
   type GameState,
+  type StealBox,
 } from "@/lib/game";
 import { BUILDINGS, DAILY_DST_CAP, DICE_CAP, MAX_LEVEL, REFILL_MS, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
 import { cn } from "cn";
@@ -45,6 +49,8 @@ type PendingWalk = {
   rivalFace: number;
   rivalNfts: number;
   chest: number;
+  chestMeat: boolean;
+  stealBoxes: StealBox[];
   running: boolean;
   committed: boolean;
 };
@@ -120,6 +126,7 @@ function burstOf(state: GameState): Burst | null {
     art: TILE_INFO[landing.kind].art,
     money: landing.points,
     dice: landing.dice,
+    meat: landing.meat,
     bad: landing.kind === "jail" || landing.kind === "tax",
   };
 }
@@ -130,12 +137,13 @@ function floatOf(burst: Burst | null, t: (text: string) => string): DailyFloat |
   const parts: string[] = [];
   if (burst.money) parts.push(`${burst.money > 0 ? "+" : ""}${burst.money} ${t("金幣")}`);
   if (burst.dice) parts.push(`+${burst.dice} 🎲`);
+  if (burst.meat) parts.push(`+${burst.meat} 🍖`);
   if (parts.length === 0) return null;
   return {
     key: burst.key,
     text: parts.join("  "),
     colour: burst.bad || burst.money < 0 ? "#DC2626" : "#16A34A",
-    cheer: burst.money >= 3 || burst.dice > 0,
+    cheer: burst.money >= 3 || burst.dice > 0 || (burst.meat ?? 0) >= 3,
   };
 }
 
@@ -160,6 +168,8 @@ export function DailyGame() {
   /** Whether the public table (第二層) is showing instead of the board. */
   const [tableOpen, setTableOpen] = useState(false);
   const [realmOpen, setRealmOpen] = useState(false);
+  /** Whether your monster's screen (🐾) is showing. */
+  const [petOpen, setPetOpen] = useState(false);
   /** The board and the open space it is centred in, for the camera; GO presses glide it home. */
   const [goPresses, setGoPresses] = useState(0);
   /** Your character (shared with the public table's picker). */
@@ -249,6 +259,8 @@ export function DailyGame() {
       start: "coin",
       coin: "coin",
       chest: "chest",
+      meat: "coin",
+      steal: "lucky",
       lucky: "lucky",
       jail: "bad",
       tax: "bad",
@@ -299,6 +311,8 @@ export function DailyGame() {
         rivalFace: move.rivalFace,
         rivalNfts: move.rivalNfts,
         chest: move.chest,
+        chestMeat: move.chestMeat,
+        stealBoxes: move.stealBoxes,
         now: Date.now(),
       });
     }, STEP_MS);
@@ -323,7 +337,14 @@ export function DailyGame() {
     const rivalFace = others[Math.floor(Math.random() * others.length)];
     const chest = 3 + Math.floor(Math.random() * 4);
     const rivalNfts = 1 + Math.floor(Math.random() * 5);
-    setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalFace, rivalNfts, chest, running: true, committed: false });
+    // A chest holds 🍖 half the time. A rival's store (on 偷嘢): two crates of 🧪, one of 🍖 or coins, shuffled.
+    const chestMeat = Math.random() < 0.5;
+    const stealBoxes: StealBox[] = [
+      { kind: "juice", amount: 1 + Math.floor(Math.random() * 3) },
+      { kind: "juice", amount: 1 + Math.floor(Math.random() * 3) },
+      Math.random() < 0.5 ? { kind: "meat", amount: 3 } : { kind: "coins", amount: 4 },
+    ].sort(() => Math.random() - 0.5) as StealBox[];
+    setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalFace, rivalNfts, chest, chestMeat, stealBoxes, running: true, committed: false });
   }
 
   function onBuild() {
@@ -351,6 +372,9 @@ export function DailyGame() {
   const countdown = booted && now > 0 ? msUntilNextDie(state.dice, state.lastRefillAt, now) : null;
   const buildCost = cheapestUpgrade(state);
   const buildable = buildCost !== null && state.points >= buildCost;
+  const petNeed = state.pet ? growNeed(state.pet) : null;
+  /** No monster yet, or enough food to grow it: the 🐾 button glows. */
+  const petReady = !state.pet || (!!petNeed && state.meat >= petNeed[0] && state.juice >= petNeed[1]);
 
   const resetBoard = () => {
     if (!resetArmed) {
@@ -381,6 +405,21 @@ export function DailyGame() {
         onClose={() => setCityOpen(false)}
       />
     );
+  }
+
+  if (petOpen && state.phase === "walk") {
+    return (
+      <PetScreen
+        state={state}
+        onPick={(element) => dispatch({ type: "pick-pet", element })}
+        onGrow={() => dispatch({ type: "grow-pet" })}
+        onClose={() => setPetOpen(false)}
+      />
+    );
+  }
+
+  if (state.phase === "steal") {
+    return <StealScreen state={state} onPick={(index) => dispatch({ type: "steal-pick", index })} onReturn={returnToBoard} />;
   }
 
   if (state.phase === "search" && !intro) {
@@ -422,6 +461,19 @@ export function DailyGame() {
           <span key={state.points} className="inline-block animate-[bump_0.35s_ease-out]">{state.points}</span>
         </div>
         <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => !pending?.running && setPetOpen(true)}
+          className={cn(
+            "relative flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#16A34A] text-xl text-white shadow-md",
+            petReady && "animate-[glow_1.8s_ease-in-out_infinite]",
+          )}
+          aria-label={t("你隻怪獸")}
+          data-testid="open-pet"
+        >
+          🐾
+          {state.pet && state.pet.hungry > 0 ? <span className="absolute -right-1 -top-1 text-sm">❗</span> : null}
+        </button>
         <button
           type="button"
           onClick={() => !pending?.running && setTableOpen(true)}
