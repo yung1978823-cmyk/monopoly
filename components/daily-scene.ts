@@ -409,7 +409,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     }
   }
   // A volcano's crater far below replaces the dark floor (and the islands' shadows on it).
-  const backdrop = createVolcano(T, scene, camera, { groundY: -80, size: 170, fogNear: 60, fogFar: 230, reduceMotion });
+  const backdrop = createVolcano(T, scene, camera, { groundY: -70, size: 330, fogNear: 70, fogFar: 260, reduceMotion });
   for (const b of breathers) if (b.shadow) b.shadow.visible = false;
 
   // Drifting motes of light.

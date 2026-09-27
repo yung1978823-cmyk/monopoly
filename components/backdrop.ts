@@ -644,7 +644,8 @@ export function createVolcano(T: any, scene: any, camera: any, opts: Options): B
   const S = opts.size;
   const k = opts.scale ?? 1;
   const still = !!opts.reduceMotion;
-  const FOG = 0x2e1a16;
+  /** The haze colour as it should look on screen. */
+  const FOG = 0x6a2e1c;
   const tex = (c: HTMLCanvasElement) => {
     const t = new T.CanvasTexture(c);
     t.encoding = T.sRGBEncoding;
@@ -657,18 +658,18 @@ export function createVolcano(T: any, scene: any, camera: any, opts: Options): B
   {
     const { c, g } = canvas(4, 512);
     const grad = g.createLinearGradient(0, 0, 0, 512);
-    grad.addColorStop(0, "#2a1414");
-    grad.addColorStop(0.5, "#5a2418");
-    grad.addColorStop(0.85, "#a8421c");
-    grad.addColorStop(1, "#d8682a");
+    grad.addColorStop(0, "#3a1a16");
+    grad.addColorStop(0.5, "#6a2e1c");
+    grad.addColorStop(0.85, "#b8501e");
+    grad.addColorStop(1, "#e8782c");
     g.fillStyle = grad;
     g.fillRect(0, 0, 4, 512);
     scene.background = tex(c);
-    scene.fog = new T.Fog(FOG, opts.fogNear, opts.fogFar);
+    scene.fog = new T.Fog(new T.Color(FOG).convertSRGBToLinear(), opts.fogNear, opts.fogFar);
   }
 
   // ---------- The crater (painted picture), with living lava ----------
-  const fogShown = new T.Color(FOG).convertLinearToSRGB();
+  const fogShown = new T.Color(FOG);
   const uniforms = {
     map: { value: null as any },
     time: { value: 0 },
