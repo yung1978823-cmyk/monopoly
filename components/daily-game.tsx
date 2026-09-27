@@ -495,9 +495,11 @@ export function DailyGame() {
             🎲 <span key={state.dice} className="inline-block animate-[bump_0.35s_ease-out]">{state.dice}</span>
           </div>
           {/* Time to the next free die, just the clock numbers, under the dice count. */}
-          <span className="absolute left-1/2 top-full mt-0.5 h-4 -translate-x-1/2 rounded-full bg-black/35 px-1.5 text-[11px] font-bold leading-4 tabular-nums text-white" data-testid="need-two">
-            {countdown ? formatClock(countdown) : null}
-          </span>
+          {countdown ? (
+            <span className="absolute left-1/2 top-full mt-0.5 h-4 -translate-x-1/2 rounded-full bg-black/35 px-1.5 text-[11px] font-bold leading-4 tabular-nums text-white" data-testid="need-two">
+              {formatClock(countdown)}
+            </span>
+          ) : null}
         </div>
         <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-white py-1 pl-2 pr-3 text-lg font-black tabular-nums text-[#1E3A8A] shadow-md" data-testid="hud-points">
           <img src={TILE_INFO.coin.art} alt={t("金幣")} className="size-6" />
