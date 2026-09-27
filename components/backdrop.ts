@@ -684,6 +684,20 @@ export function createSpace(T: any, scene: any, camera: any, opts: { reduceMotio
   const shooting = flat(beam, { blending: T.AdditiveBlending, color: 0xdfeaff, opacity: 0 });
   sky.add(shooting);
   const shoot = { at: 3, u: 0, v: 0, du: 0, dv: 0 };
+  // The ringed planet, floating on the left.
+  const ringed = flat(load("/art/space-ringed.webp"));
+  sky.add(ringed);
+  // The comet (drawn on black, so it's added as light), streaking by now and then.
+  const comet = flat(load("/art/space-comet.webp"), { blending: T.AdditiveBlending, opacity: 0 });
+  sky.add(comet);
+  const cometRun = { at: 6 };
+  // Asteroids drifting and tumbling round the board, in the world (so the board passes in front).
+  const rockTex = load("/art/space-rock.webp");
+  const rocks = [0, 1, 2, 3].map((i) => {
+    const r = new T.Sprite(new T.SpriteMaterial({ map: rockTex, transparent: true, depthWrite: false, fog: false }));
+    scene.add(r);
+    return { r, a0: i * 1.7 + 0.4, dist: 15 + i * 4, y: -5 + i * 3.2, size: 1.2 + (i % 3) * 0.7, spin: (i % 2 ? 1 : -1) * (0.2 + i * 0.07), speed: 0.03 + (3 - i) * 0.01 };
+  });
   // Stardust drifting round the board (in the world, so it turns with the board).
   const n = 120, pos = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
@@ -751,6 +765,27 @@ export function createSpace(T: any, scene: any, camera: any, opts: { reduceMotio
         shoot.du = (Math.random() < 0.5 ? -1 : 1) * (0.25 + Math.random() * 0.15);
         shoot.dv = 0.15 + Math.random() * 0.1;
       }
+    }
+    const [rx, ry] = at(-0.34, -0.14, 1.5);
+    ringed.position.set(rx, ry + Math.sin(t * 0.5) * ph * 0.008, -D + 2.5);
+    ringed.scale.set(pw * 0.3, pw * 0.3 * (353 / 512), 1);
+    ringed.material.rotation = -0.08 + Math.sin(t * 0.3) * 0.05;
+    // The comet: from the top right down to the left, every 14–24 seconds.
+    const cf = (t - cometRun.at) / 3.2;
+    if (cf >= 0 && cf <= 1) {
+      const [cx, cy] = at(0.6 - cf * 1.2, -0.42 + cf * 0.5, 1.25);
+      comet.position.set(cx, cy, -D + 3.5);
+      comet.scale.set(pw * 0.32, pw * 0.32, 1);
+      comet.material.opacity = Math.min(1, Math.sin(Math.PI * cf) * 1.6);
+    } else {
+      comet.material.opacity = 0;
+      if (cf > 1) cometRun.at = t + 14 + Math.random() * 10;
+    }
+    for (const k of rocks) {
+      const a = k.a0 + t * k.speed;
+      k.r.position.set(Math.cos(a) * k.dist, k.y + Math.sin(t * 0.4 + k.a0) * 0.6, Math.sin(a) * k.dist);
+      k.r.scale.set(k.size, k.size, 1);
+      k.r.material.rotation = t * k.spin;
     }
     dust.rotation.y = t * 0.02;
     dust.material.opacity = 0.6 + Math.sin(t * 1.5) * 0.2;
