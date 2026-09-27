@@ -31,6 +31,11 @@ const at = (state: TableState, seat: number, spot: Spot): TableState => ({
   ...state,
   seats: state.seats.map((player, index) => (index === seat ? { ...player, spot } : player)),
 });
+/** Squares the seat already owns at the top level: landing there does nothing, so a first die can stop safely. */
+const quiet = (state: TableState, seat: number, ...keys: string[]): TableState => ({
+  ...state,
+  deeds: { ...state.deeds, ...Object.fromEntries(keys.map((key) => [key, { owner: seat, level: 4 }])) },
+});
 const cardIndex = (kind: string, amount?: number) =>
   CARDS.findIndex((card) => card.kind === kind && (amount === undefined || (card.kind === "money" && card.amount === amount)));
 
@@ -63,8 +68,8 @@ describe("public table on the 八字 board", () => {
   });
 
   it("buys an empty lot on landing, then upgrades it on landing again", () => {
-    // Square 1 is a lot, one step from start.
-    let state = reduceTable(start(), { type: "roll", dice: [1, 1] }); // lands on o2
+    // Each die walks on its own: the first stops on o1 (already ours), the second lands on o2.
+    let state = reduceTable(quiet(start(), 0, "o1"), { type: "roll", dice: [1, 1] });
     assert.equal(state.deeds.o2?.owner, 0);
     assert.equal(state.seats[0].cash, STAKE - SQUARES.o2.price);
     assert.equal(state.current, 1);
@@ -77,7 +82,7 @@ describe("public table on the 八字 board", () => {
 
   it("charges rent by level, double on the gold roads", () => {
     let state = start();
-    state = { ...state, deeds: { o2: { owner: 1, level: 3 }, L2: { owner: 1, level: 1 } } };
+    state = quiet({ ...state, deeds: { o2: { owner: 1, level: 3 }, L2: { owner: 1, level: 1 } } }, 0, "o1");
     const after = reduceTable(state, { type: "roll", dice: [1, 1] });
     assert.equal(after.seats[0].cash, STAKE - RENTS[3]);
     assert.equal(after.seats[1].cash, STAKE + RENTS[3]);
@@ -100,15 +105,15 @@ describe("public table on the 八字 board", () => {
   });
 
   it("gold road skips start and comes out past the bottom corner", () => {
-    let state = at(start(), 0, { on: "loop", i: 30 });
-    state = reduceTable(state, { type: "roll", dice: [2, 2] });
+    let state = quiet(at(start(), 0, { on: "loop", i: 30 }), 0, "L3");
+    state = reduceTable(state, { type: "roll", dice: [3, 1] });
     state = reduceTable(state, { type: "choose", road: true });
     assert.deepEqual(state.seats[0].spot, { on: "loop", i: 6 });
     assert.equal(state.seats[0].cash, STAKE - SQUARES.o6.price);
   });
 
   it("chance cards pay, charge, move and jail; jail costs bail next turn", () => {
-    const onChance = (card: number) => reduceTable(at(start(), 0, { on: "loop", i: 18 }), { type: "roll", dice: [1, 1], card });
+    const onChance = (card: number) => reduceTable(quiet(at(start(), 0, { on: "loop", i: 18 }), 0, "o19"), { type: "roll", dice: [1, 1], card });
     assert.equal(onChance(cardIndex("money", 2)).seats[0].cash, STAKE + 2);
     assert.equal(onChance(cardIndex("money", -2)).seats[0].cash, STAKE - 2);
     const moved = onChance(cardIndex("forward"));
@@ -131,13 +136,33 @@ describe("public table on the 八字 board", () => {
 
   it("goes bankrupt when rent can't be paid, and the land returns to the bank", () => {
     let state = start();
-    state = { ...state, deeds: { o2: { owner: 1, level: 4 }, o5: { owner: 0, level: 1 } } };
+    state = quiet({ ...state, deeds: { o2: { owner: 1, level: 4 }, o5: { owner: 0, level: 1 } } }, 0, "o1");
     state = { ...state, seats: state.seats.map((seat, index) => (index === 0 ? { ...seat, cash: 3 } : seat)) };
     const after = reduceTable(state, { type: "roll", dice: [1, 1] });
     assert.equal(after.seats[0].bankrupt, true);
     assert.equal(after.seats[1].cash, STAKE + 3);
     assert.equal(after.deeds.o5, undefined);
     assert.equal(after.phase, "over");
+  });
+
+  it("walks each die on its own, and the second die waits for the first to land", () => {
+    const state = reduceTable(start(), { type: "roll", dice: [1, 2] });
+    const kinds = state.events.map((event) => event.kind);
+    const second = kinds.indexOf("second");
+    assert.ok(second > 0, "a second throw happens");
+    assert.ok(kinds.indexOf("bought") < second, "the first die's square is dealt with first");
+    assert.equal(state.deeds.o1?.owner, 0);
+    assert.equal(state.deeds.o3?.owner, 0);
+    assert.equal(state.current, 1);
+  });
+
+  it("a first die that ends in jail or on a plane ends the turn", () => {
+    const jailed = reduceTable(at(start(), 0, { on: "loop", i: 19 }), { type: "roll", dice: [1, 3], card: cardIndex("jail") });
+    assert.ok(!jailed.events.some((event) => event.kind === "second"));
+    assert.deepEqual(jailed.seats[0].spot, { on: "loop", i: JAIL });
+    const flown = reduceTable(at(start(), 0, { on: "loop", i: 11 }), { type: "roll", dice: [1, 3], fly: 0 });
+    assert.ok(flown.events.some((event) => event.kind === "fly"));
+    assert.ok(!flown.events.some((event) => event.kind === "second"));
   });
 
   it("ends after 12 turns each and ranks by net worth", () => {
@@ -147,7 +172,9 @@ describe("public table on the 八字 board", () => {
     const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     while (state.phase !== "over" && guard++ < 1000) state = reduceTable(state, botMove(state, random));
     assert.equal(state.phase, "over");
-    assert.ok(state.seats.every((seat) => seat.bankrupt || seat.turnsTaken === TURNS_EACH));
+    // Either one player is left standing, or everyone still in has played every turn.
+    const left = state.seats.filter((seat) => !seat.bankrupt);
+    assert.ok(left.length === 1 || left.every((seat) => seat.turnsTaken === TURNS_EACH));
     const order = standings(state);
     for (let i = 1; i < order.length; i += 1) {
       if (!state.seats[order[i]].bankrupt) assert.ok(netWorth(state, order[i - 1]) >= netWorth(state, order[i]));

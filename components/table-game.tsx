@@ -279,6 +279,15 @@ export function EightBoard({
               void scene.coinsBurst(event.seat, 2);
             }
             break;
+          case "second": {
+            const doubles = state.lastDice?.[0] === event.die;
+            await scene.wait(250);
+            play("roll");
+            await scene.roll(event.seat, 1, event.die);
+            say(doubles ? "第二粒 {n}，孖寶！" : "第二粒 {n}", { n: event.die });
+            await (doubles ? scene.sparkle("dice") : scene.wait(350));
+            break;
+          }
           case "fork":
             say(state.seats[event.seat]?.bot ? "{name} 喺分岔路口" : "揀路", { name: who(event.seat) });
             break;
@@ -361,10 +370,10 @@ export function EightBoard({
       stateRef.current = next;
       if (action.type === "roll" && next.lastDice) {
         play("roll");
-        await scene.roll(before.current, next.lastDice);
-        const [a, b] = next.lastDice;
-        say(a === b ? "擲出 {n}，孖寶！" : "擲出 {n}", { n: a + b });
-        await (a === b ? scene.sparkle("dice") : scene.wait(350));
+        // Only the first die now; the second is thrown once this one's walk has landed.
+        await scene.roll(before.current, 0, next.lastDice[0]);
+        say("第一粒 {n}", { n: next.lastDice[0] });
+        await scene.wait(350);
       }
       await playEvents(scene, next.events, next);
       if (sceneRef.current !== scene) return;

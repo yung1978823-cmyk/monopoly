@@ -213,7 +213,9 @@ export type TableEvent =
   | { kind: "fly"; seat: number; to: Spot }
   | { kind: "jailed"; seat: number }
   | { kind: "bankrupt"; seat: number; to: number | null; lost: string[] }
-  | { kind: "house"; seat: number; key: string; amount: number };
+  | { kind: "house"; seat: number; key: string; amount: number }
+  /** The first die's walk is done; the second die is thrown now. */
+  | { kind: "second"; seat: number; die: number };
 
 /**
  * House rules for this table. The public table uses the defaults; a hosted game on someone's
@@ -236,6 +238,8 @@ export type TableState = {
   phase: TablePhase;
   /** Steps still to walk after a fork choice. */
   stepsLeft: number;
+  /** The second die, still to walk once the first die's walk has landed (0 when none). */
+  pending: number;
   /** The roll's card and plane draws, used when the walk ends. */
   draw: { card: number; fly: number };
   lastDice: [number, number] | null;
@@ -279,6 +283,7 @@ export function newTable(
     current: 0,
     phase: "roll",
     stepsLeft: 0,
+    pending: 0,
     draw: { card: 0, fly: 0 },
     lastDice: null,
     events: [{ kind: "turn", seat: 0 }],
@@ -362,7 +367,16 @@ function walk(state: TableState, seat: number, events: TableEvent[]): TableState
     }
     next = { ...step(next, seat, false, events), stepsLeft: next.stepsLeft - 1 };
   }
-  return finishTurn(land(next, seat, events, 0), events);
+  const before = events.length;
+  const landed = land(next, seat, events, 0);
+  // Each die walks on its own: after the first one lands, throw the second, unless that square
+  // ended the turn (jail, a plane or boat ride, going broke).
+  const stopped = events.slice(before).some((e) => e.kind === "fly" || e.kind === "jailed") || landed.seats[seat].bankrupt;
+  if (landed.pending > 0 && !stopped) {
+    events.push({ kind: "second", seat, die: landed.pending });
+    return walk({ ...landed, stepsLeft: landed.pending, pending: 0 }, seat, events);
+  }
+  return finishTurn({ ...landed, pending: 0 }, events);
 }
 
 /** What the square under the seat does. */
@@ -471,7 +485,7 @@ export function reduceTable(state: TableState, action: TableAction): TableState 
       next = withSeat(pay(next, seat, BAIL, null, events), seat, { jailed: false });
       if (next.seats[seat].bankrupt) return bump(finishTurn(next, events));
     }
-    return bump(walk({ ...next, stepsLeft: a + b }, seat, events));
+    return bump(walk({ ...next, stepsLeft: a, pending: b }, seat, events));
   }
 
   if (action.type === "choose") {

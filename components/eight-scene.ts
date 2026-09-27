@@ -67,7 +67,8 @@ export type BoardScene = {
   focus(seat: number | null): void;
   /** Speed up (e.g. 3 while computer players move with 快轉 on). */
   setSpeed(speed: number): void;
-  roll(seat: number, dice: [number, number]): Promise<void>;
+  /** Throw one die beside a seat: die 0 clears the table first; die 1 lands next to it. */
+  roll(seat: number, which: 0 | 1, value: number): Promise<void>;
   hideDice(): void;
   stepTo(seat: number, spot: Spot): Promise<void>;
   flyTo(seat: number, spot: Spot): Promise<void>;
@@ -1060,31 +1061,19 @@ export function createBoardScene(
     setSpeed(value) {
       speed = value;
     },
-    async roll(seat, values) {
+    async roll(seat, which, value) {
       const base = tokens[seat].position;
-      dice.forEach((d, i) => {
-        d.visible = false;
-        d.position.set(base.x + (i ? 0.45 : -0.45), 2.5, base.z + 1.1);
+      if (which === 0) dice[1].visible = false;
+      // Both dice sit in front of whoever is throwing; the first one follows them to the new square.
+      dice.forEach((d, i) => d.position.set(base.x + (i ? 0.45 : -0.45), i === which ? 2.5 : TOP + 0.3, base.z + 1.1));
+      const d = dice[which];
+      const spin = [Math.random() * 8 + 6, Math.random() * 8 + 6, Math.random() * 8 + 6];
+      d.visible = true;
+      await tween(650, (k) => {
+        d.rotation.set(spin[0] * (1 - k), spin[1] * (1 - k), spin[2] * (1 - k));
+        if (k === 1) d.rotation.set(...UP[value]);
+        d.position.y = TOP + 0.3 + Math.abs(Math.sin(k * Math.PI * 2.5)) * (1 - k) * 2;
       });
-      const throwDie = (i: number) => {
-        const d = dice[i];
-        const spin = [Math.random() * 8 + 6, Math.random() * 8 + 6, Math.random() * 8 + 6];
-        d.visible = true;
-        return tween(650, (k) => {
-          d.rotation.set(spin[0] * (1 - k), spin[1] * (1 - k), spin[2] * (1 - k));
-          if (k === 1) d.rotation.set(...UP[values[i]]);
-          d.position.y = TOP + 0.3 + Math.abs(Math.sin(k * Math.PI * 2.5)) * (1 - k) * 2;
-        });
-      };
-      if (speed > 1) {
-        // 快轉: both dice land together.
-        await Promise.all([throwDie(0), throwDie(1)]);
-        return;
-      }
-      // One die lands, a beat, then the other.
-      await throwDie(0);
-      await wait(150);
-      await throwDie(1);
     },
     hideDice() {
       dice.forEach((d) => (d.visible = false));
