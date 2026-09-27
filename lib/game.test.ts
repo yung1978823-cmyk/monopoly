@@ -15,6 +15,7 @@ import {
   parseSave,
   reduce,
 } from "./game";
+import { rollElement } from "./pet";
 import { DICE_CAP, LEVEL_COSTS, REFILL_MS, hitChance, smashPoints } from "./rules";
 
 const NOW = Date.parse("2026-09-24T08:00:00");
@@ -408,8 +409,9 @@ describe("daily board", () => {
   it("raises a monster: pick one, feed it 🍖 and 🧪 to grow, and it attacks harder", () => {
     let state = start();
     assert.equal(reduce(state, { type: "grow-pet" }), state, "no monster yet");
-    state = reduce(state, { type: "pick-pet", element: 3 });
-    assert.deepEqual(state.pet, { element: 3, stage: 0, hungry: 0 });
+    state = reduce(state, { type: "pick-pet", element: 2 });
+    assert.deepEqual(state.pet, { element: 2, stage: 0, hungry: 0 });
+    assert.equal(reduce(start(), { type: "pick-pet", element: 3 }).pet, null, "only 光, 暗 and 混濁");
     assert.equal(reduce(state, { type: "pick-pet", element: 1 }), state, "picked once");
     assert.equal(reduce(state, { type: "grow-pet" }), state, "not enough food");
     state = reduce({ ...state, meat: 25, juice: 3 }, { type: "grow-pet" });
@@ -417,8 +419,10 @@ describe("daily board", () => {
     assert.equal(state.meat, 5);
     assert.equal(state.juice, 1);
     assert.equal(attackPower(state), 16);
-    assert.equal(attackPower({ ...state, pet: { element: 3, stage: 4, hungry: 0 } }), 46);
-    assert.equal(attackPower({ ...state, pet: { element: 3, stage: 4, hungry: 0 }, nfts: ["a", null, null, null, null] }), 51 + 2, "legendary: a tenth more, plus the NFT");
+    assert.equal(attackPower({ ...state, pet: { element: 2, stage: 4, hungry: 0 } }), 46);
+    assert.equal(attackPower({ ...state, pet: { element: 2, stage: 4, hungry: 0 }, nfts: ["a", null, null, null, null] }), 51 + 2, "legendary: a tenth more, plus the NFT");
+    const old = parseSave(JSON.stringify({ v: 1, state: { ...state, pet: { element: 4, stage: 2, hungry: 0 } } }), NOW, DAY);
+    assert.deepEqual(old?.pet, { element: 1, stage: 2, hungry: 0 }, "an old five-element monster becomes a dragon");
     assert.equal(parseSave(JSON.stringify({ v: 1, state }), NOW, DAY)?.pet?.stage, 1);
   });
 
@@ -430,8 +434,9 @@ describe("daily board", () => {
     assert.deepEqual([hungry.pet?.stage, hungry.pet?.hungry], [3, 1]);
     const dropped = reduce(hungry, { type: "tick", now: NOW, dayKey: "2026-09-26" });
     assert.deepEqual([dropped.pet?.stage, dropped.pet?.hungry], [2, 0]);
-    assert.match(dropped.log[0]?.text ?? "", /跌返做少年/);
+    assert.match(dropped.log[0]?.text ?? "", /跌返做R/);
     const away = reduce({ ...start(), pet: { element: 0, stage: 4, hungry: 0 } }, { type: "tick", now: NOW, dayKey: "2026-10-01" });
-    assert.equal(away.pet?.stage, 1, "a week away without food: back to 幼仔, never lower");
+    assert.equal(away.pet?.stage, 1, "a week away without food: back to N, never lower");
+    assert.deepEqual([0, 0.34, 0.35, 0.69, 0.7, 0.99].map(rollElement), [0, 0, 1, 1, 2, 2], "光 35%, 暗 35%, 混濁 30%");
   });
 });

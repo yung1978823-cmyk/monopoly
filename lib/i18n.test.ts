@@ -39,7 +39,7 @@ describe("languages", () => {
       ...Object.values(DECKS).flatMap((deck) => deck.map((card) => card.text)),
       ...THEMES.map((theme) => theme.name),
       ...ELEMENTS.flatMap((element) => [element.name, element.beast, element.legend]),
-      ...STAGE_NAMES,
+      ...STAGE_NAMES.filter((name) => /[一-鿿]/.test(name)),
       ...LANDMARK_NAMES,
       ...Object.values(TILE_INFO).map((tile) => tile.name),
       "你",

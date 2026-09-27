@@ -1,27 +1,36 @@
 /**
- * Your monster: it lives in the middle of your town and does your attacking. Pick one of the five
- * elements (金木水火土) at the start; it grows through five stages on 🍖 肉 (from the board) and
- * 🧪 營養液 (only stolen from rivals' stores). Each day it eats; go hungry two days running and it
- * drops back a stage. NFT holders' monsters are the legendary series — the element's divine beast.
+ * Your dragon: it lives in the middle of your town and flies out to attack other players' land.
+ * Everyone gets a dragon egg; its attribute is random — 光 35%, 暗 35%, 混濁 30%. It grows through
+ * five grades (龍蛋 → N → R → SR → SSR) on 🍖 肉 (from the board) and 🧪 營養液 (only stolen from
+ * rivals' stores). Each day it eats; go hungry two days running and it drops back a grade. NFT
+ * holders' dragons are the legendary series.
  */
 export type Pet = {
-  /** Index into ELEMENTS. */
+  /** Index into ELEMENTS (the dragon's attribute). */
   element: number;
-  /** 0 蛋, 1 幼仔, 2 少年, 3 成年, 4 王者. */
+  /** 0 龍蛋, 1 N, 2 R, 3 SR, 4 SSR. */
   stage: number;
   /** Days in a row it went without its daily food (two drops a stage). */
   hungry: number;
 };
 
 export const ELEMENTS = [
-  { id: "metal", name: "金", beast: "小鋼甲獸", legend: "白虎", colour: "#D4A017" },
-  { id: "wood", name: "木", beast: "樹角鹿仔", legend: "青龍", colour: "#3FA34D" },
-  { id: "water", name: "水", beast: "小海龍", legend: "玄武", colour: "#2F80ED" },
-  { id: "fire", name: "火", beast: "火尾狐", legend: "朱雀", colour: "#EB5A2A" },
-  { id: "earth", name: "土", beast: "石殼龜", legend: "麒麟", colour: "#A0703C" },
+  { id: "light", name: "光", beast: "光龍", legend: "聖光龍", colour: "#E8B420", chance: 0.35 },
+  { id: "dark", name: "暗", beast: "暗龍", legend: "深淵龍", colour: "#6D3FC0", chance: 0.35 },
+  { id: "chaos", name: "混濁", beast: "混濁龍", legend: "混沌龍", colour: "#3E8E7E", chance: 0.3 },
 ] as const;
 
-export const STAGE_NAMES = ["蛋", "幼仔", "少年", "成年", "王者"] as const;
+/** The attribute a new egg gets, from a random number in [0, 1): 光 35%, 暗 35%, 混濁 30%. */
+export function rollElement(random: number): number {
+  let edge = 0;
+  for (let i = 0; i < ELEMENTS.length; i++) {
+    edge += ELEMENTS[i].chance;
+    if (random < edge) return i;
+  }
+  return ELEMENTS.length - 1;
+}
+
+export const STAGE_NAMES = ["龍蛋", "N", "R", "SR", "SSR"] as const;
 export const TOP_STAGE = STAGE_NAMES.length - 1;
 /** 🍖 and 🧪 to grow from each stage to the next (the last stage has nowhere to go). */
 export const STAGE_NEED: readonly (readonly [number, number])[] = [
@@ -53,6 +62,7 @@ export function petAttack(pet: Pet | null, legend = false): number {
 
 export function petName(pet: Pet, legend = false): string {
   const element = ELEMENTS[pet.element] ?? ELEMENTS[0];
+  if (pet.stage === 0) return "龍蛋";
   return legend ? element.legend : element.beast;
 }
 
@@ -63,7 +73,7 @@ export function growNeed(pet: Pet): readonly [number, number] | null {
 
 /**
  * A day goes by: the monster eats its ration from your store if it can; otherwise it goes hungry,
- * and a second hungry day in a row knocks it back a stage (never below 幼仔 once hatched).
+ * and a second hungry day in a row knocks it back a grade (never below N once hatched).
  */
 export function eatForDay(pet: Pet, meat: number, juice: number): { pet: Pet; meat: number; juice: number; ate: boolean; dropped: boolean } {
   const [needMeat, needJuice] = UPKEEP[pet.stage] ?? [0, 0];

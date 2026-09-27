@@ -105,7 +105,7 @@ export function AttackScreen({
           attacker={state.pet ? { element: state.pet.element, stage: state.pet.stage, legend: holdsNft(state) } : null}
           resident={{
             // The rival's own monster (made up from who they are and how far along they are, for the practice board).
-            element: (state.rivalFace * 2 + state.rivalCity) % 5,
+            element: (state.rivalFace * 2 + state.rivalCity) % 3,
             stage: Math.min(4, 1 + state.rivalCity + Math.floor(totalLevels(state.rivalLevels) / 9)),
             legend: state.rivalHasNft && state.rivalNfts >= 3,
           }}

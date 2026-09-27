@@ -1,10 +1,11 @@
 /**
- * The monsters, built in code (no model files yet): a round, big-eyed body in the element's colours
- * with the element's own features — 金 an armoured pangolin with a horn, 木 a fawn with leafy
- * antlers, 水 a little sea dragon with fins and a long tail, 火 a fox with a flame tail, 土 a turtle
- * with a rock shell. Stage 0 is an egg; each stage after grows it and its features, and 王者 wears a
- * crown with a glowing ring. Legendary (NFT) monsters are the element's divine beast in their own
- * colours (白虎, 青龍, 玄武, 朱雀, 麒麟) with a gold band.
+ * The dragons, built in code (no model files yet): chubby, big-eyed baby dragons with wings from
+ * the moment they hatch, since they fly out to attack other players' land. Three attributes, each
+ * its own colours and touches — 光 cream and gold with golden wings, 暗 deep purple with bat wings,
+ * 混濁 murky teal and purple with odd-coloured horns and wings. Grade 0 is an egg (plain, so the
+ * attribute is a surprise at hatching); N → R → SR → SSR grow the dragon, its wings, horns and back
+ * spikes, and SSR glows with a gem and a ring. Legendary (NFT) dragons carry a gold collar and a
+ * second pair of horns.
  */
 export type Monster = {
   group: any;
@@ -15,28 +16,19 @@ export type Monster = {
 };
 
 const PALETTE = [
-  // body, belly, feature, accent
-  { body: 0xd8b13a, belly: 0xfff3cf, feature: 0xc9ced6, accent: 0xffd34d },
-  { body: 0x7cc86a, belly: 0xf0fbd9, feature: 0x8b5a2b, accent: 0x4fae45 },
-  { body: 0x4a9bf0, belly: 0xdcf0ff, feature: 0x7fe0ff, accent: 0x2fd0c8 },
-  { body: 0xf58a3c, belly: 0xfff0dc, feature: 0xffc53d, accent: 0xff5a1f },
-  { body: 0x9ccf6b, belly: 0xf4f1d0, feature: 0x9a7552, accent: 0xc2a27a },
+  // 光
+  { body: 0xfff1d2, belly: 0xffdf8a, wing: 0xffcf4a, wingEdge: 0xe8a820, horn: 0xffc02e, accent: 0xfff0a0, glow: 0xffe066, horn2: 0xffc02e, wing2: 0xffcf4a },
+  // 暗
+  { body: 0x4a2c78, belly: 0x9277c9, wing: 0x7b3fd0, wingEdge: 0x2a1648, horn: 0xd8d4e8, accent: 0xc27dff, glow: 0xb45cff, horn2: 0xd8d4e8, wing2: 0x7b3fd0 },
+  // 混濁
+  { body: 0x4f8f80, belly: 0xc2d6b0, wing: 0x7a58a8, wingEdge: 0x2f5b52, horn: 0x9e7cc8, accent: 0xa8f06a, glow: 0x9dff6b, horn2: 0x6fcf8c, wing2: 0x4fae8f },
 ];
-const LEGEND = [
-  { body: 0xf7f7f2, belly: 0xffffff, feature: 0x2b2b2b, accent: 0xffd34d },
-  { body: 0x22a67a, belly: 0xcff5e3, feature: 0xffd34d, accent: 0x7cf0c3 },
-  { body: 0x2e5577, belly: 0x9cc3de, feature: 0x3b6b57, accent: 0x9ff3ff },
-  { body: 0xe03131, belly: 0xffe0b8, feature: 0xffb020, accent: 0xffe066 },
-  { body: 0xe6b73e, belly: 0xfff3cc, feature: 0x3f8f6a, accent: 0xff9b3d },
-];
-/** Overall size, and how big each element's features grow, per stage. */
 const SIZE = [0.7, 0.62, 0.8, 0.98, 1.15];
-const GROW = [0, 0.6, 0.85, 1.1, 1.35];
-const HEAD = [0, 0.5, 0.46, 0.42, 0.4];
+const HEAD = [0, 0.48, 0.45, 0.42, 0.4];
 
 export function buildMonster(T: any, element: number, stage: number, legend = false): Monster {
   stage = Math.max(0, Math.min(4, stage));
-  const pal = (legend ? LEGEND : PALETTE)[element] ?? PALETTE[0];
+  const pal = PALETTE[element] ?? PALETTE[0];
   const lin = (hex: number) => new T.Color(hex).convertSRGBToLinear();
   const mat = (hex: number, rough = 0.5, extra: Record<string, unknown> = {}) => {
     const m = new T.MeshStandardMaterial(Object.assign({ roughness: rough }, extra));
@@ -56,20 +48,28 @@ export function buildMonster(T: any, element: number, stage: number, legend = fa
   const s = SIZE[stage];
   body.scale.setScalar(s);
 
-  // ---------- Egg ----------
+  // ---------- Dragon egg ----------
   if (stage === 0) {
-    const egg = ball(0.42, mat(0xfff6e0, 0.45));
+    const egg = ball(0.42, mat(0xf6ead0, 0.4));
     egg.scale.set(1, 1.3, 1);
     egg.position.y = 0.55;
     body.add(egg);
-    for (let k = 0; k < 7; k++) {
-      const a = (k / 7) * Math.PI * 2 + k, y = 0.3 + (k % 3) * 0.22;
-      const spot = ball(0.1 - (k % 2) * 0.03, mat(pal.body, 0.5), 0.5);
+    // Scale-like speckles in gold and a band of hexagon plates round the middle.
+    const plate = mat(0xd9a93a, 0.35, { metalness: 0.3 });
+    for (let k = 0; k < 10; k++) {
+      const a = (k / 10) * Math.PI * 2;
+      const hex = mesh(new T.CylinderGeometry(0.07, 0.07, 0.02, 6), plate);
+      hex.position.set(Math.cos(a) * 0.415, 0.52, Math.sin(a) * 0.415);
+      hex.lookAt(Math.cos(a) * 2, 0.52, Math.sin(a) * 2);
+      hex.rotateX(Math.PI / 2);
+      body.add(hex);
+    }
+    for (let k = 0; k < 9; k++) {
+      const a = k * 2.4, y = 0.3 + (k % 3) * 0.28;
       const r = 0.42 * Math.sqrt(Math.max(0.1, 1 - ((y - 0.55) / 0.55) ** 2));
-      spot.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
-      spot.scale.set(1, 1, 0.3);
-      spot.lookAt(0, y, 0);
-      body.add(spot);
+      const dot = ball(0.035, mat(0xc98f2a, 0.5), 0.3);
+      dot.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+      body.add(dot);
     }
     return {
       group: root,
@@ -84,347 +84,202 @@ export function buildMonster(T: any, element: number, stage: number, legend = fa
     };
   }
 
-  const g = GROW[stage];
   const headR = HEAD[stage];
-  const bodyMat = mat(pal.body);
-  const bellyMat = mat(pal.belly, 0.7);
-  const featureMat = mat(pal.feature, 0.45);
-  const accentMat = mat(pal.accent, 0.45);
-  const e = element;
-  const isTurtle = e === 4 && !legend;
+  const bodyMat = mat(pal.body, 0.45);
+  const bellyMat = mat(pal.belly, 0.6);
+  const hornMat = mat(pal.horn, 0.35, { metalness: element === 0 ? 0.4 : 0.1 });
+  const horn2Mat = mat(pal.horn2, 0.35);
+  const glowMat = mat(pal.accent, 0.3, { emissive: pal.glow, emissiveIntensity: 0.8 });
 
   // ---------- Body ----------
   const torso = ball(0.5, bodyMat);
-  torso.scale.set(1, stage >= 3 ? 0.98 : 0.9, 1);
-  torso.position.y = 0.48;
+  torso.scale.set(0.95, 0.92, 1.02);
+  torso.position.y = 0.5;
   body.add(torso);
-  const belly = ball(0.5, bellyMat);
-  belly.scale.set(0.7, 0.72, 0.36);
-  belly.position.set(0, 0.44, 0.33);
-  body.add(belly);
+  // A belly plate with ridges, like a dragon's underside.
+  const plate = ball(0.5, bellyMat);
+  plate.scale.set(0.62, 0.78, 0.34);
+  plate.position.set(0, 0.46, 0.32);
+  body.add(plate);
+  for (let k = 0; k < 4; k++) {
+    const ridge = new T.Mesh(new T.TorusGeometry(0.2 - Math.abs(k - 1.5) * 0.025, 0.012, 6, 20, Math.PI), mat(pal.body, 0.5));
+    ridge.position.set(0, 0.28 + k * 0.12, 0.47 - Math.abs(k - 1.5) * 0.02);
+    ridge.rotation.z = Math.PI;
+    body.add(ridge);
+  }
   for (const [x, z] of [[-0.24, 0.2], [0.24, 0.2], [-0.24, -0.2], [0.24, -0.2]]) {
     const foot = ball(0.14, bodyMat, 0.5);
     foot.scale.set(1, 0.6, 1.25);
     foot.position.set(x, 0.07, z);
     body.add(foot);
-  }
-  if (stage >= 2) {
-    for (const x of [-1, 1]) {
-      const arm = ball(0.12, bodyMat, 0.5);
-      arm.scale.set(0.8, 1.2, 0.8);
-      arm.position.set(x * 0.44, 0.45, 0.16);
-      arm.rotation.z = x * 0.5;
-      body.add(arm);
+    for (const cx of [-0.05, 0, 0.05]) {
+      const claw = mesh(new T.ConeGeometry(0.02, 0.06, 6), hornMat);
+      claw.rotation.x = Math.PI / 2;
+      claw.position.set(x + cx, 0.05, z + 0.17);
+      body.add(claw);
     }
+  }
+  for (const x of [-1, 1]) {
+    const arm = ball(0.11, bodyMat, 0.5);
+    arm.scale.set(0.8, 1.2, 0.8);
+    arm.position.set(x * 0.42, 0.42, 0.2);
+    arm.rotation.z = x * 0.5;
+    body.add(arm);
   }
 
   // ---------- Head ----------
   const head = new T.Group();
-  head.position.set(0, 0.88 + headR * 0.55, 0.06);
+  head.position.set(0, 0.9 + headR * 0.55, 0.08);
   body.add(head);
   head.add(ball(headR, bodyMat));
-  const snouty = e === 0 || e === 1 || e === 3 || (legend && e !== 2);
-  if (snouty) {
-    const snout = ball(headR * 0.36, bellyMat, 0.6);
-    snout.scale.set(1.15, 0.8, 1);
-    snout.position.set(0, -headR * 0.3, headR * 0.82);
-    head.add(snout);
-    const nose = ball(headR * 0.09, mat(0x2a1a1a, 0.3), 0.4);
-    nose.position.set(0, -headR * 0.22, headR * 1.15);
-    head.add(nose);
+  const snout = ball(headR * 0.5, bellyMat, 0.7);
+  snout.scale.set(1.1, 0.72, 0.95);
+  snout.position.set(0, -headR * 0.3, headR * 0.72);
+  head.add(snout);
+  for (const x of [-1, 1]) {
+    const nostril = ball(headR * 0.05, mat(0x3a2020, 0.4), 0.3);
+    nostril.position.set(x * headR * 0.15, -headR * 0.2, headR * 1.15);
+    head.add(nostril);
   }
   const eyes: any[] = [];
   for (const x of [-1, 1]) {
     const eye = new T.Group();
-    eye.position.set(x * headR * 0.4, headR * 0.12, headR * 0.76);
-    eye.rotation.y = x * 0.25;
+    eye.position.set(x * headR * 0.42, headR * 0.18, headR * 0.72);
+    eye.rotation.y = x * 0.3;
     head.add(eye);
     const white = ball(headR * 0.3, mat(0xffffff, 0.25), 0.6);
     white.scale.z = 0.7;
     eye.add(white);
-    const pupil = ball(headR * 0.21, mat(0x1b1b28, 0.15), 0.6);
-    pupil.scale.z = 0.6;
-    pupil.position.z = headR * 0.1;
+    const iris = ball(headR * 0.22, mat(element === 1 ? 0x9b4dff : element === 2 ? 0x3aa66a : 0x3b82f6, 0.2), 0.6);
+    iris.scale.z = 0.55;
+    iris.position.z = headR * 0.09;
+    eye.add(iris);
+    const pupil = ball(headR * 0.13, mat(0x14141f, 0.15), 0.5);
+    pupil.scale.z = 0.5;
+    pupil.position.z = headR * 0.15;
     eye.add(pupil);
-    for (const [dx, dy, r] of [[0.07, 0.08, 0.075], [-0.06, -0.06, 0.035]]) {
+    for (const [dx, dy, r] of [[0.08, 0.09, 0.075], [-0.06, -0.06, 0.035]]) {
       const shine = new T.Mesh(new T.SphereGeometry(headR * r, 8, 6), new T.MeshBasicMaterial({ color: 0xffffff }));
-      shine.position.set(headR * dx, headR * dy, headR * 0.23);
+      shine.position.set(headR * dx, headR * dy, headR * 0.24);
       eye.add(shine);
     }
     eyes.push(eye);
-    const cheek = new T.Mesh(new T.CircleGeometry(headR * 0.13, 20), new T.MeshBasicMaterial({ color: 0xff7f96, transparent: true, opacity: 0.55, depthWrite: false }));
-    const cx = x * headR * 0.62, cy = -headR * 0.22;
+    const cheek = new T.Mesh(new T.CircleGeometry(headR * 0.12, 20), new T.MeshBasicMaterial({ color: 0xff7f96, transparent: true, opacity: 0.5, depthWrite: false }));
+    const cx = x * headR * 0.66, cy = -headR * 0.18;
     cheek.position.set(cx, cy, Math.sqrt(Math.max(0, headR * headR - cx * cx - cy * cy)) + 0.005);
     cheek.lookAt(cx * 3, cy * 3, headR * 3);
     head.add(cheek);
+    // Horns sweeping back; 混濁 has one of each colour.
+    const hornLen = 0.16 + 0.1 * stage;
+    const horn = mesh(new T.ConeGeometry(0.055 + 0.01 * stage, hornLen, 10), x < 0 ? hornMat : horn2Mat);
+    horn.position.set(x * headR * 0.45, headR * 0.82, -headR * 0.25);
+    horn.rotation.set(-0.7, 0, -x * 0.35);
+    head.add(horn);
+    if (legend) {
+      const small = mesh(new T.ConeGeometry(0.04, hornLen * 0.6, 8), mat(0xffd34d, 0.3, { metalness: 0.6 }));
+      small.position.set(x * headR * 0.75, headR * 0.5, -headR * 0.3);
+      small.rotation.set(-0.9, 0, -x * 0.9);
+      head.add(small);
+    }
+    // Little fin-ears.
+    const ear = mesh(new T.ConeGeometry(headR * 0.16, headR * 0.45, 3), mat(x < 0 ? pal.wing : pal.wing2, 0.5));
+    ear.scale.set(1, 1, 0.3);
+    ear.position.set(x * headR * 0.92, headR * 0.3, -headR * 0.1);
+    ear.rotation.set(0, x * 0.5, -x * 1.2);
+    head.add(ear);
   }
-  const mouth = new T.Mesh(new T.TorusGeometry(headR * 0.1, headR * 0.022, 6, 14, Math.PI), mat(0x5a2a2a, 0.5));
+  const mouth = new T.Mesh(new T.TorusGeometry(headR * 0.12, headR * 0.022, 6, 14, Math.PI), mat(0x5a2a2a, 0.5));
   mouth.rotation.z = Math.PI;
-  mouth.position.set(0, snouty ? -headR * 0.5 : -headR * 0.3, snouty ? headR * 0.9 : headR * 0.95);
+  mouth.position.set(0, -headR * 0.5, headR * 0.93);
   head.add(mouth);
-
-  // ---------- Element features ----------
-  let tail: any = null;
-  const flicker: any[] = [];
-  if (e === 0) {
-    if (!legend) {
-      // Armour bands arching over the back, more and thicker each stage.
-      const plate = mat(pal.feature, 0.25, { metalness: 0.75 });
-      const trim = mat(pal.accent, 0.3, { metalness: 0.6 });
-      for (let k = 0; k < 2 + stage; k++) {
-        const band = mesh(new T.TorusGeometry(0.47 - k * 0.025, 0.05 * g + 0.02, 8, 24, Math.PI), k % 2 ? trim : plate);
-        band.position.set(0, 0.5, -0.04 - k * 0.1);
-        band.rotation.y = 0;
-        band.scale.set(1, 0.95, 1);
-        body.add(band);
-      }
-    } else {
-      // 白虎: round ears and black stripes.
-      for (let k = 0; k < 3; k++) {
-        const stripe = mesh(new T.TorusGeometry(0.5, 0.03, 6, 20, Math.PI * 0.5), mat(0x222222));
-        stripe.position.set(0, 0.48, -0.08 - k * 0.12);
-        stripe.rotation.z = Math.PI * 0.25;
-        body.add(stripe);
-      }
-    }
-    for (const x of [-1, 1]) {
-      const ear = ball(headR * 0.26, bodyMat, 0.5);
-      ear.scale.set(1, 1, 0.5);
-      ear.position.set(x * headR * 0.72, headR * 0.72, -headR * 0.1);
-      head.add(ear);
-    }
-    const horn = mesh(new T.ConeGeometry(0.06 * g + 0.03, 0.28 * g + 0.08, 12), accentMat);
-    horn.position.set(0, headR * 0.98, headR * 0.3);
-    horn.rotation.x = 0.3;
-    head.add(horn);
-    tail = new T.Group();
-    tail.position.set(0, 0.35, -0.48);
-    body.add(tail);
-    const stalk = mesh(new T.CylinderGeometry(0.05, 0.08, 0.35, 8), bodyMat);
-    stalk.rotation.x = -1;
-    stalk.position.z = -0.12;
-    tail.add(stalk);
-    if (stage >= 3) {
-      const mace = mesh(new T.IcosahedronGeometry(0.12, 0), mat(pal.feature, 0.25, { metalness: 0.7, flatShading: true }));
-      mace.position.set(0, 0.12, -0.28);
-      tail.add(mace);
-    }
-  } else if (e === 1) {
-    // Antlers that branch more each stage, with leaves (青龍: gold horns and whiskers instead).
-    for (const x of [-1, 1]) {
-      const antler = new T.Group();
-      antler.position.set(x * headR * 0.42, headR * 0.82, -headR * 0.05);
-      antler.rotation.z = -x * 0.35;
-      head.add(antler);
-      const len = 0.16 + 0.13 * stage;
-      const stem = mesh(new T.CylinderGeometry(0.022, 0.04, len, 6), legend ? accentMat : featureMat);
-      stem.position.y = len / 2;
-      antler.add(stem);
-      for (let k = 1; k <= stage; k++) {
-        const branch = mesh(new T.CylinderGeometry(0.016, 0.026, len * 0.45, 6), legend ? accentMat : featureMat);
-        branch.position.set(x * 0.05, len * (0.3 + k * 0.16), 0);
-        branch.rotation.z = -x * 0.85;
-        antler.add(branch);
-        if (!legend) {
-          const leaf = ball(0.065, accentMat, 0.4);
-          leaf.scale.set(1, 0.45, 1.5);
-          leaf.position.set(x * 0.15, len * (0.42 + k * 0.16), 0);
-          antler.add(leaf);
-        }
-      }
-      if (!legend && stage >= 2) {
-        const flower = ball(0.06, mat(0xff8fb8, 0.5), 0.4);
-        flower.position.set(0, len, 0);
-        antler.add(flower);
-      }
-      const ear = mesh(new T.ConeGeometry(headR * 0.18, headR * 0.5, 8), bodyMat);
-      ear.position.set(x * headR * 0.85, headR * 0.35, -headR * 0.1);
-      ear.rotation.z = -x * 1.1;
-      head.add(ear);
-    }
-    if (legend) {
-      for (const x of [-1, 1]) {
-        const whisker = new T.Mesh(new T.TorusGeometry(0.22, 0.012, 6, 16, Math.PI * 0.6), accentMat);
-        whisker.position.set(x * headR * 0.55, -headR * 0.25, headR * 0.8);
-        whisker.rotation.set(0, x * 0.6, x > 0 ? Math.PI : 0);
-        head.add(whisker);
-      }
-    }
-    // White spots down the back, like a fawn.
-    for (let k = 0; k < 5; k++) {
-      const spot = ball(0.05, bellyMat, 0.3);
-      spot.scale.set(1, 0.4, 1);
-      spot.position.set(((k % 2) - 0.5) * 0.3, 0.86 - k * 0.04, -0.1 - k * 0.07);
-      body.add(spot);
-    }
-    tail = new T.Group();
-    tail.position.set(0, 0.55, -0.5);
-    body.add(tail);
-    const puff = ball(0.13, bellyMat, 0.5);
-    tail.add(puff);
-  } else if (e === 2) {
-    if (legend) {
-      // 玄武: a dark shell and a snake for a tail.
-      const shell = mesh(new T.SphereGeometry(0.58, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(pal.feature, 0.6, { flatShading: true }));
-      shell.scale.set(1.02, 0.75, 1.05);
-      shell.position.set(0, 0.45, -0.05);
-      body.add(shell);
-    } else {
-      // Fins down the back.
-      for (let k = 0; k < 1 + stage; k++) {
-        const fin = mesh(new T.ConeGeometry(0.08 * g + 0.04, 0.22 * g + 0.08, 3), mat(pal.feature, 0.4));
-        fin.scale.set(0.3, 1, 1);
-        fin.position.set(0, 0.95 - k * 0.1, -0.05 - k * 0.13);
-        fin.rotation.x = -0.5 - k * 0.2;
-        body.add(fin);
-      }
-    }
-    // Fin-ears and little horns.
-    for (const x of [-1, 1]) {
-      const finEar = mesh(new T.ConeGeometry(headR * 0.28, headR * (0.7 + 0.1 * stage), 3), mat(pal.feature, 0.4));
-      finEar.scale.set(1, 1, 0.25);
-      finEar.position.set(x * headR * 0.9, headR * 0.15, -headR * 0.15);
-      finEar.rotation.set(0, x * 0.4, -x * 1.3);
-      head.add(finEar);
-      const horn = mesh(new T.ConeGeometry(0.045, 0.12 + 0.05 * stage, 8), accentMat);
-      horn.position.set(x * headR * 0.35, headR * 0.92, -headR * 0.05);
-      horn.rotation.z = -x * 0.25;
-      head.add(horn);
-    }
-    // A long tail curling behind, with a fin at the end.
-    tail = new T.Group();
-    tail.position.set(0, 0.32, -0.42);
-    body.add(tail);
-    let z = 0, y = 0;
-    for (let k = 0; k < 3 + Math.min(2, stage); k++) {
-      const r = 0.12 - k * 0.018;
-      const seg = ball(Math.max(0.04, r), legend ? mat(0x3b6b57) : bodyMat, 0.5);
-      z -= r * 1.4;
-      y += 0.03;
-      seg.position.set(0, y, z);
-      tail.add(seg);
-    }
-    const tfin = mesh(new T.ConeGeometry(0.1 * g + 0.06, 0.25, 3), mat(pal.feature, 0.4));
-    tfin.scale.set(1, 1, 0.25);
-    tfin.position.set(0, y + 0.05, z - 0.12);
-    tfin.rotation.x = -Math.PI / 2;
-    tail.add(tfin);
-  } else if (e === 3) {
-    // Fox ears with pale insides, a flame tail that burns bigger each stage; 朱雀 and 王者 get wings.
-    for (const x of [-1, 1]) {
-      const ear = mesh(new T.ConeGeometry(headR * 0.3, headR * 0.75, 12), bodyMat);
-      ear.position.set(x * headR * 0.55, headR * 0.88, -headR * 0.05);
-      ear.rotation.z = -x * 0.28;
-      head.add(ear);
-      const inner = mesh(new T.ConeGeometry(headR * 0.18, headR * 0.5, 12), bellyMat);
-      inner.position.set(x * headR * 0.56, headR * 0.84, headR * 0.06);
-      inner.rotation.z = -x * 0.28;
-      head.add(inner);
-      if (legend || stage >= 4) {
-        const wing = mesh(new T.ConeGeometry(0.22 * g + 0.05, 0.75 * g, 3), mat(legend ? pal.accent : pal.feature, 0.45, { emissive: pal.accent, emissiveIntensity: 0.25 }));
-        wing.scale.set(1, 1, 0.2);
-        wing.position.set(x * 0.52, 0.72, -0.12);
-        wing.rotation.z = -x * 1.15;
-        body.add(wing);
-        flicker.push(wing);
-      }
-    }
-    if (legend || stage >= 3) {
-      const crest = mesh(new T.ConeGeometry(0.06, 0.22 + 0.05 * stage, 8), mat(pal.accent, 0.4, { emissive: pal.accent, emissiveIntensity: 0.7 }));
-      crest.position.set(0, headR * 1.02, 0);
-      head.add(crest);
-      flicker.push(crest);
-    }
-    tail = new T.Group();
-    tail.position.set(0, 0.35, -0.42);
-    tail.rotation.x = -1.05;
-    body.add(tail);
-    const fur = ball(0.17 * g + 0.08, bodyMat, 0.5);
-    fur.scale.set(1, 1.4, 1);
-    fur.position.y = 0.12;
-    tail.add(fur);
-    for (let k = 0; k < 3; k++) {
-      const f = new T.Mesh(
-        new T.ConeGeometry(0.15 * g + 0.05 - k * 0.04, 0.38 * g + 0.15 - k * 0.08, 12),
-        mat(k === 0 ? pal.accent : k === 1 ? pal.feature : 0xfff3b0, 0.4, { emissive: k === 0 ? pal.accent : pal.feature, emissiveIntensity: 0.7 }),
-      );
-      f.position.set(0, 0.28 + 0.22 * g + k * 0.04, 0);
-      tail.add(f);
-      flicker.push(f);
-    }
-  } else if (legend) {
-    // 麒麟: one gold horn, a green mane and scales.
-    const horn = mesh(new T.ConeGeometry(0.06, 0.42, 12), mat(0xffd34d, 0.3, { metalness: 0.6 }));
-    horn.position.set(0, headR * 1.05, headR * 0.1);
-    head.add(horn);
-    for (let k = 0; k < 7; k++) {
-      const tuft = ball(0.1, featureMat, 0.4);
-      tuft.position.set((k - 3) * 0.08, headR * 0.55 - Math.abs(k - 3) * 0.05, -headR * 0.65);
-      head.add(tuft);
-    }
-    tail = new T.Group();
-    tail.position.set(0, 0.4, -0.5);
-    body.add(tail);
-    tail.add(ball(0.13, featureMat, 0.5));
-  } else {
-    // 土: a turtle with a rock shell of hex plates; crags grow on it from 成年.
-    const shellMat = mat(pal.feature, 0.85, { flatShading: true });
-    const shell = mesh(new T.SphereGeometry(0.56, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), shellMat);
-    shell.scale.set(1.0, 0.7 + 0.04 * stage, 1.0);
-    shell.position.set(0, 0.46, -0.14);
-    shell.rotation.x = -0.3;
-    body.add(shell);
-    const plateMat = mat(pal.accent, 0.85, { flatShading: true });
-    const spots: [number, number][] = [[0, 0], [0.3, 0.9], [0.3, 2.95], [0.3, 5], [0.55, 0.3], [0.55, 2.4], [0.55, 4.4]];
-    for (const [tilt, turn] of spots) {
-      const plate = mesh(new T.CylinderGeometry(0.1, 0.1, 0.04, 6), plateMat);
-      const holder = new T.Group();
-      holder.position.set(0, 0.46, -0.14);
-      holder.rotation.set(-0.3, turn, 0);
-      body.add(holder);
-      const arm = new T.Group();
-      arm.rotation.x = tilt;
-      holder.add(arm);
-      plate.position.y = 0.56 * (0.7 + 0.04 * stage) - 0.02;
-      arm.add(plate);
-    }
-    for (let k = 0; k < Math.max(0, stage - 2) * 2; k++) {
-      const crag = mesh(new T.ConeGeometry(0.07, 0.2, 5), mat(0x8a8f98, 0.9, { flatShading: true }));
-      crag.position.set(Math.cos(k * 2.3) * 0.2, 0.86, -0.1 + Math.sin(k * 2.3) * 0.22);
-      body.add(crag);
-    }
-    tail = mesh(new T.ConeGeometry(0.07, 0.22, 8), bodyMat);
-    tail.position.set(0, 0.2, -0.56);
-    tail.rotation.x = -1.8;
-    body.add(tail);
+  if (stage >= 4) {
+    // SSR: a glowing gem on the brow.
+    const gem = mesh(new T.OctahedronGeometry(headR * 0.14, 0), glowMat);
+    gem.position.set(0, headR * 0.55, headR * 0.8);
+    head.add(gem);
   }
-  if (isTurtle) head.position.set(0, head.position.y + 0.08, head.position.z + 0.22);
-
-  // Gold band for legendary monsters; a crown and a glowing ring for 王者.
   if (legend) {
-    const band = mesh(new T.TorusGeometry(0.48, 0.03, 8, 32), mat(0xffd34d, 0.3, { metalness: 0.7 }));
-    band.rotation.x = Math.PI / 2;
-    band.position.y = 0.5;
-    body.add(band);
+    const collar = mesh(new T.TorusGeometry(0.3, 0.035, 8, 28), mat(0xffd34d, 0.3, { metalness: 0.7 }));
+    collar.rotation.x = Math.PI / 2 - 0.2;
+    collar.position.set(0, 0.88, 0.05);
+    body.add(collar);
   }
+
+  // ---------- Back spikes ----------
+  for (let k = 0; k < 1 + stage; k++) {
+    const spike = mesh(new T.ConeGeometry(0.05 + 0.01 * stage, 0.12 + 0.03 * stage, 6), k % 2 && element === 2 ? horn2Mat : hornMat);
+    const a = 0.35 + k * 0.3;
+    spike.position.set(0, 0.5 + Math.cos(a) * 0.46, -Math.sin(a) * 0.48);
+    spike.rotation.x = -a;
+    body.add(spike);
+  }
+
+  // ---------- Wings (they flap) ----------
+  const wingShape = new T.Shape();
+  // Bat-style wing: a bony top edge with three scalloped fingers.
+  wingShape.moveTo(0, 0);
+  wingShape.lineTo(0.95, 0.35);
+  wingShape.quadraticCurveTo(0.8, 0.05, 0.82, -0.12);
+  wingShape.quadraticCurveTo(0.62, -0.05, 0.55, -0.25);
+  wingShape.quadraticCurveTo(0.38, -0.14, 0.28, -0.32);
+  wingShape.quadraticCurveTo(0.14, -0.15, 0, -0.18);
+  wingShape.lineTo(0, 0);
+  const wingGeo = new T.ShapeGeometry(wingShape, 12);
+  const wings: { pivot: any; side: number }[] = [];
+  for (const x of [-1, 1]) {
+    const pivot = new T.Group();
+    pivot.position.set(x * 0.22, 0.78, -0.24);
+    body.add(pivot);
+    const holder = new T.Group();
+    // Wings grow with each grade, but not so much they swamp the body.
+    const span = [0, 0.55, 0.68, 0.82, 0.95][stage];
+    holder.scale.set(x * span, span, span);
+    holder.rotation.y = x * 0.35;
+    pivot.add(holder);
+    const membrane = new T.Mesh(
+      wingGeo,
+      mat(x < 0 ? pal.wing : pal.wing2, 0.55, {
+        side: T.DoubleSide,
+        emissive: stage >= 4 ? pal.glow : 0x000000,
+        emissiveIntensity: stage >= 4 ? 0.25 : 0,
+      }),
+    );
+    membrane.castShadow = true;
+    holder.add(membrane);
+    const bone = mesh(new T.CylinderGeometry(0.018, 0.03, 1.0, 8), mat(pal.wingEdge, 0.45));
+    bone.rotation.z = -Math.PI / 2 + Math.atan2(0.35, 0.95);
+    bone.position.set(0.47, 0.17, 0.005);
+    holder.add(bone);
+    const claw = mesh(new T.ConeGeometry(0.035, 0.1, 6), hornMat);
+    claw.position.set(0.97, 0.38, 0);
+    claw.rotation.z = -0.9;
+    holder.add(claw);
+    wings.push({ pivot, side: x });
+  }
+
+  // ---------- Tail ----------
+  const tail = new T.Group();
+  tail.position.set(0, 0.3, -0.42);
+  body.add(tail);
+  let z = 0, y = 0;
+  const segs = 4 + Math.min(2, stage);
+  for (let k = 0; k < segs; k++) {
+    const r = 0.13 - k * 0.018;
+    const seg = ball(Math.max(0.045, r), bodyMat, 0.5);
+    z -= Math.max(0.045, r) * 1.3;
+    y += 0.02 + k * 0.012;
+    seg.position.set(0, y, z);
+    tail.add(seg);
+  }
+  const tip = mesh(new T.OctahedronGeometry(0.07 + 0.01 * stage, 0), element === 2 ? horn2Mat : hornMat);
+  tip.scale.set(1, 1.1, 0.35);
+  tip.position.set(0, y + 0.05, z - 0.1);
+  tip.rotation.x = -0.6;
+  tail.add(tip);
+
   let aura: any = null;
   if (stage >= 4) {
-    const crown = new T.Group();
-    crown.position.set(0, headR * 0.95, -headR * 0.1);
-    crown.rotation.x = -0.15;
-    head.add(crown);
-    const gold = mat(0xffd34d, 0.3, { metalness: 0.7, emissive: 0x7a5a00, emissiveIntensity: 0.3 });
-    crown.add(mesh(new T.CylinderGeometry(headR * 0.5, headR * 0.55, headR * 0.3, 20), gold));
-    for (let k = 0; k < 5; k++) {
-      const a = (k / 5) * Math.PI * 2 + Math.PI / 2;
-      const spike = mesh(new T.ConeGeometry(headR * 0.13, headR * 0.4, 8), gold);
-      spike.position.set(Math.cos(a) * headR * 0.42, headR * 0.34, Math.sin(a) * headR * 0.42);
-      crown.add(spike);
-      const gem = ball(headR * 0.08, mat(k % 2 ? 0x2f80ed : 0xe52521, 0.2), 0.4);
-      gem.position.set(Math.cos(a) * headR * 0.53, 0, Math.sin(a) * headR * 0.53);
-      crown.add(gem);
-    }
-    aura = new T.Mesh(new T.RingGeometry(0.75, 0.9, 48), new T.MeshBasicMaterial({ color: pal.accent, transparent: true, opacity: 0.5, side: T.DoubleSide, blending: T.AdditiveBlending, depthWrite: false }));
+    aura = new T.Mesh(new T.RingGeometry(0.75, 0.9, 48), new T.MeshBasicMaterial({ color: pal.glow, transparent: true, opacity: 0.5, side: T.DoubleSide, blending: T.AdditiveBlending, depthWrite: false }));
     aura.rotation.x = -Math.PI / 2;
     aura.position.y = 0.03;
     root.add(aura);
@@ -433,15 +288,17 @@ export function buildMonster(T: any, element: number, stage: number, legend = fa
   let nextBlink = 0;
   return {
     group: root,
-    height: (0.88 + headR * 1.6) * s,
+    height: (0.9 + headR * 1.6) * s,
     update(now) {
       const k = now / 1000;
       body.position.y = Math.abs(Math.sin(k * 2.2)) * 0.05;
       body.scale.set(s * (1 + Math.sin(k * 4.4) * 0.015), s * (1 - Math.sin(k * 4.4) * 0.015), s);
       head.rotation.z = Math.sin(k * 1.3) * 0.08;
       head.rotation.x = Math.sin(k * 0.9) * 0.04;
-      if (tail) tail.rotation.y = Math.sin(k * 4) * 0.35;
-      for (const f of flicker) f.scale.y = 0.92 + Math.random() * 0.18;
+      tail.rotation.y = Math.sin(k * 3) * 0.35;
+      // Wings beat: a quick flap every so often over a slow resting sway.
+      const beat = Math.sin(k * 7) * 0.45 * (0.4 + 0.6 * Math.max(0, Math.sin(k * 0.8)));
+      for (const w of wings) w.pivot.rotation.z = w.side * (0.35 + beat);
       if (now > nextBlink) nextBlink = now + 2500 + Math.random() * 2500;
       const blink = nextBlink - now < 120 ? 0.1 : 1;
       for (const eye of eyes) eye.scale.y = blink;

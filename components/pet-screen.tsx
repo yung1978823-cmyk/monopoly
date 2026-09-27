@@ -3,12 +3,11 @@
 import { PetView } from "@/components/pet-view";
 import { holdsNft, type GameState } from "@/lib/game";
 import { useLang } from "@/lib/i18n";
-import { ELEMENTS, HUNGRY_DROP, STAGE_NAMES, UPKEEP, growNeed, petAttack, petName } from "@/lib/pet";
+import { ELEMENTS, HUNGRY_DROP, STAGE_NAMES, UPKEEP, growNeed, petAttack, petName, rollElement } from "@/lib/pet";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
-import { useState } from "react";
 
-/** Your monster: pick one (first time), then feed it 🍖 and 🧪 to grow it through five stages. */
+/** Your dragon: take a dragon egg (its attribute is random), then feed it 🍖 and 🧪 to grow it from 龍蛋 to SSR. */
 export function PetScreen({
   state,
   onPick,
@@ -22,7 +21,6 @@ export function PetScreen({
 }) {
   const { t } = useLang();
   const legend = holdsNft(state);
-  const [choice, setChoice] = useState(0);
   const pet = state.pet;
   const need = pet ? growNeed(pet) : null;
   const canGrow = !!need && state.meat >= need[0] && state.juice >= need[1];
@@ -49,17 +47,30 @@ export function PetScreen({
         <>
           <div className="relative min-h-0 flex-1">
             <PetView key={`${pet.element}-${pet.stage}-${legend}`} element={pet.element} stage={pet.stage} legend={legend} />
+            {pet.stage > 0 ? (
+              <span
+                className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full border-2 border-white/70 px-3 py-0.5 text-sm font-black text-white shadow"
+                style={{ background: ELEMENTS[pet.element].colour }}
+                data-testid="pet-element"
+              >
+                {t("{e}屬性", { e: t(ELEMENTS[pet.element].name) })}
+              </span>
+            ) : (
+              <span className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full bg-black/40 px-3 py-0.5 text-sm font-black text-white" data-testid="pet-element">
+                {t("屬性：？孵出嚟先知")}
+              </span>
+            )}
           </div>
           <section className="space-y-2 rounded-t-[32px] bg-white/95 px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-4 text-[#1E3A8A]">
             <div className="flex items-baseline justify-between">
               <h1 className="text-xl font-black" data-testid="pet-name">
-                {t(petName(pet, legend))} · {t(STAGE_NAMES[pet.stage])}
+                {pet.stage === 0 ? t("龍蛋") : `${t(petName(pet, legend))} · ${STAGE_NAMES[pet.stage]}`}
               </h1>
               <span className="text-sm font-black">⚔️ {petAttack(pet, legend)}</span>
             </div>
             <p className={cn("text-sm font-bold", pet.hungry > 0 ? "text-[#E52521]" : "text-[#16A34A]")} data-testid="pet-mood">
               {pet.stage === 0
-                ? t("蛋唔使食嘢，餵夠就孵出嚟。")
+                ? t("龍蛋唔使食嘢，餵夠就孵出嚟。")
                 : pet.hungry > 0
                   ? t("肚餓！（{n}／{m}）再餓落去會跌階段", { n: pet.hungry, m: HUNGRY_DROP })
                   : t("飽飽，精神好")}
@@ -104,51 +115,40 @@ export function PetScreen({
                 <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("🍖 喺棋盤肉格攞；🧪 營養液要去偷嘢格偷返嚟。")}</p>
               </>
             ) : (
-              <p className="text-center text-lg font-black text-[#D97706]">{t("👑 已經係王者！")}</p>
+              <p className="text-center text-lg font-black text-[#D97706]">{t("👑 已經係 SSR！")}</p>
             )}
           </section>
         </>
       ) : (
         <>
-          <h1 className="mt-3 text-center text-2xl font-black drop-shadow">{t("揀你嘅怪獸")}</h1>
+          <h1 className="mt-3 text-center text-2xl font-black drop-shadow">{t("領取你嘅龍蛋")}</h1>
           <div className="relative min-h-0 flex-1">
-            <PetView key={`pick-${choice}-${legend}`} element={choice} stage={1} legend={legend} />
+            <PetView key="new-egg" element={0} stage={0} />
           </div>
           <section className="space-y-3 rounded-t-[32px] bg-white/95 px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-4 text-[#1E3A8A]">
-            <div className="grid grid-cols-5 gap-2">
-              {ELEMENTS.map((element, i) => (
-                <button
-                  key={element.id}
-                  type="button"
-                  onClick={() => setChoice(i)}
-                  aria-pressed={choice === i}
-                  className={cn(
-                    "flex cursor-pointer flex-col items-center rounded-2xl border-[3px] py-1.5 text-2xl font-black transition",
-                    choice === i ? "scale-105 border-[#FBD000] bg-[#FFF8D6]" : "border-transparent bg-[#F1F4F9] opacity-80",
-                  )}
-                  style={{ color: element.colour }}
-                  data-testid={`element-${i}`}
-                >
-                  {t(element.name)}
-                </button>
+            <div className="grid grid-cols-3 gap-2" data-testid="odds">
+              {ELEMENTS.map((element) => (
+                <div key={element.id} className="flex flex-col items-center rounded-2xl bg-[#F1F4F9] py-1.5">
+                  <span className="text-xl font-black" style={{ color: element.colour }}>
+                    {t(element.name)}
+                  </span>
+                  <span className="text-xs font-black tabular-nums">{Math.round(element.chance * 100)}%</span>
+                </div>
               ))}
             </div>
-            <p className="text-center text-lg font-black" data-testid="pick-name">
-              {t(legend ? ELEMENTS[choice].legend : ELEMENTS[choice].beast)}
-            </p>
             <p className="text-center text-xs font-bold text-[#3B5BA9]">
-              {legend ? t("你有 NFT：你隻係傳說系列，攻擊力多一成。") : t("由蛋開始，養大會變強，共五個階段。")}
+              {legend ? t("你有 NFT：孵出嚟係傳說系列，攻擊力多一成。") : t("屬性隨機，孵出嚟先知。由龍蛋養到 SSR，一出世就識飛。")}
             </p>
             <button
               type="button"
               onClick={() => {
                 play("chest");
-                onPick(choice);
+                onPick(rollElement(Math.random()));
               }}
               className="h-14 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-[#E52521] text-xl font-black text-white shadow-[0_5px_0_#8E1210]"
               data-testid="pick-pet"
             >
-              {t("就揀佢！")}
+              {t("🥚 領取龍蛋！")}
             </button>
           </section>
         </>

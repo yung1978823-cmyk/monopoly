@@ -319,8 +319,9 @@ function readBoxes(value: unknown): StealBox[] {
 function readPet(value: unknown): Pet | null {
   if (!value || typeof value !== "object") return null;
   const pet = value as Partial<Pet>;
-  if (!inRange(pet.element, 0, ELEMENTS.length - 1) || !inRange(pet.stage, 0, TOP_STAGE)) return null;
-  return { element: pet.element, stage: pet.stage, hungry: inRange(pet.hungry, 0, 9) ? pet.hungry : 0 };
+  // Saves from the five-element monsters (0–4) fold onto the three dragon attributes.
+  if (!inRange(pet.element, 0, 9) || !inRange(pet.stage, 0, TOP_STAGE)) return null;
+  return { element: pet.element % ELEMENTS.length, stage: pet.stage, hungry: inRange(pet.hungry, 0, 9) ? pet.hungry : 0 };
 }
 
 function readNfts(value: unknown): (string | null)[] {
@@ -696,7 +697,7 @@ export function reduce(state: GameState, action: Action): GameState {
     }
     case "pick-pet": {
       if (state.pet || !inRange(action.element, 0, ELEMENTS.length - 1)) return state;
-      return pushLog({ ...state, pet: { element: action.element, stage: 0, hungry: 0 } }, "you", `你揀咗${ELEMENTS[action.element].beast}（${ELEMENTS[action.element].name}），而家係一隻蛋。`);
+      return pushLog({ ...state, pet: { element: action.element, stage: 0, hungry: 0 } }, "you", `你領咗一隻龍蛋（${ELEMENTS[action.element].name}屬性）。`);
     }
     case "grow-pet": {
       const pet = state.pet;
