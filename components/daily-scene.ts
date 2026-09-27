@@ -164,7 +164,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   }
 
   // ---------- The ring of islands ----------
-  const breathers: { obj: any; phase: number; period: number; shadow: any; glow: any; base: number; glowY: number }[] = [];
+  const breathers: { obj: any; phase: number; period: number; shadow: any; glow: any; base: number; glowY: number; amp?: number }[] = [];
   const islands: { group: any; top: any; base: number; glow: any }[] = [];
   TILES.forEach((tile, i) => {
     const [x, z] = squarePoint(i);
@@ -188,13 +188,13 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   });
   // A big floating rock in the middle of the ring, with open air between it and the squares.
   {
-    const big = islandMesh(4.6, 977, 0x4f9a3a);
-    big.group.position.set(0, -0.7, 0);
+    const big = islandMesh(6, 977, 0x4f9a3a);
+    big.group.position.set(0, 0.1, 0);
     scene.add(big.group);
     const bits: any[] = [];
-    [[3.3, -2.3, 0.45], [-3.2, -2.7, 0.35], [0.4, -3.0, 0.3]].forEach(([x, y, k], n) => {
+    [[3.6, -2.0, 0.45], [-3.5, -2.4, 0.35], [0.4, -2.8, 0.3]].forEach(([x, y, k], n) => {
       const bit = islandMesh(k * 2, 500 + n * 41, 0x4f9a3a);
-      bit.group.position.set(x, y, n === 2 ? 3.3 : -0.8);
+      bit.group.position.set(x, y, n === 2 ? 3.6 : -0.8);
       scene.add(bit.group);
       bits.push(bit.group);
     });
@@ -203,16 +203,16 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       tree.position.set(x, TOP + h / 2, z);
       big.group.add(tree);
     }
-    const shadow = new T.Mesh(new T.PlaneGeometry(7, 7), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+    const shadow = new T.Mesh(new T.PlaneGeometry(9, 9), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
     shadow.position.y = FLOOR + 0.02;
     scene.add(shadow);
     const glow = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0xaad2ff, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.4 }));
-    glow.scale.set(5, 2.4, 1);
+    glow.scale.set(6.5, 3, 1);
     glow.position.y = TOP - 2.2;
     scene.add(glow);
-    breathers.push({ obj: big.group, phase: 0, period: 6, shadow, glow, base: -0.7, glowY: TOP - 2.2 });
-    bits.forEach((b, n) => breathers.push({ obj: b, phase: n * 2, period: 4.5 + n, shadow: null, glow: null, base: b.position.y, glowY: 0 }));
+    breathers.push({ obj: big.group, phase: 0, period: 5, shadow, glow, base: 0.1, glowY: TOP - 2.2, amp: 0.28 });
+    bits.forEach((b, n) => breathers.push({ obj: b, phase: n * 2, period: 4 + n, shadow: null, glow: null, base: b.position.y, glowY: 0, amp: 0.2 }));
   }
   const floor = new T.Mesh(new T.PlaneGeometry(400, 400), new T.MeshStandardMaterial({ color: 0x0f1a30, roughness: 1 }));
   floor.rotation.x = -Math.PI / 2;
@@ -344,9 +344,9 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     // Islands breathe, each on its own clock.
     if (!reduceMotion) {
       for (const b of breathers) {
-        const h = Math.sin((now / 1000 / b.period) * Math.PI * 2 + b.phase) * 0.06;
+        const h = Math.sin((now / 1000 / b.period) * Math.PI * 2 + b.phase) * (b.amp ?? 0.06);
         b.obj.position.y = b.base + h;
-        const sc = 1 - h * 1.5;
+        const sc = 1 - (h / (b.amp ?? 0.06)) * 0.1;
         b.shadow?.scale.set(sc, sc, 1);
         if (b.glow) b.glow.position.y = b.glowY + h;
       }
