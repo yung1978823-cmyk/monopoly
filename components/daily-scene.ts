@@ -214,10 +214,10 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       c.width = c.height = 512;
       const x = c.getContext("2d")!;
       x.translate(256, 256);
-      x.strokeStyle = x.fillStyle = glow ? "#ffe9a8" : "rgba(40,44,52,0.85)";
+      x.strokeStyle = x.fillStyle = glow ? "#ffc94a" : "rgba(30,33,40,0.9)";
       if (glow) {
         x.shadowColor = "#ffb020";
-        x.shadowBlur = 24;
+        x.shadowBlur = 8;
       }
       x.lineWidth = 10;
       x.beginPath();
@@ -245,7 +245,6 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       x.textBaseline = "middle";
       x.lineWidth = 14;
       x.lineJoin = "round";
-      if (glow) x.strokeText("GO", 0, 12);
       x.fillText("GO", 0, 12);
       const tex = new T.CanvasTexture(c);
       tex.encoding = T.sRGBEncoding;
@@ -567,9 +566,9 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     // The rune: glows and pulses on your go; the stone dips a little when tapped.
     rune.level += ((rune.ready ? 1 : 0) - rune.level) * Math.min(1, dt * 4);
     const pulse = rune.level * (0.75 + 0.25 * Math.sin(now / 420));
-    runeGlow.material.opacity = 0.08 + pulse * 0.92;
-    runeRing.material.opacity = pulse * 0.55;
-    runeLight.intensity = pulse * 1.6;
+    runeGlow.material.opacity = 0.05 + pulse * 0.5;
+    runeRing.material.opacity = pulse * 0.18;
+    runeLight.intensity = pulse * 0.45;
     const press = Math.max(0, 1 - (now - rune.pressAt) / 260);
     bigRock.position.y = -Math.sin(press * Math.PI) * 0.18;
     // Dice: drop from above the rune, bounce twice while spinning down to their faces, then sit.
