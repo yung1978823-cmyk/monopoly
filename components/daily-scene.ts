@@ -223,10 +223,11 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   const dice: { mesh: any; rest: any; from: any; q: any; spin: any; born: number; fade: number }[] = [];
   const rune = { ready: false, level: 0, pressAt: -1e9 };
   let stone: any = null;
-  let runeGlow: any, runeLight: any, runeRing: any;
+  let runeGlow: any, runeLight: any, runeRing: any, goSign: any;
   {
-    const big = islandMesh(6, 977, 0x9aa1ab);
-    big.top.material.roughness = 0.95;
+    // A lawn on top (Sky 2026-09-27: green grass shows the dragon off better than the carved stone).
+    const big = islandMesh(6, 977, 0x5fae4a);
+    big.top.material.roughness = 0.9;
     big.group.position.set(0, 0.1, 0);
     bigRock.add(big.group);
     stone = big.group;
@@ -284,8 +285,35 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       big.group.add(m);
       return m;
     };
-    plate(carve(false), false);
-    runeGlow = plate(carve(true), true);
+    void plate;
+    void carve;
+    // No carving on the lawn: a golden ring round its edge glows when it's your go (tap the lawn to roll),
+    // and a small GO sign floats high over the middle, clear of the dragon.
+    runeGlow = new T.Mesh(
+      new T.RingGeometry(2.72, 2.98, 64),
+      new T.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide }),
+    );
+    runeGlow.rotation.x = -Math.PI / 2;
+    runeGlow.position.y = TOP + 0.02;
+    big.group.add(runeGlow);
+    {
+      const c = document.createElement("canvas");
+      c.width = 256;
+      c.height = 128;
+      const x = c.getContext("2d")!;
+      x.font = "900 96px Georgia, 'Times New Roman', serif";
+      x.textAlign = "center";
+      x.textBaseline = "middle";
+      x.lineWidth = 14;
+      x.strokeStyle = "#7a4a00";
+      x.strokeText("GO", 128, 68);
+      x.fillStyle = "#ffd34d";
+      x.fillText("GO", 128, 68);
+      goSign = new T.Sprite(new T.SpriteMaterial({ map: new T.CanvasTexture(c), transparent: true, depthWrite: false }));
+      goSign.scale.set(1.6, 0.8, 1);
+      goSign.position.y = TOP + 2.6;
+      big.group.add(goSign);
+    }
     runeRing = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0xffc860, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
     runeRing.scale.set(5, 2.2, 1);
     runeRing.position.y = TOP + 0.4;
@@ -815,7 +843,9 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     // The rune: glows and pulses on your go; the stone dips a little when tapped.
     rune.level += ((rune.ready ? 1 : 0) - rune.level) * Math.min(1, dt * 4);
     const pulse = rune.level * (0.75 + 0.25 * Math.sin(now / 420));
-    runeGlow.material.opacity = 0.05 + pulse * 0.5;
+    runeGlow.material.opacity = 0.1 + pulse * 0.6;
+    goSign.material.opacity = 0.35 + pulse * 0.65;
+    goSign.scale.set(1.6 * (1 + pulse * 0.08), 0.8 * (1 + pulse * 0.08), 1);
     runeRing.material.opacity = pulse * 0.18;
     runeLight.intensity = pulse * 0.45;
     const press = Math.max(0, 1 - (now - rune.pressAt) / 260);
