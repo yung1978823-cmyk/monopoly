@@ -284,7 +284,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     camera.updateProjectionMatrix();
     // Far enough back that the whole ring (about 2R across) fits the narrower side.
     const half = Math.atan(Math.tan((38 * Math.PI) / 360) * Math.min(1, camera.aspect));
-    fitDist = Math.max(10, ((R / Math.SQRT2) * 1.3) / Math.tan(half));
+    fitDist = Math.max(10, ((R / Math.SQRT2) * 1.45) / Math.tan(half));
     view.goalDist = view.dist = fitDist;
   }
   const watch = new ResizeObserver(resize);
@@ -341,7 +341,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     view.yaw += (view.goalYaw - view.yaw) * Math.min(1, dt * 8);
     view.elev += (view.goalElev - view.elev) * Math.min(1, dt * 8);
     view.dist += (view.goalDist - view.dist) * Math.min(1, dt * 6);
-    target.lerp(new T.Vector3(ship.position.x * 0.35, 0, ship.position.z * 0.35), Math.min(1, dt * 2));
+    target.lerp(new T.Vector3(ship.position.x * 0.2, 0, ship.position.z * 0.2), Math.min(1, dt * 2));
     const sway = reduceMotion ? 0 : Math.sin(now / 7000) * 0.12 * Math.min(1, Math.max(0, view.idle - 2) / 3);
     const yaw = view.yaw + sway, flat = Math.cos(view.elev) * view.dist;
     camera.position.set(target.x + Math.sin(yaw) * flat, Math.sin(view.elev) * view.dist, target.z + Math.cos(yaw) * flat);
