@@ -40,7 +40,8 @@ const SIZE = [0.7, 0.62, 0.8, 0.98, 1.15];
  * "legFL"/"legFR"/"legBL"/"legBR" (pivot at the hip) and "tail" (pivot at its root). The model
  * stands 1 unit tall, facing +z. Attributes without a model yet use the code-built dragon.
  */
-const MODELS: Record<number, string> = { 0: "/models/dragon-light.glb" };
+/** The N-grade look of each attribute (光, 暗, 混濁); higher grades reuse it until they get their own. */
+const MODELS: Record<number, string> = { 0: "/models/dragon-light.glb", 1: "/models/dragon-dark.glb", 2: "/models/dragon-chaos.glb" };
 /** How tall the model dragon stands at each grade (N → SSR): on the board about the size of a die.
  * Close-up screens (the pet screen, a town) scale it up by MODEL_CLOSE_UP. The current models are
  * the N-grade look; higher grades reuse them, a little bigger, until their own models are made. */
