@@ -20,6 +20,7 @@ import {
   themeRewardCoins,
   MAX_LEVEL,
   POINTS,
+  holeLoss,
   hitChance,
   levelCost,
   nftAttack,
@@ -67,7 +68,7 @@ export type WeaponReadout = {
 /** What the last stop did, for the picture shown on the board. */
 export type Landing = {
   kind: TileKind;
-  /** Points actually gained (negative for jail or tax), start bonus included. */
+  /** Points actually gained (negative for jail or the black hole), start bonus included. */
   points: number;
   /** Dice gained. */
   dice: number;
@@ -474,7 +475,7 @@ function landOn(
   if (kind === "chest" && chestMeat) meat += chest;
   else if (kind === "chest") change += chest;
   if (kind === "jail") change += POINTS.jail;
-  if (kind === "tax") change += POINTS.tax;
+  if (kind === "hole") change -= holeLoss(points + change);
   if (kind === "lucky" && dice < DICE_CAP) diceGained = 1;
   // Penalties sting a little but never push points below zero.
   const nextPoints = Math.max(0, points + change);

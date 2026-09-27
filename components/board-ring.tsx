@@ -34,7 +34,7 @@ const TINT: Record<TileKind, string | null> = {
   lucky: "rgba(4,156,216,0.9)",
   attack: "rgba(255,255,255,0.92)",
   jail: "rgba(70,80,110,0.9)",
-  tax: "rgba(140,70,160,0.9)",
+  hole: "rgba(40,20,70,0.95)",
 };
 
 export function BoardRing({

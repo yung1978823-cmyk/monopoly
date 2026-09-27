@@ -56,7 +56,7 @@ const TOPS: Record<TileKind, number> = {
   lucky: 0x38bdf8,
   attack: 0xe52521,
   jail: 0x64748b,
-  tax: 0x8b5cf6,
+  hole: 0x2e1f4d,
 };
 
 /** Square i on the diamond: start at the front corner, then round the left, back and right corners. */

@@ -76,7 +76,7 @@ describe("daily board", () => {
     assert.equal(TILES.length, 28);
     const count = (kind: string) => TILES.filter((tile) => tile.kind === kind).length;
     assert.deepEqual(
-      [count("start"), count("coin"), count("meat"), count("chest"), count("lucky"), count("attack"), count("steal"), count("jail"), count("tax")],
+      [count("start"), count("coin"), count("meat"), count("chest"), count("lucky"), count("attack"), count("steal"), count("jail"), count("hole")],
       [1, 9, 5, 3, 2, 4, 2, 1, 1],
     );
     const state = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 2], now: NOW });
@@ -466,5 +466,15 @@ describe("daily board", () => {
     const away = reduce({ ...start(), pet: { element: 0, stage: 4, hungry: 0, rolls: 0 } }, { type: "tick", now: NOW, dayKey: "2026-10-01" });
     assert.equal(away.pet?.stage, 1, "a week away without food: back to N, never lower");
     assert.deepEqual([0, 0.34, 0.35, 0.69, 0.7, 0.99].map(rollElement), [0, 0, 1, 1, 2, 2], "光 35%, 暗 35%, 混濁 30%");
+  });
+});
+
+describe("black hole", () => {
+  it("takes a tenth of your coins, 3 to 20, never below zero", async () => {
+    const { holeLoss } = await import("./rules");
+    assert.equal(holeLoss(100), 10);
+    assert.equal(holeLoss(10), 3);
+    assert.equal(holeLoss(2), 2);
+    assert.equal(holeLoss(500), 20);
   });
 });

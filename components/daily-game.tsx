@@ -128,7 +128,7 @@ function burstOf(state: GameState): Burst | null {
     money: landing.points,
     dice: landing.dice,
     meat: landing.meat,
-    bad: landing.kind === "jail" || landing.kind === "tax",
+    bad: landing.kind === "jail" || landing.kind === "hole",
   };
 }
 
@@ -292,7 +292,7 @@ export function DailyGame() {
       steal: "lucky",
       lucky: "lucky",
       jail: "bad",
-      tax: "bad",
+      hole: "bad",
       attack: "attack",
     };
     const sound = sounds[state.landing.kind];

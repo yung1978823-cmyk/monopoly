@@ -110,6 +110,7 @@ const DICT: Record<string, { hans: string; en: string }> = {
   攻擊: { hans: "攻击", en: "Attack" },
   監獄: { hans: "监狱", en: "Jail" },
   稅局: { hans: "税局", en: "Tax Office" },
+  黑洞: { hans: "黑洞", en: "Black Hole" },
   // Daily board screen
   你的每日棋盤: { hans: "你的每日棋盘", en: "Your daily board" },
   "拎走 NFT {n}": { hans: "拿走 NFT {n}", en: "Remove NFT {n}" },

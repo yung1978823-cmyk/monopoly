@@ -48,8 +48,15 @@ export const POINTS = {
   start: 2,
   coin: 2,
   jail: -2,
-  tax: -3,
 } as const;
+
+/** The black hole takes a tenth of your coins: at least 3, at most 20 (never below zero). */
+export const HOLE_SHARE = 0.1;
+export const HOLE_MIN = 3;
+export const HOLE_MAX = 20;
+export function holeLoss(points: number): number {
+  return Math.min(points, Math.max(HOLE_MIN, Math.min(HOLE_MAX, Math.round(points * HOLE_SHARE))));
+}
 
 /** A chest pays a random 3–6 points. */
 export const CHEST_MIN = 3;
