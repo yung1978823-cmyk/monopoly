@@ -313,7 +313,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       x.fillText("GO", 128, 68);
       goSign = new T.Sprite(new T.SpriteMaterial({ map: new T.CanvasTexture(c), transparent: true, depthWrite: false }));
       goSign.scale.set(2.2, 1.1, 1);
-      goSign.position.y = TOP + 3.3;
+      goSign.position.y = TOP + 3.8;
       big.group.add(goSign);
     }
     runeRing = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0xffc860, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
@@ -668,8 +668,8 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const m = buildMonster(T, look.element, look.stage, look.legend);
     m.group.scale.setScalar(look.stage === 0 ? 1.5 : 1.25);
     stone.add(m.group);
-    // The egg sits at the back of the stone, behind the rune, where it can be seen above it.
-    const back = HOME_YAW + Math.PI;
+    // The egg sits on the side of the lawn, clear of the GO sign above the middle and the dice at the front.
+    const back = HOME_YAW + Math.PI / 2;
     const food = bubbleOf("🍖");
     const zzz = bubbleOf("💤", 54);
     m.group.add(food, zzz);
