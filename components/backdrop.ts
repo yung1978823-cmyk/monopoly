@@ -652,7 +652,7 @@ export function createSpace(
   T: any,
   scene: any,
   camera: any,
-  opts: { reduceMotion?: boolean; picture?: SpacePicture; extras?: boolean; far?: number },
+  opts: { reduceMotion?: boolean; picture?: SpacePicture; extras?: boolean; far?: number; meteor?: boolean },
 ): Backdrop {
   const still = !!opts.reduceMotion;
   const pic = opts.picture ?? BOARD_SPACE;
@@ -706,6 +706,12 @@ export function createSpace(
   comet.visible = extras;
   sky.add(comet);
   const cometRun = { at: 6 };
+  // A burning meteor (drawn heading down-right, on black), flying by now and then — sometimes up
+  // the screen, sometimes down — turned so its fiery tail always trails behind.
+  const meteor = flat(load("/art/space-meteor.webp"), { blending: T.AdditiveBlending, opacity: 0 });
+  meteor.visible = !!opts.meteor;
+  sky.add(meteor);
+  const meteorRun = { at: 4, u0: 0, v0: 0, u1: 0, v1: 0, dur: 2.6 };
   // Asteroids drifting and tumbling round the board, in the world (so the board passes in front).
   const rockTex = load("/art/space-rock.webp");
   const rocks = (extras ? [0, 1, 2, 3] : []).map((i) => {
@@ -795,6 +801,29 @@ export function createSpace(
     } else {
       comet.material.opacity = 0;
       if (cf > 1) cometRun.at = t + 14 + Math.random() * 10;
+    }
+    if (opts.meteor) {
+      const mf = (t - meteorRun.at) / meteorRun.dur;
+      if (mf >= 0 && mf <= 1) {
+        const [mx, my] = at(meteorRun.u0 + (meteorRun.u1 - meteorRun.u0) * mf, meteorRun.v0 + (meteorRun.v1 - meteorRun.v0) * mf, 1.3);
+        meteor.position.set(mx, my, -D + 4);
+        meteor.scale.set(pw * 0.26, pw * 0.26, 1);
+        // The picture flies toward the bottom right (-45°); turn it to the way it's going.
+        const heading = Math.atan2(-(meteorRun.v1 - meteorRun.v0) * ph, (meteorRun.u1 - meteorRun.u0) * pw);
+        meteor.material.rotation = heading + Math.PI / 4;
+        meteor.material.opacity = Math.min(1, Math.sin(Math.PI * mf) * 1.8);
+      } else {
+        meteor.material.opacity = 0;
+        if (mf > 1) {
+          const up = Math.random() < 0.5, right = Math.random() < 0.5;
+          meteorRun.at = t + 7 + Math.random() * 9;
+          meteorRun.u0 = (right ? -0.65 : 0.65) + (Math.random() - 0.5) * 0.3;
+          meteorRun.u1 = (right ? 0.65 : -0.65) + (Math.random() - 0.5) * 0.3;
+          meteorRun.v0 = up ? 0.3 + Math.random() * 0.3 : -0.55 + Math.random() * 0.2;
+          meteorRun.v1 = up ? -0.55 + Math.random() * 0.2 : 0.3 + Math.random() * 0.3;
+          meteorRun.dur = 2.2 + Math.random() * 1.2;
+        }
+      }
     }
     for (const k of rocks) {
       const a = k.a0 + t * k.speed;

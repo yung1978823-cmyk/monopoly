@@ -449,7 +449,7 @@ export function createBoardScene(
     scene.add(grass);
   } else {
     // Outer space all round (the public table's own picture), in place of the old forest floor.
-    space = createSpace(T, scene, camera, { reduceMotion, picture: TABLE_SPACE, extras: false, far: 180 });
+    space = createSpace(T, scene, camera, { reduceMotion, picture: TABLE_SPACE, extras: false, far: 180, meteor: true });
     // Motes of stardust drifting up.
     const count = 200, pos = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
