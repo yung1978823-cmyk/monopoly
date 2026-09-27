@@ -752,7 +752,8 @@ export function createBoardScene(
    */
   function strapShield(model: any) {
     const bone = model.getObjectByName("RightForeArm");
-    if (!bone) return;
+    const hand = model.getObjectByName("RightHand");
+    if (!bone || !hand) return;
     const size = 256;
     const c = document.createElement("canvas");
     c.width = c.height = size;
@@ -787,14 +788,25 @@ export function createBoardScene(
     face.encoding = T.sRGBEncoding;
     const rim = new T.MeshStandardMaterial({ color: 0xd9ccb0, roughness: 0.85, metalness: 0 });
     const front = new T.MeshStandardMaterial({ map: face, roughness: 0.85, metalness: 0 });
-    const shield = new T.Mesh(new T.CylinderGeometry(17, 17, 3, 40), [rim, front, rim]);
-    // Face outwards, away from his body, in the arms-forward way he stands and walks (measured on the
-    // board: the forearm's local −x, tipped a little along z). The cylinder's top is its face.
-    const out = new T.Vector3(-0.976, 0, 0.219);
-    shield.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), out);
-    shield.position.copy(out.clone().multiplyScalar(5)).setY(6.5);
-    shield.castShadow = true;
-    bone.add(shield);
+    const shield = new T.Mesh(new T.CylinderGeometry(0.17, 0.17, 0.03, 40), [rim, front, rim]);
+    // Held at his right forearm but always facing the way he faces, so the star shows whatever his
+    // arm is doing (fixed to the arm bone it ends up edge-on or hidden behind the arm).
+    // The cylinder's top is its face; turn it from +y to the body's front (+z).
+    const faceFront = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), new T.Vector3(0, 0, 1));
+    const at = new T.Vector3(), handAt = new T.Vector3(), turn = new T.Quaternion(), grown = new T.Vector3();
+    const offset = new T.Vector3(), facing = new T.Quaternion();
+    shield.frustumCulled = false;
+    shield.onBeforeRender = () => {
+      bone.getWorldPosition(at);
+      hand.getWorldPosition(handAt);
+      at.add(handAt).multiplyScalar(0.5);
+      model.getWorldQuaternion(turn);
+      model.getWorldScale(grown);
+      // A little to his right (−x) and in front (+z) of the forearm.
+      at.add(offset.set(-0.06, 0, 0.05).multiplyScalar(grown.x).applyQuaternion(turn));
+      shield.matrixWorld.compose(at, facing.copy(turn).multiply(faceFront), grown);
+    };
+    model.add(shield);
   }
 
   /** Walk while stepping; stand still (first frame of the walk) a moment after the last step. */

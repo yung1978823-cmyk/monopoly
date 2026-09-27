@@ -79,7 +79,7 @@ button.alt { background: var(--card); color: var(--ink); border-color: #d6deea; 
   window.addEventListener("resize", layout); layout();
 
   function strapShield(model) {
-    const bone = model.getObjectByName("RightForeArm"); if (!bone) return;
+    const bone = model.getObjectByName("RightForeArm"), hand = model.getObjectByName("RightHand"); if (!bone || !hand) return;
     const size = 256, c = document.createElement("canvas"); c.width = c.height = size;
     const x = c.getContext("2d");
     x.fillStyle = "#EFE6D2"; x.fillRect(0, 0, size, size);
@@ -90,9 +90,19 @@ button.alt { background: var(--card); color: var(--ink); border-color: #d6deea; 
     x.closePath(); x.fill();
     const face = new T.CanvasTexture(c); face.encoding = T.sRGBEncoding;
     const rim = new T.MeshStandardMaterial({ color: 0xd9ccb0, roughness: 0.85, metalness: 0 });
-    const shield = new T.Mesh(new T.CylinderGeometry(17, 17, 3, 40), [rim, new T.MeshStandardMaterial({ map: face, roughness: 0.85, metalness: 0 }), rim]);
-    const out = new T.Vector3(-0.976, 0, 0.219); shield.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), out); shield.position.copy(out.clone().multiplyScalar(5)).setY(6.5); shield.castShadow = true; bone.add(shield);
+    const shield = new T.Mesh(new T.CylinderGeometry(0.17, 0.17, 0.03, 40), [rim, new T.MeshStandardMaterial({ map: face, roughness: 0.85, metalness: 0 }), rim]);
+    const faceFront = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), new T.Vector3(0, 0, 1));
+    const at = new T.Vector3(), h = new T.Vector3(), turn = new T.Quaternion(), sz = new T.Vector3(), off = new T.Vector3(), f = new T.Quaternion();
+    shield.frustumCulled = false;
+    shield.onBeforeRender = () => {
+      bone.getWorldPosition(at); hand.getWorldPosition(h); at.add(h).multiplyScalar(0.5);
+      model.getWorldQuaternion(turn); model.getWorldScale(sz);
+      at.add(off.set(-0.06, 0, 0.05).multiplyScalar(sz.x).applyQuaternion(turn));
+      shield.matrixWorld.compose(at, f.copy(turn).multiply(faceFront), sz);
+    };
+    model.add(shield);
   }
+
   function bytesOf(id) {
     const raw = atob(document.getElementById(id).textContent.trim());
     const out = new Uint8Array(raw.length);
