@@ -94,7 +94,8 @@ const POWER_INFO: Record<Power, { name: string; icon: string; what: string }> = 
   lock: { name: "封地", icon: "🔒", what: "對手最好嗰塊地兩轉收唔到租" },
   wreck: { name: "拆樓", icon: "💣", what: "對手最好嗰塊地降一級" },
   swap: { name: "換位", icon: "🔄", what: "同一個對手交換位置" },
-  shield: { name: "免租牌", icon: "🛡️", what: "下次交租唔使俾（自動用）" },
+  shield: { name: "護盾", icon: "🛡️", what: "擋一次交租或者怪獸（自動用）" },
+  monster: { name: "怪獸卡", icon: "👹", what: "叫怪獸打對手：搶 2、打退 3 格" },
 };
 
 /** A player's face: the drawn avatar, or an emoji in a coloured circle. */
@@ -504,9 +505,27 @@ export function EightBoard({
             }
             break;
           }
+          case "monster": {
+            play("smash");
+            say(event.side === "left" ? "{name} 叫火龍噴 {target}！" : "{name} 叫炮石怪轟 {target}！", { name: who(event.seat), target: who(event.target) });
+            await scene.monsterAttack(event.side, event.target, event.to, event.blocked);
+            if (event.blocked) {
+              say("{name} 用護盾擋咗！", { name: who(event.target) });
+              await scene.sparkle(event.target);
+            } else {
+              if (event.stolen > 0) {
+                void scene.floatText(event.target, `−${event.stolen}`);
+                void scene.floatText(event.seat, `+${event.stolen}`, "#16A34A");
+              }
+              special(event.seat, "builds");
+              scene.cheer(event.seat);
+              await scene.wait(400);
+            }
+            break;
+          }
           case "shielded":
             play("lucky");
-            say("{name} 用免租牌，唔使交租！", { name: who(event.seat) });
+            say("{name} 用護盾，唔使交租！", { name: who(event.seat) });
             void scene.floatText(event.seat, "🛡️", "#FBD000");
             await Promise.all([scene.pulse(event.seat, true), scene.sparkle(event.seat)]);
             break;
@@ -524,7 +543,7 @@ export function EightBoard({
           case "pickup":
             play("lucky");
             say("{name} 執到功能卡：{card}", { name: who(event.seat), card: tRef.current(POWER_INFO[event.power].name) });
-            await scene.takePickup(event.seat);
+            await scene.takePickup(event.seat, event.key);
             void scene.floatText(event.seat, POWER_INFO[event.power].icon, "#7C3AED");
             await scene.sparkle(event.seat);
             break;
@@ -586,7 +605,7 @@ export function EightBoard({
           stateRef.current.seats.map((seat) => actorOf(seat.avatar)),
         );
         sceneRef.current = scene;
-        void scene.showPickup(stateRef.current.pickup?.key ?? null);
+        stateRef.current.pickups.forEach((p) => void scene?.showPickup(p.key));
         setLoaded("ready");
         aim(scene, stateRef.current.current);
         say("輪到 {name}", { name: tRef.current(stateRef.current.seats[stateRef.current.current].name) });
@@ -787,7 +806,7 @@ export function EightBoard({
                 disabled={!usable}
                 onClick={() => {
                   const others = table.seats.flatMap((seat, i) => (i !== 0 && !seat.bankrupt ? [i] : []));
-                  if (power === "swap" && others.length > 1) setPicking(index);
+                  if ((power === "swap" || power === "monster") && others.length > 1) setPicking(index);
                   else void run({ type: "power", index, target: others[0] });
                 }}
                 className="flex w-28 cursor-pointer flex-col items-center rounded-2xl border-[3px] border-[#7C3AED] bg-white/95 px-2 py-1 text-[#1E3A8A] shadow-[0_4px_0_#4C1D95] disabled:cursor-default disabled:opacity-60 enabled:animate-[glow_1.8s_ease-in-out_infinite]"
@@ -806,7 +825,7 @@ export function EightBoard({
       {picking !== null && mine ? (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#1E3A8A]/60 px-5" data-testid="swap-pick">
           <div className="w-full max-w-xs rounded-3xl border-4 border-[#FBD000] bg-white p-4 text-center">
-            <p className="mb-3 font-black">{t("同邊個換位？")}</p>
+            <p className="mb-3 font-black">{me.powers[picking] === "monster" ? t("叫怪獸打邊個？") : t("同邊個換位？")}</p>
             <div className="flex justify-center gap-3">
               {table.seats.map((seat, i) =>
                 i === 0 || seat.bankrupt ? null : (
@@ -827,7 +846,7 @@ export function EightBoard({
               )}
             </div>
             <button type="button" className="mt-3 cursor-pointer text-sm font-black text-[#3B5BA9]" onClick={() => setPicking(null)}>
-              {t("唔換住")}
+              {me.powers[picking] === "monster" ? t("唔打住") : t("唔換住")}
             </button>
           </div>
         </div>

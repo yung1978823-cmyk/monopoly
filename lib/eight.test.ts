@@ -19,6 +19,9 @@ import {
   nextSpot,
   reduceTable,
   standings,
+  MAX_PICKUPS,
+  MONSTER_STEAL,
+  sideOf,
   type Power,
   type Spot,
   type TableState,
@@ -41,25 +44,26 @@ const cardIndex = (kind: string, amount?: number) =>
   CARDS.findIndex((card) => card.kind === kind && (amount === undefined || (card.kind === "money" && card.amount === amount)));
 
 describe("八字 board", () => {
-  it("has 31 loop squares and two inner roads of 3", () => {
+  it("has 31 loop squares, no inner roads, and the old forks are a chance square and a chest", () => {
     const keys = Object.keys(SQUARES);
     assert.equal(keys.filter((key) => key.startsWith("o")).length, 31);
-    assert.equal(keys.filter((key) => key.startsWith("L") || key.startsWith("R")).length, 6);
-    assert.equal(LOT_KEYS.length, 28);
+    assert.equal(keys.filter((key) => key.startsWith("L") || key.startsWith("R")).length, 0);
+    assert.equal(SQUARES.o14.kind, "chance");
+    assert.equal(SQUARES.o30.kind, "chest");
+    assert.equal(LOT_KEYS.length, 22);
   });
-
   it("passes the middle square twice a lap as the same square", () => {
     assert.equal(keyOf({ on: "loop", i: 24 }), keyOf({ on: "loop", i: MIDDLE }));
   });
 
-  it("walks the loop, and an inner road rejoins the loop across the diamond", () => {
+  it("walks the loop with no turn-offs; the left and right monsters each watch their own diamond", () => {
     assert.deepEqual(nextSpot({ on: "loop", i: LOOP - 1 }), { on: "loop", i: 0 });
-    assert.deepEqual(nextSpot({ on: "loop", i: 30 }, true), { on: "L", k: 1 });
-    assert.deepEqual(nextSpot({ on: "L", k: 3 }), { on: "loop", i: 6 });
-    assert.deepEqual(nextSpot({ on: "loop", i: 14 }, true), { on: "R", k: 1 });
-    assert.deepEqual(nextSpot({ on: "R", k: 3 }), { on: "loop", i: 22 });
-    // Only forks turn off.
-    assert.deepEqual(nextSpot({ on: "loop", i: 5 }, true), { on: "loop", i: 6 });
+    assert.deepEqual(nextSpot({ on: "loop", i: 30 }, true), { on: "loop", i: 31 });
+    assert.deepEqual(nextSpot({ on: "loop", i: 14 }, true), { on: "loop", i: 15 });
+    assert.equal(sideOf({ on: "loop", i: 2 }), "left");
+    assert.equal(sideOf({ on: "loop", i: 28 }), "left");
+    assert.equal(sideOf({ on: "loop", i: 12 }), "right");
+    assert.equal(sideOf({ on: "loop", i: 20 }), "right");
   });
 });
 
@@ -119,26 +123,7 @@ describe("public table on the 八字 board", () => {
     assert.equal(paid, road, "bad dice are ignored");
   });
 
-  it("stops at a fork to ask, then goes the chosen way", () => {
-    let state = at(start(), 0, { on: "loop", i: 28 });
-    state = reduceTable(state, { type: "roll", dice: [2, 3] }); // 28 → 29 → 30 (fork), 3 left
-    assert.equal(state.phase, "fork");
-    assert.deepEqual(state.seats[0].spot, { on: "loop", i: 30 });
-    assert.equal(state.stepsLeft, 3);
-    const road = reduceTable(state, { type: "choose", road: true });
-    assert.deepEqual(road.seats[0].spot, { on: "L", k: 3 });
-    const loop = reduceTable(state, { type: "choose", road: false });
-    assert.deepEqual(loop.seats[0].spot, { on: "loop", i: 1 });
-    assert.equal(loop.seats[0].cash, STAKE + START_PAY - SQUARES.o1.price, "passing start pays, then buys");
-  });
 
-  it("gold road skips start and comes out past the bottom corner", () => {
-    let state = quiet(at(start(), 0, { on: "loop", i: 30 }), 0, "L3");
-    state = reduceTable(state, { type: "roll", dice: [3, 1] });
-    state = reduceTable(state, { type: "choose", road: true });
-    assert.deepEqual(state.seats[0].spot, { on: "loop", i: 6 });
-    assert.equal(state.seats[0].cash, STAKE - SQUARES.o6.price);
-  });
 
   it("chance cards pay, charge, move and jail; jail costs bail next turn", () => {
     const onChance = (card: number) => reduceTable(quiet(at(start(), 0, { on: "loop", i: 18 }), 0, "o19"), { type: "roll", dice: [1, 1], card });
@@ -238,25 +223,52 @@ describe("public table on the 八字 board", () => {
     assert.equal(reduceTable(forked, { type: "power", index: 0 }), forked);
   });
 
-  it("a power card waits on the board: land on it to take it; a new round puts one somewhere else", () => {
-    let state: TableState = { ...quiet(start(), 0, "o1"), pickup: { key: "o2", power: "wreck" as Power } };
+  it("power cards wait on the board until taken; one more each round, four at most", () => {
+    let state: TableState = { ...quiet(start(), 0, "o1"), pickups: [{ key: "o2", power: "wreck" as Power }] };
     state = reduceTable(state, { type: "roll", dice: [1, 1] });
     assert.deepEqual(state.seats[0].powers, ["wreck"]);
-    assert.equal(state.pickup, null);
+    assert.deepEqual(state.pickups, []);
     assert.ok(state.events.some((e) => e.kind === "pickup"));
-    // Seat 1 finishes the round: a new card appears, not on start or jail.
+    // Seat 1 finishes the round: one more card appears, not on start or jail.
     state = reduceTable(state, { type: "roll", dice: [3, 4] });
-    const spawn = state.events.find((e) => e.kind === "spawn");
-    assert.ok(spawn && spawn.kind === "spawn");
-    assert.deepEqual(state.pickup, { key: spawn.key, power: spawn.power });
-    assert.notEqual(SQUARES[spawn.key].kind, "start");
-    assert.notEqual(SQUARES[spawn.key].kind, "jail");
+    assert.equal(state.pickups.length, 1);
+    assert.notEqual(SQUARES[state.pickups[0].key].kind, "start");
+    assert.notEqual(SQUARES[state.pickups[0].key].kind, "jail");
+    // Cards left lying about stay; a round adds one only while there are fewer than four.
+    const four = { key: "o25", power: "boost" as Power };
+    let crowded: TableState = { ...start(), pickups: [four, { ...four, key: "o26" }, { ...four, key: "o27" }] };
+    crowded = reduceTable(reduceTable(crowded, { type: "roll", dice: [1, 1] }), { type: "roll", dice: [1, 1] });
+    assert.equal(crowded.pickups.length, MAX_PICKUPS);
+    crowded = reduceTable(reduceTable(crowded, { type: "roll", dice: [1, 1] }), { type: "roll", dice: [1, 1] });
+    assert.equal(crowded.pickups.length, MAX_PICKUPS, "no fifth");
     // A full hand leaves it where it is.
-    const full = { ...start(), pickup: { key: "o2", power: "swap" as Power }, seats: start().seats.map((s, i) => (i === 0 ? { ...s, powers: ["boost", "lock"] as Power[] } : s)) };
+    const full = { ...start(), pickups: [{ key: "o2", power: "swap" as Power }], seats: start().seats.map((seat, i) => (i === 0 ? { ...seat, powers: ["boost", "lock"] as Power[] } : seat)) };
     const left = reduceTable(quiet(full, 0, "o1"), { type: "roll", dice: [1, 1] });
-    assert.deepEqual(left.pickup, { key: "o2", power: "swap" });
+    assert.deepEqual(left.pickups, [{ key: "o2", power: "swap" }]);
   });
 
+  it("怪獸卡: the monster on the target's side takes 2 and knocks them back 3; a 護盾 blocks it", () => {
+    const withHand = (targetSpot: Spot, targetPowers: Power[] = []) =>
+      at(
+        { ...start(3), seats: start(3).seats.map((seat, i) => (i === 0 ? { ...seat, powers: ["monster"] as Power[] } : i === 2 ? { ...seat, powers: targetPowers } : seat)) },
+        2,
+        targetSpot,
+      );
+    const hit = reduceTable(withHand({ on: "loop", i: 12 }), { type: "power", index: 0, target: 2 });
+    const e = hit.events.find((x) => x.kind === "monster");
+    assert.ok(e && e.kind === "monster" && e.side === "right" && !e.blocked);
+    assert.equal(hit.seats[0].cash, STAKE + MONSTER_STEAL);
+    assert.equal(hit.seats[2].cash, STAKE - MONSTER_STEAL);
+    assert.deepEqual(hit.seats[2].spot, { on: "loop", i: 9 });
+    // Back past start wraps round the loop.
+    const wrap = reduceTable(withHand({ on: "loop", i: 1 }), { type: "power", index: 0, target: 2 });
+    assert.deepEqual(wrap.seats[2].spot, { on: "loop", i: 30 });
+    // A shield takes the hit instead.
+    const blocked = reduceTable(withHand({ on: "loop", i: 12 }, ["shield"]), { type: "power", index: 0, target: 2 });
+    assert.equal(blocked.seats[2].cash, STAKE);
+    assert.deepEqual(blocked.seats[2].powers, []);
+    assert.deepEqual(blocked.seats[2].spot, { on: "loop", i: 12 });
+  });
   it("ends after 12 turns each and ranks by net worth", () => {
     let state = start(3);
     let guard = 0;

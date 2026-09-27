@@ -109,10 +109,12 @@ export type BoardScene = {
   rainbow(seat: number): Promise<void>;
   /** A seat goes to pieces (bankrupt) and leaves the board. */
   shatter(seat: number): Promise<void>;
-  /** The round's glowing power card hovering over a square (null: none). */
-  showPickup(key: string | null, icon?: string): Promise<void>;
-  /** The hovering card flies into a seat's hands. */
-  takePickup(seat: number): Promise<void>;
+  /** A glowing power card appears over a square (they stay until someone takes them). */
+  showPickup(key: string, icon?: string): Promise<void>;
+  /** The card over `key` flies into a seat's hands. */
+  takePickup(seat: number, key: string): Promise<void>;
+  /** 怪獸卡: `side`'s monster fires (fireball or cannonball) at a seat, which is knocked back to `to` — or a shield bubble stops it. */
+  monsterAttack(side: "left" | "right", seat: number, to: Spot, blocked: boolean): Promise<void>;
   removeToken(seat: number): void;
   wait(ms: number): Promise<void>;
   /** 領地 buildings on show: rent houses on their squares, a gold facade, train stations. */
@@ -124,7 +126,10 @@ export type Decor = { houses: string[]; facade: boolean; stations: number };
 
 // ---------- Layout (world units; x right, z toward the viewer) ----------
 
-const PITCH = 1.2;
+// Squares are floating islands now: a little further apart (+10%) so each one reads on its own.
+const PITCH = 1.32;
+/** Islands are 15% bigger than the old flat tiles. */
+const ISLE = 1.15;
 const D = (EDGE_STEPS * PITCH) / Math.SQRT2;
 const TURN = Math.PI / 4;
 const TOP = 0.34;
@@ -188,18 +193,13 @@ function layoutFor(board: BoardId): Layout {
     const dx = Math.sign(Math.round((x - cx) * 100)), dz = Math.sign(Math.round(z * 100));
     tiles.push({ key: keyOf({ on: "loop", i }), x, z, yaw: TURN, outward: dx && dz ? [dx, dz] : null });
   }
-  for (const road of ["L", "R"] as const) {
-    for (let k = 1; k <= ROAD_LENGTH; k++) {
-      const [x, z] = spotPoint({ on: road, k });
-      tiles.push({ key: `${road}${k}`, x, z, yaw: TURN, outward: null });
-    }
-  }
+
   return {
     tiles,
     spotPoint,
     hub: [0, 2.5, -D + 0.3],
     stations: [[-2 * D - 1.6, 0], [2 * D + 1.6, 0], [-D, D + 1.2], [D, D + 1.2], [-D, -D - 1.2], [D, -D - 1.2]],
-    wide: [50, 34, 26],
+    wide: [56, 38, 29],
     wideTarget: [0, 0.4],
   };
 }
@@ -244,7 +244,8 @@ export function createBoardScene(
   sky.height = 256;
   const sg = sky.getContext("2d")!;
   const grad = sg.createLinearGradient(0, 0, 0, 256);
-  const skyStops = island ? ["#2f8fe0", "#6cc3f5", "#bfe9ff", "#fff3d6"] : ["#2a1260", "#8a3ea8", "#f08a8a", "#ffc98a"];
+  // 八字: a forest glade, deep green below, light filtering down from above.
+  const skyStops = island ? ["#2f8fe0", "#6cc3f5", "#bfe9ff", "#fff3d6"] : ["#4b7a3c", "#2b4f2f", "#18311f", "#0b170f"];
   grad.addColorStop(0, skyStops[0]);
   grad.addColorStop(0.5, skyStops[1]);
   grad.addColorStop(0.85, skyStops[2]);
@@ -254,11 +255,11 @@ export function createBoardScene(
   const skyTex = new T.CanvasTexture(sky);
   skyTex.encoding = T.sRGBEncoding;
   scene.background = skyTex;
-  scene.fog = new T.Fog(island ? 0xa9dcf5 : 0x7a3a8f, 50, 110);
+  scene.fog = new T.Fog(island ? 0xa9dcf5 : 0x16291c, island ? 50 : 40, island ? 110 : 140);
 
   const camera = new T.PerspectiveCamera(38, 1, 0.1, 200);
-  scene.add(new T.HemisphereLight(0xfff1e0, 0x5b3b7a, 0.85));
-  const sun = new T.DirectionalLight(0xffe2c2, 1.15);
+  scene.add(island ? new T.HemisphereLight(0xfff1e0, 0x5b3b7a, 0.85) : new T.HemisphereLight(0xe2f5cf, 0x14240f, 0.7));
+  const sun = new T.DirectionalLight(island ? 0xffe2c2 : 0xffe8b5, island ? 1.15 : 1.3);
   sun.position.set(-10, 22, 12);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -276,56 +277,236 @@ export function createBoardScene(
   const Y = new T.Vector3(0, 1, 0);
   const toLocal = (v: any, yaw = TURN) => v.clone().applyAxisAngle(Y, -yaw);
 
-  function roundedSquare(size: number, r: number) {
-    const s = new T.Shape(), h = size / 2;
-    s.moveTo(-h + r, -h); s.lineTo(h - r, -h); s.quadraticCurveTo(h, -h, h, -h + r);
-    s.lineTo(h, h - r); s.quadraticCurveTo(h, h, h - r, h); s.lineTo(-h + r, h);
-    s.quadraticCurveTo(-h, h, -h, h - r); s.lineTo(-h, -h + r); s.quadraticCurveTo(-h, -h, -h + r, -h);
-    return s;
+  // 海島: water and a sand deck. 八字: no deck at all — every square floats on its own over a misty
+  // forest floor far below, with the two monsters' islands in the middle of the diamonds.
+  const islandMesh = (size: number, seed: number, top: number) => {
+    const g = new T.Group();
+    let s = seed;
+    const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647 - 0.5);
+    const rough = (geo: any, amt: number) => {
+      const p = geo.attributes.position, seen = new Map<string, number[]>();
+      for (let i = 0; i < p.count; i++) {
+        const k = `${p.getX(i).toFixed(3)},${p.getY(i).toFixed(3)},${p.getZ(i).toFixed(3)}`;
+        if (!seen.has(k)) seen.set(k, [rnd() * amt, rnd() * amt * 0.5, rnd() * amt]);
+        const d = seen.get(k)!;
+        p.setXYZ(i, p.getX(i) + d[0], p.getY(i) + d[1], p.getZ(i) + d[2]);
+      }
+      geo.computeVertexNormals();
+      return geo;
+    };
+    const flat = (c: number) => new T.MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true });
+    const grass = shadowy(new T.Mesh(rough(new T.CylinderGeometry(0.5 * size, 0.53 * size, 0.14, 8), 0.04 * size), mat(top, 0.7)));
+    grass.position.y = TOP - 0.07;
+    g.add(grass);
+    const dirt = shadowy(new T.Mesh(rough(new T.CylinderGeometry(0.53 * size, 0.44 * size, 0.2, 8), 0.05 * size), flat(0x7a5230)));
+    dirt.position.y = TOP - 0.24;
+    g.add(dirt);
+    const rock = shadowy(new T.Mesh(rough(new T.ConeGeometry(0.44 * size, 0.7 * size, 7), 0.08 * size), flat(0x5d6168)));
+    rock.rotation.x = Math.PI;
+    rock.position.y = TOP - 0.34 - 0.35 * size;
+    g.add(rock);
+    return { group: g, top: grass };
+  };
+  /** 火龍: the left diamond's monster, a fat red dragon that breathes fireballs. */
+  function makeDragon() {
+    const group = new T.Group();
+    const red = mat(0xd9432b, 0.55), belly = mat(0xf7c46c, 0.6), horn = mat(0xf3ead2, 0.5);
+    const body = shadowy(new T.Mesh(new T.SphereGeometry(0.75, 24, 18), red));
+    body.scale.set(1, 1.1, 0.9);
+    body.position.y = 0.8;
+    group.add(body);
+    const tummy = shadowy(new T.Mesh(new T.SphereGeometry(0.55, 20, 14), belly));
+    tummy.scale.set(1, 1.2, 0.5);
+    tummy.position.set(0, 0.72, 0.42);
+    group.add(tummy);
+    const head = new T.Group();
+    head.position.set(0, 1.85, 0.1);
+    group.add(head);
+    const skull = shadowy(new T.Mesh(new T.SphereGeometry(0.5, 22, 16), red));
+    head.add(skull);
+    const snout = shadowy(new T.Mesh(new T.SphereGeometry(0.3, 18, 12), red));
+    snout.scale.set(1.2, 0.8, 1);
+    snout.position.set(0, -0.12, 0.4);
+    head.add(snout);
+    for (const s of [-1, 1]) {
+      const h = shadowy(new T.Mesh(new T.ConeGeometry(0.1, 0.45, 10), horn));
+      h.position.set(s * 0.28, 0.45, -0.05);
+      h.rotation.z = -s * 0.35;
+      head.add(h);
+      const eye = new T.Mesh(new T.SphereGeometry(0.1, 14, 10), new T.MeshBasicMaterial({ color: 0xffe066 }));
+      eye.position.set(s * 0.2, 0.12, 0.4);
+      head.add(eye);
+      const pupil = new T.Mesh(new T.SphereGeometry(0.05, 10, 8), new T.MeshBasicMaterial({ color: 0x1b1b1b }));
+      pupil.position.set(s * 0.2, 0.12, 0.49);
+      head.add(pupil);
+      const wing = shadowy(new T.Mesh(new T.ConeGeometry(0.45, 0.9, 3), mat(0xa8321f, 0.6)));
+      wing.position.set(s * 0.8, 1.25, -0.25);
+      wing.rotation.set(0.3, 0, -s * 1.1);
+      group.add(wing);
+      const foot = shadowy(new T.Mesh(new T.SphereGeometry(0.22, 14, 10), red));
+      foot.scale.set(1, 0.6, 1.3);
+      foot.position.set(s * 0.4, 0.1, 0.2);
+      group.add(foot);
+    }
+    const tail = shadowy(new T.Mesh(new T.ConeGeometry(0.22, 1.1, 12), red));
+    tail.position.set(0.3, 0.35, -0.8);
+    tail.rotation.set(-1.2, 0, 0.4);
+    group.add(tail);
+    const mouth = new T.Object3D();
+    mouth.position.set(0, -0.15, 0.75);
+    head.add(mouth);
+    return { group, head, mouth, phase: 0 };
   }
-  function slab(size: number, depth: number, r: number, bevel: number) {
-    const g = new T.ExtrudeGeometry(roundedSquare(size, r), { depth, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 3, curveSegments: 6 });
-    g.rotateX(-Math.PI / 2);
-    return g;
+  /** 炮石怪: the right diamond's monster, a mossy stone golem with a cannon in its chest. */
+  function makeGolem() {
+    const group = new T.Group();
+    const stone = new T.MeshStandardMaterial({ color: 0x8a8f96, roughness: 0.9, flatShading: true });
+    const moss = new T.MeshStandardMaterial({ color: 0x5c9e3a, roughness: 0.9, flatShading: true });
+    const body = shadowy(new T.Mesh(new T.DodecahedronGeometry(0.8, 0), stone));
+    body.scale.set(1.1, 1, 0.9);
+    body.position.y = 0.95;
+    group.add(body);
+    const cap = shadowy(new T.Mesh(new T.DodecahedronGeometry(0.55, 0), moss));
+    cap.scale.set(1.3, 0.35, 1.1);
+    cap.position.y = 1.65;
+    group.add(cap);
+    const head = new T.Group();
+    head.position.set(0, 1.95, 0.05);
+    group.add(head);
+    const skull = shadowy(new T.Mesh(new T.DodecahedronGeometry(0.42, 0), stone));
+    head.add(skull);
+    for (const s of [-1, 1]) {
+      const eye = new T.Mesh(new T.SphereGeometry(0.08, 12, 8), new T.MeshBasicMaterial({ color: 0x5ff5ff }));
+      eye.position.set(s * 0.16, 0.05, 0.36);
+      head.add(eye);
+      const arm = shadowy(new T.Mesh(new T.DodecahedronGeometry(0.32, 0), stone));
+      arm.scale.set(0.8, 1.4, 0.8);
+      arm.position.set(s * 0.95, 0.75, 0.1);
+      group.add(arm);
+      const fist = shadowy(new T.Mesh(new T.DodecahedronGeometry(0.28, 0), stone));
+      fist.position.set(s * 1.0, 0.25, 0.2);
+      group.add(fist);
+    }
+    // The cannon: a dark barrel sticking out of its chest.
+    const barrel = shadowy(new T.Mesh(new T.CylinderGeometry(0.2, 0.26, 0.7, 16), mat(0x2b2f36, 0.4, { metalness: 0.5 })));
+    barrel.rotation.x = Math.PI / 2 - 0.25;
+    barrel.position.set(0, 1.0, 0.75);
+    group.add(barrel);
+    const ring = shadowy(new T.Mesh(new T.TorusGeometry(0.22, 0.05, 8, 16), mat(0xfbd000, 0.3, { metalness: 0.6 })));
+    ring.position.set(0, 1.08, 1.08);
+    ring.rotation.x = -0.25;
+    group.add(ring);
+    const mouth = new T.Object3D();
+    mouth.position.set(0, 1.12, 1.15);
+    group.add(mouth);
+    return { group, head, mouth, phase: 1.3 };
   }
-
-  // Water, moon, stone deck, two diamond lawns.
-  const water = new T.Mesh(new T.CircleGeometry(80, 64), mat(island ? 0x2bb3c9 : 0x2b4c7e, 0.25, { metalness: 0.2 }));
-  water.rotation.x = -Math.PI / 2;
-  water.position.y = -0.9;
-  scene.add(water);
-  const moon = new T.Mesh(new T.SphereGeometry(3, 32, 24), new T.MeshBasicMaterial({ color: 0xfff4c8, fog: false }));
-  moon.position.set(-22, 20, -48);
-  scene.add(moon);
-  // The island is sand with a grass middle; the 八字 board sits on a stone deck with two lawns.
-  const deck = island
-    ? shadowy(new T.Mesh(new T.CylinderGeometry(ISLAND_R + 1.7, ISLAND_R + 2.3, 1, 48), mat(0xf2d9a0, 0.9)))
-    : shadowy(new T.Mesh(slab(1, 0.8, 0.12, 0.02), mat(0x8d7aa8, 0.85)));
-  if (island) deck.position.y = -0.5;
-  else {
-    deck.scale.set(4 * D + 3.4, 1, 2 * D + 3.4);
-    deck.position.y = -0.95;
-  }
-  scene.add(deck);
+  const shadowTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const x = c.getContext("2d")!, g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, "rgba(0,0,0,0.55)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    x.fillStyle = g;
+    x.fillRect(0, 0, 128, 128);
+    return new T.CanvasTexture(c);
+  })();
+  const glowTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const x = c.getContext("2d")!, g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, "rgba(160,255,200,0.9)");
+    g.addColorStop(1, "rgba(160,255,200,0)");
+    x.fillStyle = g;
+    x.fillRect(0, 0, 128, 128);
+    return new T.CanvasTexture(c);
+  })();
+  const FLOOR = island ? -0.9 : -2.6;
+  const far = new T.Group();
+  scene.add(far);
+  /** Every floating thing breathes: its own period and start, so they never move together. */
+  const breathers: { obj: any; base: number; phase: number; period: number; shadow?: any; glow?: any; key?: string }[] = [];
+  const bobOf = (key: string) => bobs.get(key) ?? 0;
+  const bobs = new Map<string, number>();
+  let deckMat: any = null;
+  let motes: any = null;
+  /** The two monsters, one in the middle of each diamond (八字 board only). */
+  const monsters: Partial<Record<"left" | "right", { group: any; head: any; mouth: any; phase: number }>> = {};
   if (island) {
+    const water = new T.Mesh(new T.CircleGeometry(80, 64), mat(0x2bb3c9, 0.25, { metalness: 0.2 }));
+    water.rotation.x = -Math.PI / 2;
+    water.position.y = -0.9;
+    scene.add(water);
+    const deck = shadowy(new T.Mesh(new T.CylinderGeometry(ISLAND_R + 1.7, ISLAND_R + 2.3, 1, 48), mat(0xf2d9a0, 0.9)));
+    deck.position.y = -0.5;
+    deckMat = deck.material;
+    scene.add(deck);
     const grass = shadowy(new T.Mesh(new T.CylinderGeometry(ISLAND_R - 0.8, ISLAND_R - 0.6, 0.12, 40), mat(0x5fae4a, 0.8)));
     grass.position.y = 0.02;
     scene.add(grass);
-  }
-  for (const x of island ? [] : [-D, D]) {
-    const lawn = shadowy(new T.Mesh(slab(EDGE_STEPS * PITCH - 1.2, 0.1, 0.4, 0.05), mat(0x5fae4a, 0.8)));
-    lawn.rotation.y = TURN;
-    lawn.position.set(x, -0.02, 0);
-    scene.add(lawn);
+  } else {
+    const mist = new T.Mesh(new T.PlaneGeometry(400, 400), new T.MeshStandardMaterial({ color: 0x122418, roughness: 1 }));
+    mist.rotation.x = -Math.PI / 2;
+    mist.position.y = FLOOR;
+    mist.receiveShadow = true;
+    scene.add(mist);
+    // Far away in the haze: tall rock pillars with grass caps. They drift slower than the board (parallax).
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2, r = 55 + (i % 4) * 10, h = 14 + (i % 5) * 5;
+      const pillar = new T.Mesh(new T.CylinderGeometry(3 + (i % 3) * 1.5, 4 + (i % 3) * 1.5, h, 7), new T.MeshStandardMaterial({ color: 0x3f5a3a, flatShading: true }));
+      pillar.position.set(Math.cos(a) * r, h / 2 - 8, Math.sin(a) * r);
+      const cap = new T.Mesh(new T.CylinderGeometry(4 + (i % 3) * 1.5, 3.2 + (i % 3) * 1.5, 1.4, 7), new T.MeshStandardMaterial({ color: 0x4e8a37, flatShading: true }));
+      cap.position.set(pillar.position.x, h - 8 + 0.6, pillar.position.z);
+      far.add(pillar, cap);
+    }
+    // Shafts of light slanting down through the canopy, and motes of light drifting up.
+    for (let i = 0; i < 5; i++) {
+      const ray = new T.Mesh(
+        new T.CylinderGeometry(0.6, 1.8, 26, 12, 1, true),
+        new T.MeshBasicMaterial({ color: 0xfff3b0, transparent: true, opacity: 0.025, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide }),
+      );
+      ray.position.set(-12 + i * 6, 10, -10 - (i % 2) * 4);
+      ray.rotation.z = 0.35;
+      scene.add(ray);
+    }
+    const count = 200, pos = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      pos[i * 3] = (Math.random() - 0.5) * 24;
+      pos[i * 3 + 1] = FLOOR + 0.5 + Math.random() * 7;
+      pos[i * 3 + 2] = (Math.random() - 0.5) * 14;
+    }
+    const geo = new T.BufferGeometry();
+    geo.setAttribute("position", new T.BufferAttribute(pos, 3));
+    motes = new T.Points(geo, new T.PointsMaterial({ size: 0.12, map: glowTex, color: 0xd9ff9c, transparent: true, depthWrite: false, blending: T.AdditiveBlending }));
+    scene.add(motes);
+    // The monsters' two big islands, with a few trees round the edge.
+    for (const x of [-D, D]) {
+      const big = islandMesh(3.4, x < 0 ? 901 : 902, 0x4f9e34);
+      big.group.position.set(x, -0.3, 0);
+      scene.add(big.group);
+      breathers.push({ obj: big.group, base: -0.3, phase: x < 0 ? 0 : 2, period: 5.5 });
+      for (let k = 0; k < 4; k++) {
+        const a = k * 1.6 + (x < 0 ? 0.4 : 2), r = 1.25;
+        const trunk = shadowy(new T.Mesh(new T.CylinderGeometry(0.06, 0.09, 0.5, 6), mat(0x6b4423, 0.8)));
+        trunk.position.set(Math.cos(a) * r, TOP + 0.22, Math.sin(a) * r);
+        const crown = shadowy(new T.Mesh(new T.IcosahedronGeometry(0.34, 0), new T.MeshStandardMaterial({ color: k % 2 ? 0x4fa83a : 0x3d8f2e, flatShading: true })));
+        crown.position.set(trunk.position.x, TOP + 0.62, trunk.position.z);
+        big.group.add(trunk, crown);
+      }
+      const side = x < 0 ? "left" : "right";
+      const m = side === "left" ? makeDragon() : makeGolem();
+      m.group.position.set(0, TOP, 0.1);
+      big.group.add(m.group);
+      monsters[side] = m;
+    }
   }
 
   // ---------- Tiles ----------
-  const lotGeo = slab(1.06, 0.22, 0.2, 0.06), bigGeo = slab(1.4, 0.22, 0.26, 0.06);
   type Tile = { group: any; body: any; base: number; inward: any; house: any; yaw: number };
   const tiles: Record<string, Tile> = {};
   const floaters: { obj: any; base?: number; spin?: boolean; bat?: number }[] = [];
-  /** The round's power card, hovering over its square. */
-  let pickup: any = null;
+  /** Power cards hovering over their squares, by square. */
+  const cards = new Map<string, any>();
 
   function decorate(kind: string, group: any, yaw: number) {
     if (kind === "start") {
@@ -452,10 +633,22 @@ export function createBoardScene(
     group.position.set(x, 0, z);
     group.rotation.y = yaw;
     scene.add(group);
-    const base = square.kind === "lot" ? (square.gold ? 0xffe9a8 : 0xfff4dc) : PLAIN[square.kind];
+    // Grass on top for lots; the special squares keep their colour so they're easy to spot.
+    const base = square.kind === "lot" ? (square.gold ? 0xd6c24a : 0x62b843) : PLAIN[square.kind];
     const big = ["start", "jail", "chest", "fly", "dock", "cross"].includes(square.kind);
-    const body = shadowy(new T.Mesh(big ? bigGeo : lotGeo, mat(base, 0.32)));
-    group.add(body);
+    const isle = islandMesh((big ? 1.36 : 1.08) * ISLE, 100 + Object.keys(tiles).length * 17, base);
+    group.add(isle.group);
+    const body = isle.top;
+    // Its shadow on the floor far below, and a soft glow under the rock.
+    const shadow = new T.Mesh(new T.PlaneGeometry(1.7 * ISLE, 1.7 * ISLE), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.set(x, FLOOR + 0.02, z);
+    scene.add(shadow);
+    const glow = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: square.kind === "start" ? 0x6fe3ff : 0x9dffb0, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.5 }));
+    glow.scale.set(1.4 * ISLE, 0.9, 1);
+    glow.position.set(x, TOP - 1.2, z);
+    scene.add(glow);
+    breathers.push({ obj: group, base: 0, phase: Math.random() * Math.PI * 2, period: 3.2 + Math.random() * 1.2, shadow, glow, key });
     // Buildings stand at the back of the square (away from the camera), tokens at the front.
     const tile: Tile = { group, body, base, inward: toLocal(new T.Vector3(0, 0, -0.27), yaw), house: null, yaw };
     tiles[key] = tile;
@@ -607,8 +800,13 @@ export function createBoardScene(
     door.position.set(0, 0.45, 1.31);
     c.add(door);
     c.scale.setScalar(0.7);
-    c.position.set(0, 0, castleZ);
-    scene.add(c);
+    // The castle has its own floating island in the top notch.
+    const castleIsle = islandMesh(2.9, 903, 0x5aa83c);
+    castleIsle.group.position.set(0, -0.2, castleZ);
+    scene.add(castleIsle.group);
+    breathers.push({ obj: castleIsle.group, base: -0.2, phase: 4, period: 6 });
+    c.position.set(0, TOP, 0);
+    castleIsle.group.add(c);
     for (let n = 0; n < 5; n++) {
       const bat = new T.Group();
       const wingGeo = new T.ConeGeometry(0.18, 0.5, 3);
@@ -642,9 +840,13 @@ export function createBoardScene(
       coin.rotation.x = (k % 3) * 0.3;
       pile.add(coin);
     }
-    pile.position.set(0, 0, D - 0.9);
     pile.scale.setScalar(0.8);
-    scene.add(pile);
+    const pileIsle = islandMesh(2, 904, 0x5aa83c);
+    pileIsle.group.position.set(0, -0.15, D - 0.7);
+    scene.add(pileIsle.group);
+    breathers.push({ obj: pileIsle.group, base: -0.15, phase: 1, period: 4.6 });
+    pile.position.set(0, TOP, 0);
+    pileIsle.group.add(pile);
   }
 
   // ---------- Tokens ----------
@@ -945,8 +1147,45 @@ export function createBoardScene(
     }
     rigs.forEach((rig) => rig.mixer.update(dt * speed));
     // Standing still: turn (smoothly) to face the camera, never back or side on.
+    // Every island breathes up and down on its own clock; its shadow shrinks as it rises.
+    if (!reduceMotion) {
+      for (const b of breathers) {
+        const h = Math.sin((now / 1000 / b.period) * Math.PI * 2 + b.phase) * 0.06;
+        b.obj.position.y = b.base + h;
+        if (b.key) bobs.set(b.key, h);
+        if (b.shadow) {
+          const sc = 1 - h * 1.5;
+          b.shadow.scale.set(sc, sc, 1);
+          b.shadow.material.opacity = 0.9 - h * 3;
+        }
+        if (b.glow) {
+          b.glow.position.y = TOP - 1.2 + h;
+          b.glow.material.opacity = 0.4 + Math.sin(now / 770 + b.phase) * 0.12;
+        }
+      }
+      if (motes) {
+        const p = motes.geometry.attributes.position;
+        for (let i = 0; i < p.count; i++) {
+          let y = p.getY(i) + dt * 0.18;
+          if (y > 5) y = FLOOR + 0.5;
+          p.setY(i, y);
+          p.setX(i, p.getX(i) + Math.sin(now / 1600 + i) * dt * 0.08);
+        }
+        p.needsUpdate = true;
+      }
+    }
+    // The monsters breathe and look about.
+    for (const m of Object.values(monsters)) {
+      if (!m || reduceMotion) continue;
+      m.group.scale.y = 1 + Math.sin(now / 900 + m.phase) * 0.025;
+      m.head.rotation.y = Math.sin(now / 2300 + m.phase) * 0.35;
+    }
+    // Parallax: the far scenery follows the camera part of the way, so it seems to drift slower.
+    far.position.x = camera.position.x * 0.45;
     const clock = performance.now();
     tokens.forEach((token, seat) => {
+      // Standing players ride their island up and down.
+      if (!gone.has(seat) && clock - lastMoved[seat] >= 250) token.position.y = TOP + bobOf(squareOf(spots[seat]));
       if (gone.has(seat) || clock - lastMoved[seat] < 450) return;
       const want = Math.atan2(camera.position.x - token.position.x, camera.position.z - token.position.z);
       const delta = ((want - token.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
@@ -1116,7 +1355,7 @@ export function createBoardScene(
     }
     roof.color.setHex(next.facade ? 0xfbd000 : 0xc0264b);
     roof.metalness = next.facade ? 0.6 : 0;
-    deck.material.color.setHex(island ? (next.facade ? 0xffe08a : 0xf2d9a0) : next.facade ? 0xb89a6a : 0x8d7aa8);
+    if (deckMat) deckMat.color.setHex(next.facade ? 0xffe08a : 0xf2d9a0);
     while (decorGroup.children.length) decorGroup.remove(decorGroup.children[0]);
     for (let n = 0; n < Math.min(next.stations, STATION_SPOTS.length); n++) {
       const s = station();
@@ -1357,18 +1596,8 @@ export function createBoardScene(
       settle(squareOf(spots[seat]), seat);
     },
     async showPickup(key, icon = "🃏") {
-      if (pickup) {
-        const old = pickup;
-        pickup = null;
-        const i = floaters.findIndex((f) => f.obj === old);
-        if (i >= 0) floaters.splice(i, 1);
-        await tween(250, (k) => {
-          old.scale.setScalar(1 - k);
-          if (k === 1) scene.remove(old);
-        });
-      }
-      const tile = key ? tiles[key] : null;
-      if (!tile) return;
+      const tile = tiles[key];
+      if (!tile || cards.has(key)) return;
       const card = new T.Group();
       // A purple card with the icon on both faces, and a soft glow round it.
       const c = document.createElement("canvas");
@@ -1389,24 +1618,28 @@ export function createBoardScene(
       x.fillText(icon, 64, 92);
       const face = new T.CanvasTexture(c);
       face.encoding = T.sRGBEncoding;
-      const body = new T.Mesh(new T.PlaneGeometry(0.46, 0.63), new T.MeshBasicMaterial({ map: face, side: T.DoubleSide }));
-      card.add(body);
-      const glow = new T.Mesh(new T.PlaneGeometry(0.8, 0.98), new T.MeshBasicMaterial({ color: 0xfbd000, transparent: true, opacity: 0.35, side: T.DoubleSide, depthWrite: false }));
-      glow.position.z = -0.01;
-      card.add(glow);
-      card.position.set(tile.group.position.x, TOP + 0.9, tile.group.position.z);
-      scene.add(card);
-      pickup = card;
+      card.add(new T.Mesh(new T.PlaneGeometry(0.46, 0.63), new T.MeshBasicMaterial({ map: face, side: T.DoubleSide })));
+      const halo = new T.Mesh(new T.PlaneGeometry(0.8, 0.98), new T.MeshBasicMaterial({ color: 0xfbd000, transparent: true, opacity: 0.35, side: T.DoubleSide, depthWrite: false }));
+      halo.position.z = -0.01;
+      card.add(halo);
+      // Riding on its island, so it floats up and down with it.
+      card.position.set(0, TOP + 0.9, 0);
+      tile.group.add(card);
+      cards.set(key, card);
       floaters.push({ obj: card, base: TOP + 0.9, spin: true });
       await tween(400, (k) => card.scale.setScalar(k < 0.7 ? (k / 0.7) * 1.2 : 1.2 - (k - 0.7) * 0.66));
     },
-    async takePickup(seat) {
-      const card = pickup;
+    async takePickup(seat, key) {
+      const card = cards.get(key);
       if (!card) return;
-      pickup = null;
+      cards.delete(key);
       const i = floaters.findIndex((f) => f.obj === card);
       if (i >= 0) floaters.splice(i, 1);
-      const from = card.position.clone(), to = tokens[seat].position.clone().setY(TOP + 0.6);
+      const from = card.getWorldPosition(new T.Vector3());
+      card.parent.remove(card);
+      scene.add(card);
+      card.position.copy(from);
+      const to = tokens[seat].position.clone().setY(TOP + 0.6);
       await tween(500, (k) => {
         card.position.lerpVectors(from, to, k);
         card.position.y += Math.sin(k * Math.PI) * 0.6;
@@ -1414,6 +1647,78 @@ export function createBoardScene(
         card.scale.setScalar(1 - k * 0.8);
         if (k === 1) scene.remove(card);
       });
+    },
+    async monsterAttack(side, seat, to, blocked) {
+      const m = monsters[side];
+      const token = tokens[seat];
+      const target = token.position.clone().setY(TOP + 0.4);
+      const from = m ? m.mouth.getWorldPosition(new T.Vector3()) : new T.Vector3(layout.hub[0], layout.hub[1], layout.hub[2]);
+      // Turn to face the target and rear back.
+      if (m) {
+        const p = m.group.getWorldPosition(new T.Vector3());
+        const turn = Math.atan2(target.x - p.x, target.z - p.z);
+        const start = m.group.rotation.y;
+        await tween(300, (k) => {
+          m.group.rotation.y = start + (turn - start) * k;
+          m.group.scale.set(1 + k * 0.08, 1 - k * 0.1, 1 + k * 0.08);
+        });
+        void tween(250, (k) => m.group.scale.set(1.08 - k * 0.08, 0.9 + k * 0.1, 1.08 - k * 0.08));
+      }
+      // The shot: a fireball with a trail (dragon) or an iron cannonball (golem).
+      const fire = side === "left";
+      const ball = new T.Mesh(
+        new T.SphereGeometry(fire ? 0.22 : 0.18, 16, 12),
+        fire ? new T.MeshBasicMaterial({ color: 0xffa21f }) : mat(0x1f2328, 0.35, { metalness: 0.6 }),
+      );
+      scene.add(ball);
+      const trail: any[] = [];
+      await tween(700, (k) => {
+        ball.position.lerpVectors(from, target, k);
+        ball.position.y += Math.sin(k * Math.PI) * 2.2;
+        if (fire && Math.random() < 0.7) {
+          const ember = new T.Mesh(sparkGeo, new T.MeshBasicMaterial({ color: Math.random() < 0.5 ? 0xff5a1f : 0xffd23f, transparent: true }));
+          ember.position.copy(ball.position);
+          scene.add(ember);
+          trail.push({ ember, born: performance.now() });
+        }
+        for (const t of trail) t.ember.material.opacity = Math.max(0, 1 - (performance.now() - t.born) / 400);
+        if (k === 1) scene.remove(ball);
+      });
+      trail.forEach((t) => scene.remove(t.ember));
+      if (blocked) {
+        // A golden bubble takes the hit.
+        const bubble = new T.Mesh(new T.SphereGeometry(0.6, 24, 16), new T.MeshBasicMaterial({ color: 0xfbd000, transparent: true, opacity: 0.5, depthWrite: false }));
+        bubble.position.copy(target);
+        scene.add(bubble);
+        await tween(700, (k) => {
+          bubble.scale.setScalar(0.6 + k * 0.8);
+          bubble.material.opacity = 0.5 * (1 - k);
+          if (k === 1) scene.remove(bubble);
+        });
+        return;
+      }
+      // Boom, and the target is sent flying back.
+      const flash = new T.Mesh(new T.SphereGeometry(0.4, 16, 12), new T.MeshBasicMaterial({ color: fire ? 0xff8a1f : 0xd1d5db, transparent: true }));
+      flash.position.copy(target);
+      scene.add(flash);
+      void tween(500, (k) => {
+        flash.scale.setScalar(0.5 + k * 2.5);
+        flash.material.opacity = 1 - k;
+        if (k === 1) scene.remove(flash);
+      });
+      const left = squareOf(spots[seat]);
+      spots[seat] = to;
+      const a = token.position.clone(), b = place(seat, to);
+      lastMoved[seat] = performance.now() + 900;
+      await tween(800, (k) => {
+        token.position.lerpVectors(a, b, k);
+        token.position.y = TOP + Math.sin(k * Math.PI) * 1.8;
+        token.rotation.z = Math.sin(k * Math.PI * 4) * 0.5 * (1 - k);
+      });
+      token.rotation.z = 0;
+      settle(left, seat);
+      settle(squareOf(to), seat);
+      squash(squareOf(to));
     },
     async floatText(seat, text, colour = "#E52521") {
       const c = document.createElement("canvas");

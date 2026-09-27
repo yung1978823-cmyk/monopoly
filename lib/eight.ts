@@ -57,11 +57,12 @@ export const JAIL = 16;
 export type Road = "L" | "R";
 export type Spot = { on: "loop"; i: number } | { on: Road; k: number };
 
-/** Fork squares on the loop: which road starts there and where it comes back onto the loop. */
-export const FORKS: Record<number, { road: Road; exit: number }> = {
-  30: { road: "L", exit: 6 },
-  14: { road: "R", exit: 22 },
-};
+/**
+ * Fork squares on the loop: which road starts there and where it comes back onto the loop.
+ * 2026-09-27: the inner roads are gone — the middle of each diamond is now a monster's island —
+ * so there are no forks; the old fork squares are a chance square and a chest.
+ */
+export const FORKS: Record<number, { road: Road; exit: number }> = {};
 export const ROAD_LENGTH = 3;
 
 export type SquareKind = "start" | "chest" | "cross" | "fly" | "dock" | "jail" | "chance" | "tax" | "fork" | "lot";
@@ -72,11 +73,11 @@ const SPECIAL: Record<number, SquareKind> = {
   4: "chest",
   8: "cross",
   12: "fly",
-  14: "fork",
+  14: "chance",
   16: "jail",
   20: "chance",
   28: "tax",
-  30: "fork",
+  30: "chest",
 };
 
 export function keyOf(spot: Spot): string {
@@ -98,12 +99,6 @@ export const SQUARES: Record<string, Square> = (() => {
     const segment = Math.floor(i / EDGE_STEPS);
     const kind = SPECIAL[i] ?? "lot";
     squares[key] = { key, kind, price: kind === "lot" ? (segment % 4 === 3 ? 3 : 2) : 0, gold: false, group: segment };
-  }
-  for (const road of ["L", "R"] as const) {
-    for (let k = 1; k <= ROAD_LENGTH; k += 1) {
-      const key = `${road}${k}`;
-      squares[key] = { key, kind: "lot", price: 4, gold: true, group: -1 };
-    }
   }
   return squares;
 })();
@@ -212,8 +207,23 @@ export type Deed = { owner: number; level: number; locked?: number };
  * bank) · swap 換位: trade places with an opponent · shield 免租牌: the next rent you'd pay is let off
  * (used by itself when it happens).
  */
-export type Power = "boost" | "lock" | "wreck" | "swap" | "shield";
-export const POWERS: readonly Power[] = ["boost", "lock", "wreck", "swap", "shield"];
+export type Power = "boost" | "lock" | "wreck" | "swap" | "shield" | "monster";
+export const POWERS: readonly Power[] = ["boost", "lock", "wreck", "swap", "shield", "monster"];
+/** 怪獸卡: the monster on the target's side fires at them — they lose this much to you… */
+export const MONSTER_STEAL = 2;
+/** …and are knocked this many squares back. 護盾 (shield) blocks it. */
+export const MONSTER_KNOCK = 3;
+/** At most this many power cards lie on the board at once. */
+export const MAX_PICKUPS = 4;
+
+/**
+ * Which monster watches a loop square: the left diamond's or the right's; the middle square where
+ * the two cross is watched by both (the left one answers).
+ */
+export function sideOf(spot: Spot): "left" | "right" {
+  if (spot.on !== "loop") return spot.on === "L" ? "left" : "right";
+  return spot.i > MIDDLE && spot.i < MIDDLE_AGAIN ? "right" : "left";
+}
 export const MAX_POWERS = 2;
 /** Out of 10 chance draws, how many give a power card instead; and out of 10 chests. */
 export const POWER_ODDS = 8;
@@ -271,7 +281,9 @@ export type TableEvent =
   /** A new round: a power card appears on a square (replacing any left over). */
   | { kind: "spawn"; key: string; power: Power }
   /** Landed on the square with the power card and took it. */
-  | { kind: "pickup"; seat: number; key: string; power: Power };
+  | { kind: "pickup"; seat: number; key: string; power: Power }
+  /** 怪獸卡: `side`'s monster fired at `target`: took `stolen` and knocked them back to `to` — or a 護盾 blocked it. */
+  | { kind: "monster"; seat: number; target: number; side: "left" | "right"; stolen: number; to: Spot; blocked: boolean };
 
 /**
  * House rules for this table. The public table uses the defaults; a hosted game on someone's
@@ -307,7 +319,7 @@ export type TableState = {
   /** Rent paid to the host's rent houses this game. */
   hostIncome: number;
   /** A glowing power card waiting on a square; whoever lands there first takes it. A new one each round. */
-  pickup: { key: string; power: Power } | null;
+  pickups: { key: string; power: Power }[];
 };
 
 export type TableAction =
@@ -331,7 +343,7 @@ export function newTable(
     rules: { turnsEach: rules.turnsEach ?? TURNS_EACH, houses, cards: rules.cards?.length ? rules.cards : CARDS },
     board,
     hostIncome: 0,
-    pickup: firstPickup(board, players.length),
+    pickups: [firstPickup(board, players.length)],
     seats: players.slice(0, MAX_SEATS).map((player) => ({
       ...player,
       cash: STAKE,
@@ -448,10 +460,13 @@ function walk(state: TableState, seat: number, events: TableEvent[]): TableState
 function land(state: TableState, seat: number, events: TableEvent[], depth: number): TableState {
   // The round's power card lies here: take it (if there's room in the hand), then the square as usual.
   const at = BOARDS[state.board].keyOf(state.seats[seat].spot);
-  if (depth === 0 && state.pickup?.key === at && state.seats[seat].powers.length < MAX_POWERS) {
-    const { power } = state.pickup;
-    events.push({ kind: "pickup", seat, key: at, power });
-    state = { ...withSeat(state, seat, { powers: [...state.seats[seat].powers, power] }), pickup: null };
+  const waiting = state.pickups.find((p) => p.key === at);
+  if (depth === 0 && waiting && state.seats[seat].powers.length < MAX_POWERS) {
+    events.push({ kind: "pickup", seat, key: at, power: waiting.power });
+    state = {
+      ...withSeat(state, seat, { powers: [...state.seats[seat].powers, waiting.power] }),
+      pickups: state.pickups.filter((p) => p !== waiting),
+    };
   }
   const player = state.seats[seat];
   const B = BOARDS[state.board];
@@ -561,12 +576,15 @@ function finishTurn(state: TableState, events: TableEvent[]): TableState {
     if (locked <= 0) events.push({ kind: "unlocked", key });
   }
   let done = withSeat({ ...state, deeds }, state.current, { turnsTaken: state.seats[state.current].turnsTaken + 1 });
-  // Everyone still playing has had another turn: a new round, and a new power card somewhere else.
+  // Everyone still playing has had another turn: a new round, and one more power card on the board
+  // (they stay until taken, up to MAX_PICKUPS at once).
   const round = (s: TableState) => Math.min(...alive(s).map((i) => s.seats[i].turnsTaken));
-  if (alive(done).length > 0 && round(done) > round(state) && round(done) < done.rules.turnsEach) {
+  if (alive(done).length > 0 && round(done) > round(state) && round(done) < done.rules.turnsEach && done.pickups.length < MAX_PICKUPS) {
     const pickup = nextPickup(done, round(done));
-    events.push({ kind: "spawn", ...pickup });
-    done = { ...done, pickup };
+    if (pickup) {
+      events.push({ kind: "spawn", ...pickup });
+      done = { ...done, pickups: [...done.pickups, pickup] };
+    }
   }
   if (isOver(done)) return { ...done, phase: "over", stepsLeft: 0 };
   let seat = done.current;
@@ -627,11 +645,20 @@ function firstPickup(board: BoardId, players: number): { key: string; power: Pow
   return { key: squares[(players * 7 + 5) % squares.length], power: POWERS[players % POWERS.length] };
 }
 
-/** The new round's card: a different square from last time, picked from the last roll's draw. */
-function nextPickup(state: TableState, round: number): { key: string; power: Power } {
-  const squares = pickupSquares(state.board, state.rules.houses).filter((key) => key !== state.pickup?.key);
+/** The new round's card: on a square with no card yet, picked from the last roll's draw. */
+function nextPickup(state: TableState, round: number): { key: string; power: Power } | null {
+  const taken = new Set(state.pickups.map((p) => p.key));
+  const squares = pickupSquares(state.board, state.rules.houses).filter((key) => !taken.has(key));
+  if (squares.length === 0) return null;
   const seed = Math.abs(Math.floor(state.draw.power ?? state.draw.card)) + round * 131 + state.tick * 17;
   return { key: squares[seed % squares.length], power: POWERS[Math.floor(seed / 7) % POWERS.length] };
+}
+
+/** One square back along the loop (the island ring too). */
+function stepBack(board: BoardId, spot: Spot): Spot {
+  const loop = board === "island" ? ISLAND_LOOP : LOOP;
+  const i = spot.on === "loop" ? spot.i : 0;
+  return { on: "loop", i: (i - 1 + loop) % loop };
 }
 
 /** Seats still playing, other than `seat`. */
@@ -651,7 +678,7 @@ export function bestTarget(state: TableState, seat: number): string | null {
 export function canPlay(state: TableState, seat: number, power: Power): boolean {
   if (power === "shield") return false;
   if (power === "boost") return Object.values(state.deeds).some((d) => d.owner === seat && d.level < MAX_LEVEL);
-  if (power === "swap") return opponents(state, seat).length > 0;
+  if (power === "swap" || power === "monster") return opponents(state, seat).length > 0;
   if (power === "lock") {
     const key = bestTarget(state, seat);
     return key !== null && !state.deeds[key].locked;
@@ -689,6 +716,24 @@ function playPower(state: TableState, seat: number, index: number, target: numbe
       events.push({ kind: "played", seat, power, key, target: deed.owner, levels: { [key]: deed.level - 1 } });
     }
     return { ...withSeat(state, seat, hand), deeds };
+  }
+  if (power === "monster") {
+    const others = opponents(state, seat);
+    const other = target !== undefined && others.includes(target) ? target : others[0];
+    const victim = state.seats[other];
+    const side = sideOf(victim.spot);
+    const guard = victim.powers.indexOf("shield");
+    if (guard >= 0) {
+      events.push({ kind: "monster", seat, target: other, side, stolen: 0, to: victim.spot, blocked: true });
+      return withSeat(withSeat(state, seat, hand), other, { powers: victim.powers.filter((_, i) => i !== guard) });
+    }
+    const stolen = Math.min(MONSTER_STEAL, victim.cash);
+    // Knocked back along the loop (someone in jail stays behind bars).
+    let to = victim.spot;
+    if (!victim.jailed) for (let s = 0; s < MONSTER_KNOCK; s += 1) to = stepBack(state.board, to);
+    events.push({ kind: "monster", seat, target: other, side, stolen, to, blocked: false });
+    const paid = withSeat(withSeat(state, seat, { ...hand, cash: player.cash + stolen }), other, { cash: victim.cash - stolen, spot: to });
+    return paid;
   }
   // swap
   const others = opponents(state, seat);
