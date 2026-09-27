@@ -21,6 +21,8 @@ const SIDE = BOARD_SIZE / 4; // 7 steps between corners
 const PITCH = 1.45;
 const R = (SIDE * PITCH) / Math.SQRT2;
 const TOP = 0.34;
+/** Looking at the diamond from a corner turns it into a square on screen, which fills a phone better. */
+const HOME_YAW = Math.PI / 4;
 /** Island top colour for each kind of square. */
 const TOPS: Record<TileKind, number> = {
   start: 0xfbd000,
@@ -152,7 +154,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const map = new T.CanvasTexture(c);
     map.encoding = T.sRGBEncoding;
     const sprite = new T.Sprite(new T.SpriteMaterial({ map, transparent: true }));
-    sprite.scale.set(1.15, 0.43, 1);
+    sprite.scale.set(1.4, 0.52, 1);
     return sprite;
   }
 
@@ -226,6 +228,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   flame.rotation.x = -Math.PI / 2;
   flame.position.z = -0.55;
   ship.add(flame);
+  ship.scale.setScalar(1.6);
   scene.add(ship);
   const shipAt = { index: start, from: new T.Vector3(), to: new T.Vector3(), t: 1 };
   const spotOf = (i: number) => {
@@ -236,7 +239,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   shipAt.to.copy(ship.position);
 
   // ---------- Camera: drag to turn and tilt, pinch to zoom, sway when left alone ----------
-  const view = { yaw: 0, elev: 0.75, goalYaw: 0, goalElev: 0.75, dist: 20, goalDist: 20, idle: 0 };
+  const view = { yaw: HOME_YAW, elev: 0.9, goalYaw: HOME_YAW, goalElev: 0.9, dist: 20, goalDist: 20, idle: 0 };
   const target = new T.Vector3();
   const canvas = renderer.domElement;
   const pointers = new Map<number, { x: number; y: number }>();
@@ -281,7 +284,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     camera.updateProjectionMatrix();
     // Far enough back that the whole ring (about 2R across) fits the narrower side.
     const half = Math.atan(Math.tan((38 * Math.PI) / 360) * Math.min(1, camera.aspect));
-    fitDist = Math.max(12, (R * 1.25) / Math.tan(half));
+    fitDist = Math.max(10, ((R / Math.SQRT2) * 1.3) / Math.tan(half));
     view.goalDist = view.dist = fitDist;
   }
   const watch = new ResizeObserver(resize);
@@ -380,8 +383,8 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       floats.push({ sprite, born: performance.now(), base: ship.position.clone() });
     },
     recentre() {
-      view.goalYaw = 0;
-      view.goalElev = 0.75;
+      view.goalYaw = HOME_YAW;
+      view.goalElev = 0.9;
       view.goalDist = fitDist;
     },
     dispose() {
