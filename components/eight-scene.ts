@@ -1063,17 +1063,28 @@ export function createBoardScene(
     async roll(seat, values) {
       const base = tokens[seat].position;
       dice.forEach((d, i) => {
-        d.visible = true;
+        d.visible = false;
         d.position.set(base.x + (i ? 0.45 : -0.45), 2.5, base.z + 1.1);
       });
-      const spins = dice.map(() => [Math.random() * 8 + 6, Math.random() * 8 + 6, Math.random() * 8 + 6]);
-      await tween(750, (k) => {
-        dice.forEach((d, i) => {
-          d.rotation.set(spins[i][0] * (1 - k), spins[i][1] * (1 - k), spins[i][2] * (1 - k));
+      const throwDie = (i: number) => {
+        const d = dice[i];
+        const spin = [Math.random() * 8 + 6, Math.random() * 8 + 6, Math.random() * 8 + 6];
+        d.visible = true;
+        return tween(650, (k) => {
+          d.rotation.set(spin[0] * (1 - k), spin[1] * (1 - k), spin[2] * (1 - k));
           if (k === 1) d.rotation.set(...UP[values[i]]);
           d.position.y = TOP + 0.3 + Math.abs(Math.sin(k * Math.PI * 2.5)) * (1 - k) * 2;
         });
-      });
+      };
+      if (speed > 1) {
+        // 快轉: both dice land together.
+        await Promise.all([throwDie(0), throwDie(1)]);
+        return;
+      }
+      // One die lands, a beat, then the other.
+      await throwDie(0);
+      await wait(150);
+      await throwDie(1);
     },
     hideDice() {
       dice.forEach((d) => (d.visible = false));
