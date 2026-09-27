@@ -169,8 +169,6 @@ function layoutFor(board: BoardId): Layout {
 }
 
 const GROUP_COLOURS = [0xe52521, 0xf59e0b, 0x22a447, 0x38bdf8, 0x3949ab, 0xec4899, 0x9a5b2e, 0x14b8a6];
-/** Up to six tokens share a square: two rows of three. */
-const OFFSETS: [number, number][] = [[-0.26, -0.18], [0, -0.18], [0.26, -0.18], [-0.26, 0.18], [0, 0.18], [0.26, 0.18]];
 
 /**
  * `heroSeat` is the seat played by the 3D vampire (you); the others keep their pawns. If the model
@@ -418,7 +416,8 @@ export function createBoardScene(
     const big = ["start", "jail", "chest", "fly", "dock", "cross"].includes(square.kind);
     const body = shadowy(new T.Mesh(big ? bigGeo : lotGeo, mat(base, 0.32)));
     group.add(body);
-    const tile: Tile = { group, body, base, inward: toLocal(new T.Vector3(0, 0, -0.16), yaw), house: null, yaw };
+    // Buildings stand at the back of the square (away from the camera), tokens at the front.
+    const tile: Tile = { group, body, base, inward: toLocal(new T.Vector3(0, 0, -0.27), yaw), house: null, yaw };
     tiles[key] = tile;
     if (square.kind === "lot" && outward) {
       const o = toLocal(outward, yaw);
@@ -426,7 +425,6 @@ export function createBoardScene(
       const band = shadowy(new T.Mesh(new T.BoxGeometry(ox ? 0.26 : 0.9, 0.07, oz ? 0.26 : 0.9), mat(GROUP_COLOURS[square.group % 8], 0.4)));
       band.position.set(ox * 0.34, TOP + 0.02, oz * 0.34);
       group.add(band);
-      tile.inward = new T.Vector3(-ox * 0.14, 0, -oz * 0.14);
     }
     if (square.gold) {
       const gem = shadowy(new T.Mesh(new T.OctahedronGeometry(0.12), mat(0xfbd000, 0.15, { metalness: 0.6, emissive: 0x5a3d00 })));
@@ -627,17 +625,42 @@ export function createBoardScene(
     return g;
   }
   const hex = (css: string) => parseInt(css.replace("#", ""), 16);
+  // Where everyone stands. Tokens sharing a square line up across its front half (the side
+  // facing the camera), up to three in a row with a second row behind; buildings sit at the back,
+  // so nobody is hidden behind one.
+  const squareOf = (spot: Spot) => BOARDS[board].keyOf(spot);
+  const spots: Spot[] = colours.map(() => ({ on: "loop", i: 0 }));
+  const gone = new Set<number>();
+  const sharing = (key: string) => spots.flatMap((s, seat) => (!gone.has(seat) && squareOf(s) === key ? [seat] : []));
   const place = (seat: number, spot: Spot) => {
     const [x, z] = layout.spotPoint(spot);
-    const [ox, oz] = OFFSETS[seat % OFFSETS.length];
+    const here = sharing(squareOf(spot));
+    if (!here.includes(seat)) here.push(seat);
+    here.sort((a, b) => a - b);
+    const n = here.length, i = here.indexOf(seat);
+    const front = Math.min(n, 3);
+    const row = i < 3 ? 0 : 1;
+    const inRow = row === 0 ? front : n - 3;
+    const col = row === 0 ? i : i - 3;
+    const ox = (col - (inRow - 1) / 2) * 0.3;
+    const oz = n === 1 ? 0.14 : row === 0 ? 0.24 : -0.02;
     return new T.Vector3(x + ox, TOP, z + oz);
   };
   const tokens = colours.map((css, seat) => {
     const g = pawn(hex(css));
-    g.position.copy(place(seat, { on: "loop", i: 0 }));
+    g.position.copy(place(seat, spots[seat]));
     scene.add(g);
     return g;
   });
+  /** Slide everyone else on a square into their places (someone arrived or left). */
+  function settle(key: string, except: number) {
+    for (const seat of sharing(key)) {
+      if (seat === except) continue;
+      const token = tokens[seat], from = token.position.clone(), to = place(seat, spots[seat]);
+      if (from.distanceTo(to) < 0.01) continue;
+      void tween(220, (k) => token.position.lerpVectors(from, to, k));
+    }
+  }
   const face = (seat: number, target: any) => {
     const p = tokens[seat].position;
     tokens[seat].rotation.y = Math.atan2(target.x - p.x, target.z - p.z);
@@ -971,7 +994,7 @@ export function createBoardScene(
       if (tile.house) tile.group.remove(tile.house);
       const g = rentHouse();
       g.position.copy(tile.inward).setY(TOP + 0.03);
-      g.rotation.y = -TURN;
+      g.rotation.y = -tile.yaw;
       tile.group.add(g);
       tile.house = g;
       tile.body.material.color.setHex(0xe9d5ff);
@@ -1027,7 +1050,11 @@ export function createBoardScene(
     },
     async stepTo(seat, spot) {
       const token = tokens[seat];
+      const left = squareOf(spots[seat]);
+      spots[seat] = spot;
       const from = token.position.clone(), to = place(seat, spot);
+      settle(left, seat);
+      settle(squareOf(spot), seat);
       face(seat, to);
       if (seat === heroSeat && hero) {
         // The vampire walks rather than hops.
@@ -1047,7 +1074,11 @@ export function createBoardScene(
     },
     async flyTo(seat, spot) {
       const token = tokens[seat];
+      const left = squareOf(spots[seat]);
+      spots[seat] = spot;
       const from = token.position.clone(), to = place(seat, spot);
+      settle(left, seat);
+      settle(squareOf(spot), seat);
       face(seat, to);
       if (seat === heroSeat) heroWalking(true);
       await tween(1100, (k) => {
@@ -1066,14 +1097,15 @@ export function createBoardScene(
       if (tile.house) tile.group.remove(tile.house);
       const g = buildingFor(level, color);
       g.position.copy(tile.inward).setY(TOP + 0.03);
-      g.rotation.y = -TURN;
-      g.scale.set(1, 0.01, 1);
+      g.rotation.y = -tile.yaw;
+      const size = 0.85; // a touch smaller, so buildings don't hide the next square's players
+      g.scale.set(size, 0.01, size);
       tile.group.add(g);
       tile.house = g;
       await tween(700, (k) => {
         m.color.copy(from).lerp(to, Math.min(1, k * 1.5));
         const s = k < 0.75 ? (k / 0.75) * 1.2 : 1.2 - ((k - 0.75) / 0.25) * 0.2;
-        g.scale.set(1, Math.max(0.01, s), 1);
+        g.scale.set(size, Math.max(0.01, s * size), size);
       });
     },
     clear(key) {
@@ -1144,6 +1176,8 @@ export function createBoardScene(
     },
     removeToken(seat) {
       tokens[seat].visible = false;
+      gone.add(seat);
+      settle(squareOf(spots[seat]), seat);
     },
     wait,
     dispose() {
