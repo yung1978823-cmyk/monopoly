@@ -387,7 +387,11 @@ export function DailyGame() {
         stopIndex={arrived ? tokenIndex : null}
         float={pending?.committed ? floatOf(burstOf(state), t) : null}
         recentreKey={goPresses}
+        ready={state.dice > 0 && !pending?.running}
+        onGo={onWalk}
       />
+      {/* First time: point at the GO stone in the middle. */}
+      {state.rollCount === 0 && !pending ? <TipHand className="left-1/2 top-[42%] z-20 -translate-x-1/2" /> : null}
       {pending ? (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-2">
           <DieFace value={pending.faces[0]} />
@@ -443,7 +447,7 @@ export function DailyGame() {
       {/* The open space between the bars: the board is centred here. Taps fall through to the camera. */}
       <section className="pointer-events-none relative z-20 min-h-0 flex-1" />
 
-      {/* Bottom bar: one big GO; building sits to the side as an icon. */}
+      {/* Bottom bar: building sits to the side; the dice clock in the middle. */}
       <footer className="relative z-30 flex items-end justify-center px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-2">
         <button
           type="button"
@@ -477,17 +481,13 @@ export function DailyGame() {
           )}
         </button>
 
-        <div className="relative flex flex-col items-center gap-1">
-          {/* First-time tips: tap GO, then build once you can afford it. */}
-          {state.rollCount === 0 && !pending ? <TipHand className="-top-12 left-1/2 -translate-x-1/2" /> : null}
+        <div className="relative flex min-h-14 flex-col items-center justify-end gap-1">
+          {/* GO is carved into the middle stone now (tap it); this button is for keyboards and screen readers. */}
           <button
             type="button"
             onClick={onWalk}
             disabled={state.dice < 1 || pending?.running === true}
-            className={cn(
-              "flex size-28 cursor-pointer items-center justify-center rounded-full border-[6px] border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-5xl font-black tracking-wide text-white shadow-[0_8px_0_#8E1210,0_14px_24px_rgba(30,58,138,0.45)] transition-transform active:translate-y-1.5 active:shadow-[0_2px_0_#8E1210] disabled:cursor-default disabled:opacity-60",
-              state.dice > 0 && !pending?.running && "animate-[glow_1.8s_ease-in-out_infinite]",
-            )}
+            className="sr-only"
             aria-label={t("擲骰")}
             data-testid="roll-move"
           >

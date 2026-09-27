@@ -1,6 +1,7 @@
 /**
  * 第一層 每日棋盤 in 3D: the 28 squares as floating islands in a diamond ring, each labelled in
- * words, a big floating rock in the middle, and you as a hot-air balloon drifting round. Same floating look and camera as the public
+ * words, a big stone island in the middle with GO carved in it as a glowing rune (tap it to roll),
+ * and you as a hot-air balloon drifting round. Same floating look and camera as the public
  * table: drag to turn and tilt, pinch to zoom, a gentle sway when left alone.
  */
 import { BOARD_SIZE, TILES, type TileKind } from "@/lib/board";
@@ -12,6 +13,8 @@ export type DailyScene = {
   highlight(index: number | null): void;
   /** Words floating up from the ship, e.g. "+2 金幣". */
   floatText(text: string, colour?: string): void;
+  /** Light the GO rune on the middle rock (your turn, dice left) or let it go dim. */
+  setReady(ready: boolean): void;
   /** Put the camera back over the whole board. */
   recentre(): void;
   dispose(): void;
@@ -42,7 +45,7 @@ function squarePoint(i: number): [number, number] {
   return [ax + ((bx - ax) * k) / SIDE, az + ((bz - az) * k) / SIDE];
 }
 
-export function createDailyScene(T: any, container: HTMLElement, labels: string[], start: number): DailyScene {
+export function createDailyScene(T: any, container: HTMLElement, labels: string[], start: number, onGo: () => void = () => undefined): DailyScene {
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const renderer = new T.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
@@ -96,7 +99,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     x.fillRect(0, 0, 128, 128);
     return new T.CanvasTexture(c);
   };
-  const shadowTex = soft("rgba(0,0,0,0.3)", "rgba(0,0,0,0)");
+  const shadowTex = soft("rgba(0,0,0,0.5)", "rgba(0,0,0,0)");
   const glowTex = soft("rgba(170,210,255,0.9)", "rgba(170,210,255,0)");
   const FLOOR = -4.4;
 
@@ -183,26 +186,98 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     glow.scale.set(1.5, 0.9, 1);
     glow.position.set(x, TOP - 1.2, z);
     scene.add(glow);
-    breathers.push({ obj: isle.group, phase: Math.random() * Math.PI * 2, period: 3.2 + Math.random() * 1.2, shadow, glow, base: 0, glowY: TOP - 1.2 });
+    // Neighbours are well out of step (golden-angle phases), so some rise while others sink.
+    breathers.push({ obj: isle.group, phase: i * 2.39996 + Math.random() * 0.4, period: 4.2 + Math.random() * 1.6, shadow, glow, base: 0, glowY: TOP - 1.2, amp: 0.08 });
     islands.push({ group: isle.group, top: isle.top, base: TOPS[tile.kind], glow });
   });
-  // A big floating rock in the middle of the ring, with open air between it and the squares.
+  // The main island in the middle: a big stone with GO carved in as a rune. Tap it to roll;
+  // the rune glows when it's your go. Open air between it and the ring of squares.
+  const bigRock = new T.Group();
+  const rune = { ready: false, level: 0, pressAt: -1e9 };
+  let runeGlow: any, runeLight: any, runeRing: any;
   {
-    const big = islandMesh(6, 977, 0x4f9a3a);
+    const big = islandMesh(6, 977, 0x9aa1ab);
+    big.top.material.roughness = 0.95;
     big.group.position.set(0, 0.1, 0);
-    scene.add(big.group);
+    bigRock.add(big.group);
+    scene.add(bigRock);
+    // Carved grooves (always there) and a glowing copy on top that lights up.
+    const carve = (glow: boolean) => {
+      const c = document.createElement("canvas");
+      c.width = c.height = 512;
+      const x = c.getContext("2d")!;
+      x.translate(256, 256);
+      x.strokeStyle = x.fillStyle = glow ? "#ffe9a8" : "rgba(40,44,52,0.85)";
+      if (glow) {
+        x.shadowColor = "#ffb020";
+        x.shadowBlur = 24;
+      }
+      x.lineWidth = 10;
+      x.beginPath();
+      x.arc(0, 0, 228, 0, Math.PI * 2);
+      x.stroke();
+      x.lineWidth = 5;
+      x.beginPath();
+      x.arc(0, 0, 196, 0, Math.PI * 2);
+      x.stroke();
+      // Little rune marks between the two rings.
+      for (let k = 0; k < 16; k++) {
+        x.save();
+        x.rotate((k / 16) * Math.PI * 2);
+        x.beginPath();
+        const m = k % 4;
+        if (m === 0) (x.moveTo(-8, -222), x.lineTo(0, -202), x.lineTo(8, -222));
+        else if (m === 1) (x.moveTo(0, -224), x.lineTo(0, -200), x.moveTo(-8, -212), x.lineTo(8, -212));
+        else if (m === 2) (x.moveTo(-7, -220), x.lineTo(7, -204));
+        else x.arc(0, -212, 6, 0, Math.PI * 2);
+        x.stroke();
+        x.restore();
+      }
+      x.font = "900 190px Georgia, 'Times New Roman', serif";
+      x.textAlign = "center";
+      x.textBaseline = "middle";
+      x.lineWidth = 14;
+      x.lineJoin = "round";
+      if (glow) x.strokeText("GO", 0, 12);
+      x.fillText("GO", 0, 12);
+      const tex = new T.CanvasTexture(c);
+      tex.encoding = T.sRGBEncoding;
+      return tex;
+    };
+    const plate = (tex: any, glow: boolean) => {
+      const m = new T.Mesh(
+        new T.PlaneGeometry(4.4, 4.4),
+        new T.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, ...(glow ? { blending: T.AdditiveBlending, opacity: 0 } : {}) }),
+      );
+      m.rotation.x = -Math.PI / 2;
+      m.position.y = TOP + (glow ? 0.03 : 0.02);
+      big.group.add(m);
+      return m;
+    };
+    plate(carve(false), false);
+    runeGlow = plate(carve(true), true);
+    runeRing = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0xffc860, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
+    runeRing.scale.set(5, 2.2, 1);
+    runeRing.position.y = TOP + 0.4;
+    big.group.add(runeRing);
+    runeLight = new T.PointLight(0xffc060, 0, 7, 2);
+    runeLight.position.y = TOP + 1;
+    big.group.add(runeLight);
+    // A few crystals round the rim.
+    for (let k = 0; k < 5; k++) {
+      const a = (k / 5) * Math.PI * 2 + 0.4, h = 0.35 + (k % 2) * 0.2;
+      const gem = shadowy(new T.Mesh(new T.OctahedronGeometry(0.18, 0), mat(0x7dd3fc, 0.2, { emissive: 0x1e6fa8, emissiveIntensity: 0.6 })));
+      gem.scale.y = h / 0.18;
+      gem.position.set(Math.cos(a) * 2.75, TOP + h * 0.8, Math.sin(a) * 2.75);
+      big.group.add(gem);
+    }
     const bits: any[] = [];
     [[3.6, -2.0, 0.45], [-3.5, -2.4, 0.35], [0.4, -2.8, 0.3]].forEach(([x, y, k], n) => {
-      const bit = islandMesh(k * 2, 500 + n * 41, 0x4f9a3a);
+      const bit = islandMesh(k * 2, 500 + n * 41, 0x9aa1ab);
       bit.group.position.set(x, y, n === 2 ? 3.6 : -0.8);
       scene.add(bit.group);
       bits.push(bit.group);
     });
-    for (const [x, z, h] of [[-1.1, -0.8, 0.9], [-0.6, -1.2, 0.7], [1.2, 0.6, 0.8], [0.9, 1.0, 0.6]]) {
-      const tree = shadowy(new T.Mesh(new T.ConeGeometry(0.28, h, 7), mat(0x2f7d32, 0.8)));
-      tree.position.set(x, TOP + h / 2, z);
-      big.group.add(tree);
-    }
     const shadow = new T.Mesh(new T.PlaneGeometry(9, 9), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
     shadow.position.y = FLOOR + 0.02;
@@ -211,10 +286,37 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     glow.scale.set(6.5, 3, 1);
     glow.position.y = TOP - 2.2;
     scene.add(glow);
-    breathers.push({ obj: big.group, phase: 0, period: 5, shadow, glow, base: 0.1, glowY: TOP - 2.2, amp: 0.28 });
+    breathers.push({ obj: big.group, phase: 0, period: 6, shadow, glow, base: 0.1, glowY: TOP - 2.2, amp: 0.22 });
     bits.forEach((b, n) => breathers.push({ obj: b, phase: n * 2, period: 4 + n, shadow: null, glow: null, base: b.position.y, glowY: 0, amp: 0.2 }));
   }
-  const floor = new T.Mesh(new T.PlaneGeometry(400, 400), new T.MeshStandardMaterial({ color: 0x0f1a30, roughness: 1 }));
+
+  // ---------- Far away: the abyss and distant rocks, drifting slower than the board ----------
+  const far = new T.Group();
+  scene.add(far);
+  {
+    const n = 500, sp = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const u = Math.random() * Math.PI * 2, v = Math.acos(1 - Math.random() * 1.2), rr = 70 + Math.random() * 20;
+      sp[i * 3] = Math.sin(v) * Math.cos(u) * rr;
+      sp[i * 3 + 1] = Math.cos(v) * rr - 20;
+      sp[i * 3 + 2] = Math.sin(v) * Math.sin(u) * rr;
+    }
+    const geo = new T.BufferGeometry();
+    geo.setAttribute("position", new T.BufferAttribute(sp, 3));
+    far.add(new T.Points(geo, new T.PointsMaterial({ size: 0.5, map: glowTex, color: 0xdbe8ff, transparent: true, depthWrite: false, fog: false, blending: T.AdditiveBlending })));
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2 + Math.random() * 0.3, d = 26 + Math.random() * 14;
+      const rock = islandMesh(1.5 + Math.random() * 2.5, 900 + k * 7, 0x3f6b4a);
+      rock.group.position.set(Math.cos(a) * d, -6 + Math.random() * 9, Math.sin(a) * d);
+      far.add(rock.group);
+    }
+    // A faint glow deep in the abyss.
+    const deep = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0x3b6fd0, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.35, fog: false }));
+    deep.scale.set(60, 30, 1);
+    deep.position.set(0, -30, 0);
+    far.add(deep);
+  }
+  const floor = new T.Mesh(new T.PlaneGeometry(400, 400), new T.MeshStandardMaterial({ color: 0x0c1528, roughness: 1 }));
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = FLOOR;
   floor.receiveShadow = false;
@@ -286,9 +388,12 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   const target = new T.Vector3();
   const canvas = renderer.domElement;
   const pointers = new Map<number, { x: number; y: number }>();
+  let tap: { x: number; y: number; at: number } | null = null;
+  const ray = new T.Raycaster();
   const onDown = (e: PointerEvent) => {
     // A first finger starts afresh, so a lost lift can't leave a ghost finger behind.
     if (e.isPrimary) pointers.clear();
+    tap = pointers.size === 0 ? { x: e.clientX, y: e.clientY, at: performance.now() } : null;
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   };
@@ -296,6 +401,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const before = pointers.get(e.pointerId);
     if (!before) return;
     const pts = [...pointers.values()];
+    if (pts.length > 1) tap = null;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     view.idle = 0;
     if (pts.length === 1) {
@@ -308,7 +414,18 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       if (was > 1 && is > 1) view.goalDist = Math.max(6, Math.min(45, view.goalDist * (was / is)));
     }
   };
-  const onUp = (e: PointerEvent) => pointers.delete(e.pointerId);
+  const onUp = (e: PointerEvent) => {
+    pointers.delete(e.pointerId);
+    const t0 = tap;
+    tap = null;
+    if (e.type !== "pointerup" || !t0 || Math.hypot(e.clientX - t0.x, e.clientY - t0.y) > 10 || performance.now() - t0.at > 600) return;
+    // A tap on the middle stone rolls the dice.
+    const box = canvas.getBoundingClientRect();
+    ray.setFromCamera(new T.Vector2(((e.clientX - box.left) / box.width) * 2 - 1, -((e.clientY - box.top) / box.height) * 2 + 1), camera);
+    if (ray.intersectObject(bigRock, true).length === 0) return;
+    rune.pressAt = performance.now();
+    if (rune.ready) onGo();
+  };
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
     view.goalDist = Math.max(6, Math.min(45, view.goalDist * Math.exp(e.deltaY * 0.0012)));
@@ -398,6 +515,17 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const yaw = view.yaw + sway, flat = Math.cos(view.elev) * view.dist;
     camera.position.set(target.x + Math.sin(yaw) * flat, Math.sin(view.elev) * view.dist, target.z + Math.cos(yaw) * flat);
     camera.lookAt(target);
+    // The far layer turns along with the camera by half, so it seems to drift at half the speed.
+    far.rotation.y = yaw * 0.5;
+    far.position.y = (view.elev - 0.9) * 6;
+    // The rune: glows and pulses on your go; the stone dips a little when tapped.
+    rune.level += ((rune.ready ? 1 : 0) - rune.level) * Math.min(1, dt * 4);
+    const pulse = rune.level * (0.75 + 0.25 * Math.sin(now / 420));
+    runeGlow.material.opacity = 0.08 + pulse * 0.92;
+    runeRing.material.opacity = pulse * 0.55;
+    runeLight.intensity = pulse * 1.6;
+    const press = Math.max(0, 1 - (now - rune.pressAt) / 260);
+    bigRock.position.y = -Math.sin(press * Math.PI) * 0.18;
     renderer.render(scene, camera);
     frameId = requestAnimationFrame(frame);
   }
@@ -411,6 +539,9 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       shipAt.to.copy(spotOf(index));
       shipAt.t = 0;
       burnAt = performance.now();
+    },
+    setReady(ready) {
+      rune.ready = ready;
     },
     highlight(index) {
       lit = index;

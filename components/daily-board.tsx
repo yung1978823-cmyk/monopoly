@@ -14,29 +14,35 @@ export function DailyBoard({
   stopIndex,
   float,
   recentreKey,
+  ready,
+  onGo,
 }: {
   position: number;
   stopIndex: number | null;
   float: DailyFloat | null;
   recentreKey: number;
+  /** Your go and dice left: the GO rune glows and a tap on the stone rolls. */
+  ready: boolean;
+  onGo: () => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<DailyScene | null>(null);
   const { t } = useLang();
   const startRef = useRef(position);
   const labelsRef = useRef(TILES.map((tile) => t(tile.name)));
-  const latest = useRef({ position, stopIndex });
-  latest.current = { position, stopIndex };
+  const latest = useRef({ position, stopIndex, ready, onGo });
+  latest.current = { position, stopIndex, ready, onGo };
 
   useEffect(() => {
     let dead = false;
     loadThree()
       .then((T) => {
         if (dead || !box.current) return;
-        const scene = createDailyScene(T, box.current, labelsRef.current, startRef.current);
+        const scene = createDailyScene(T, box.current, labelsRef.current, startRef.current, () => latest.current.onGo());
         sceneRef.current = scene;
         scene.moveTo(latest.current.position);
         scene.highlight(latest.current.stopIndex);
+        scene.setReady(latest.current.ready);
       })
       .catch(() => undefined);
     return () => {
@@ -52,6 +58,9 @@ export function DailyBoard({
   useEffect(() => {
     sceneRef.current?.highlight(stopIndex);
   }, [stopIndex]);
+  useEffect(() => {
+    sceneRef.current?.setReady(ready);
+  }, [ready]);
   useEffect(() => {
     if (float) sceneRef.current?.floatText(float.text, float.colour);
     // Only a new key floats new words.
