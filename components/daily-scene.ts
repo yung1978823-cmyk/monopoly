@@ -287,6 +287,8 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   const canvas = renderer.domElement;
   const pointers = new Map<number, { x: number; y: number }>();
   const onDown = (e: PointerEvent) => {
+    // A first finger starts afresh, so a lost lift can't leave a ghost finger behind.
+    if (e.isPrimary) pointers.clear();
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   };
@@ -315,6 +317,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   canvas.addEventListener("pointermove", onMove);
   canvas.addEventListener("pointerup", onUp);
   canvas.addEventListener("pointercancel", onUp);
+  canvas.addEventListener("lostpointercapture", onUp);
   canvas.addEventListener("wheel", onWheel, { passive: false });
 
   let fitDist = 20;
@@ -443,6 +446,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
       canvas.removeEventListener("pointercancel", onUp);
+      canvas.removeEventListener("lostpointercapture", onUp);
       canvas.removeEventListener("wheel", onWheel);
       renderer.dispose();
       canvas.remove();

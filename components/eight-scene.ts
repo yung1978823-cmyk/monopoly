@@ -1082,6 +1082,7 @@ export function createBoardScene(
   const canvas = renderer.domElement;
   const pointers = new Map<number, { x: number; y: number }>();
   const onDown = (e: PointerEvent) => {
+    if (e.isPrimary) pointers.clear();
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   };
@@ -1119,6 +1120,7 @@ export function createBoardScene(
   canvas.addEventListener("pointermove", onMove);
   canvas.addEventListener("pointerup", onUp);
   canvas.addEventListener("pointercancel", onUp);
+  canvas.addEventListener("lostpointercapture", onUp);
   canvas.addEventListener("wheel", onWheel, { passive: false });
 
   function resize() {
@@ -1902,6 +1904,7 @@ export function createBoardScene(
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
       canvas.removeEventListener("pointercancel", onUp);
+      canvas.removeEventListener("lostpointercapture", onUp);
       canvas.removeEventListener("wheel", onWheel);
       renderer.dispose();
       canvas.remove();
