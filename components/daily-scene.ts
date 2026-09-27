@@ -5,7 +5,7 @@
  * table: drag to turn and tilt, pinch to zoom, a gentle sway when left alone.
  */
 import { ACTORS, loadGltfLoader } from "@/components/eight-scene";
-import { createVolcano } from "@/components/backdrop";
+import { createSpace } from "@/components/backdrop";
 import { buildMonster, type Monster, type Mood } from "@/components/monster";
 import { BOARD_SIZE, TILES, type TileKind } from "@/lib/board";
 
@@ -408,8 +408,8 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       far.add(rock.group);
     }
   }
-  // A volcano's crater far below replaces the dark floor (and the islands' shadows on it).
-  const backdrop = createVolcano(T, scene, camera, { groundY: -70, size: 330, fogNear: 70, fogFar: 260, reduceMotion });
+  // Outer space behind the board replaces the dark floor (and the islands' shadows on it).
+  const backdrop = createSpace(T, scene, camera, { reduceMotion });
   for (const b of breathers) if (b.shadow) b.shadow.visible = false;
 
   // Drifting motes of light.
