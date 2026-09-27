@@ -40,7 +40,7 @@ const SIZE = [0.7, 0.62, 0.8, 0.98, 1.15];
  */
 const MODELS: Record<number, string> = { 0: "/models/dragon-light.glb" };
 /** How tall the model dragon stands at each grade (N → SSR). */
-const MODEL_HEIGHT = [0, 0.85, 1.0, 1.15, 1.35];
+const MODEL_HEIGHT = [0, 0.5, 0.6, 0.7, 0.8];
 const modelCache: Record<number, Promise<any>> = {};
 
 function loadModel(T: any, element: number): Promise<any> {
