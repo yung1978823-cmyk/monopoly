@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { CARDS } from "./eight";
 import { translate } from "./i18n";
-import { CITIES } from "./cities";
+import { THEMES } from "./themes";
 import { DECKS } from "./realm";
 import { LANDMARK_NAMES, TILE_INFO } from "./board";
 
@@ -36,7 +36,7 @@ describe("languages", () => {
       ...screenTexts(),
       ...CARDS.map((card) => card.text),
       ...Object.values(DECKS).flatMap((deck) => deck.map((card) => card.text)),
-      ...CITIES.map((city) => city.rival.name),
+      ...THEMES.map((theme) => theme.name),
       ...LANDMARK_NAMES,
       ...Object.values(TILE_INFO).map((tile) => tile.name),
       "你",

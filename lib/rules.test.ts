@@ -14,7 +14,7 @@ import {
 
 describe("building levels", () => {
   it("cost more each level and stop after level 5", () => {
-    assert.deepEqual([0, 1, 2, 3, 4].map(levelCost), [...LEVEL_COSTS]);
+    assert.deepEqual([0, 1, 2, 3, 4].map((level) => levelCost(level)), [...LEVEL_COSTS]);
     assert.equal(levelCost(5), null);
   });
 });

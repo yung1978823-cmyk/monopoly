@@ -1,5 +1,6 @@
 import { LANDMARK_NAMES, TILES, TILE_INFO, type TileKind } from "./board";
-import { CITIES, plotCount } from "./cities";
+import { CHARACTERS } from "./characters";
+import { THEMES } from "./themes";
 import {
   CHEST_DEFAULT,
   CHEST_MAX,
@@ -13,6 +14,9 @@ import {
   NFT_SLOTS,
   BUILDINGS,
   LEVEL_ATTACK,
+  THEME_ATTACK,
+  THEME_REWARD_DICE,
+  themeRewardCoins,
   MAX_LEVEL,
   POINTS,
   hitChance,
@@ -68,14 +72,18 @@ export type GameState = {
   dice: number;
   lastRefillAt: number;
   points: number;
-  /** Your three buildings' levels, 0 (empty plot) to 5. */
+  /** Which theme (page) of your town you are building now, 0 = the first. Earlier pages are finished and locked. */
+  theme: number;
+  /** The five buildings' levels on the current page, 0 (empty plot) to 5. */
   levels: number[];
   /** The highest level each building has reached; levels below it are repairs at half price. */
   best: number[];
-  /** The current rival's building levels, one per plot in their city. */
+  /** The current rival's building levels on the page they are on now. */
   rivalLevels: number[];
-  /** Which of CITIES the current rival lives in. */
+  /** Which theme (page) the current rival is on (an index into THEMES). */
   rivalCity: number;
+  /** Who the current rival is (an index into CHARACTERS). */
+  rivalFace: number;
   /** The five NFT slots: each holds an NFT id or is empty. Any NFT placed means you hold one. */
   nfts: (string | null)[];
   rivalHasNft: boolean;
@@ -106,10 +114,12 @@ export type Action =
       type: "move";
       faces: DiePair;
       enemyDice?: DiePair | null;
-      /** The levels of the rival met on an 攻擊 square, one per plot in their city (0–5). */
+      /** The levels of the rival met on an 攻擊 square, one per building on their page (0–5). */
       rivalLevels?: number[];
-      /** Which of CITIES that rival lives in. */
+      /** Which theme (page) that rival is on. */
       rivalCity?: number;
+      /** Who that rival is (an index into CHARACTERS). */
+      rivalFace?: number;
       /** How many NFTs that rival has placed (1–5), when they hold any. */
       rivalNfts?: number;
       /** Points in the chest, if the walk stops on 寶箱 (3–6). */
@@ -142,19 +152,29 @@ export function holdsNft(state: Pick<GameState, "nfts">): boolean {
   return nftCount(state) > 0;
 }
 
-/** All standing levels added up, 0–15 for a full town. */
+/** Whether every building on the page is at the top level (the page is finished). */
+export function pageDone(levels: readonly number[]): boolean {
+  return levels.length > 0 && levels.every((level) => level >= MAX_LEVEL);
+}
+
+/** Pages finished for good: every page before the current one, plus the current one if it is full. */
+export function themesDone(state: Pick<GameState, "theme" | "levels">): number {
+  return state.theme + (pageDone(state.levels) ? 1 : 0);
+}
+
+/** All standing levels added up, 0–25 for a full page. */
 export function totalLevels(levels: readonly number[]): number {
   return levels.reduce((sum, level) => sum + level, 0);
 }
 
-/** The rival's power, on the same scale as yours: 10, +2 per standing level, +2 per NFT. */
-export function rivalPower(state: Pick<GameState, "rivalLevels" | "rivalNfts">): number {
-  return 10 + totalLevels(state.rivalLevels) * LEVEL_ATTACK + nftAttack(state.rivalNfts);
+/** The rival's power, on the same scale as yours: 10, +10 per page they finished, +2 per standing level, +2 per NFT. */
+export function rivalPower(state: Pick<GameState, "rivalLevels" | "rivalNfts" | "rivalCity">): number {
+  return 10 + state.rivalCity * THEME_ATTACK + totalLevels(state.rivalLevels) * LEVEL_ATTACK + nftAttack(state.rivalNfts);
 }
 
-/** Attack power: 10, +2 per standing level, plus +2 per NFT placed. */
-export function attackPower(state: Pick<GameState, "levels" | "nfts">): number {
-  return 10 + totalLevels(state.levels) * LEVEL_ATTACK + nftAttack(nftCount(state));
+/** Attack power: 10, +10 per finished page, +2 per standing level on this page, plus +2 per NFT placed. */
+export function attackPower(state: Pick<GameState, "theme" | "levels" | "nfts">): number {
+  return 10 + state.theme * THEME_ATTACK + totalLevels(state.levels) * LEVEL_ATTACK + nftAttack(nftCount(state));
 }
 
 export function createGame(now: number, dayKey: string): GameState {
@@ -164,10 +184,12 @@ export function createGame(now: number, dayKey: string): GameState {
     dice: STARTING_DICE,
     lastRefillAt: now,
     points: 0,
+    theme: 0,
     levels: noLevels(),
     best: noLevels(),
-    rivalLevels: [2, 1, 0],
+    rivalLevels: [2, 1, 0, 0, 0],
     rivalCity: 0,
+    rivalFace: 1,
     nfts: emptyNfts(),
     rivalHasNft: true,
     rivalNfts: 1,
@@ -198,10 +220,10 @@ export function isRepair(state: Pick<GameState, "levels" | "best">, building: nu
 }
 
 /** Money to raise this building one level (half for a knocked-down level), or null at level 5. */
-export function upgradeCost(state: Pick<GameState, "levels" | "best">, building: number): number | null {
+export function upgradeCost(state: Pick<GameState, "levels" | "best" | "theme">, building: number): number | null {
   const level = state.levels[building];
   if (level === undefined) return null;
-  const full = levelCost(level);
+  const full = levelCost(level, state.theme);
   if (full === null) return null;
   return isRepair(state, building) ? repairCost(full) : full;
 }
@@ -243,10 +265,11 @@ export function luckOf(dice: DiePair): number {
   return dice[0] + dice[1];
 }
 
+/** Levels read from a save; older saves (three buildings a town) are padded with empty plots. */
 function readLevels(value: unknown, length: number): number[] | null {
-  if (!Array.isArray(value) || value.length !== length) return null;
+  if (!Array.isArray(value) || value.length > length) return null;
   if (!value.every((level) => inRange(level, 0, MAX_LEVEL))) return null;
-  return [...value];
+  return [...value, ...Array.from({ length: length - value.length }, () => 0)];
 }
 
 function readNfts(value: unknown): (string | null)[] {
@@ -268,7 +291,7 @@ function readWeapon(value: unknown): WeaponReadout | null {
   const { weapon, attackTotal, defenseTotal, enemyLuck, hit, dst, pointsGained, shieldBreak } = readout;
   const chance = inRange(readout.chance, HIT_MIN, HIT_MAX) ? readout.chance : HIT_BASE;
   const smashed = inRange(readout.smashed, 0, BUILDINGS - 1) ? readout.smashed : null;
-  const top = 10 + BUILDINGS * MAX_LEVEL * LEVEL_ATTACK + NFT_SLOTS * NFT_ATTACK;
+  const top = 10 + THEMES.length * THEME_ATTACK + BUILDINGS * MAX_LEVEL * LEVEL_ATTACK + NFT_SLOTS * NFT_ATTACK;
   if (
     !inRange(weapon, 0, BUILDINGS * MAX_LEVEL) ||
     !inRange(attackTotal, 10, top) ||
@@ -294,8 +317,8 @@ export function sanitizeState(
   if (!inRange(value.position, 0, TILES.length - 1)) return null;
   const levels = readLevels(value.levels, BUILDINGS);
   const bestRead = readLevels(value.best, BUILDINGS);
-  const rivalCity = inRange(value.rivalCity, 0, CITIES.length - 1) ? value.rivalCity : 0;
-  const rivalLevels = readLevels(value.rivalLevels, plotCount(rivalCity));
+  const rivalCity = inRange(value.rivalCity, 0, THEMES.length - 1) ? value.rivalCity : 0;
+  const rivalLevels = readLevels(value.rivalLevels, BUILDINGS);
   if (!levels || !rivalLevels) return null;
   const best = levels.map((level, index) => Math.max(level, bestRead?.[index] ?? 0));
   const clampInt = (input: unknown, min: number, max: number, fallback: number) => {
@@ -319,10 +342,12 @@ export function sanitizeState(
     dice: clampInt(value.dice, 0, DICE_CAP, 0),
     lastRefillAt: typeof value.lastRefillAt === "number" ? value.lastRefillAt : now,
     points: clampInt(value.points, 0, 1_000_000, 0),
+    theme: inRange(value.theme, 0, THEMES.length - 1) ? value.theme : 0,
     levels,
     best,
     rivalLevels,
     rivalCity,
+    rivalFace: inRange(value.rivalFace, 0, CHARACTERS.length - 1) ? value.rivalFace : 1,
     nfts: readNfts(value.nfts),
     rivalHasNft: value.rivalHasNft !== false,
     rivalNfts: value.rivalHasNft === false ? 0 : clampInt(value.rivalNfts, 1, NFT_SLOTS, 1),
@@ -463,17 +488,18 @@ export function reduce(state: GameState, action: Action): GameState {
       const searching = enemyFaces !== null;
       const enemyLuck = searching ? luckOf(enemyFaces) : null;
       const rivalCity =
-        searching && inRange(action.rivalCity, 0, CITIES.length - 1) ? action.rivalCity : state.rivalCity;
-      // One building per plot in the rival's city, each 0–5; anything else falls back to what we had.
-      const plots = plotCount(rivalCity);
-      const given = readLevels(action.rivalLevels, plots);
+        searching && inRange(action.rivalCity, 0, THEMES.length - 1) ? action.rivalCity : state.rivalCity;
+      const rivalFace =
+        searching && inRange(action.rivalFace, 0, CHARACTERS.length - 1) ? action.rivalFace : state.rivalFace;
+      // Five buildings on the rival's page, each 0–5; anything else falls back to what we had.
+      const given = readLevels(action.rivalLevels, BUILDINGS);
       const rivalLevels = searching
-        ? (given ?? Array.from({ length: plots }, (_, index) => state.rivalLevels[index] ?? 0))
+        ? (given ?? Array.from({ length: BUILDINGS }, (_, index) => state.rivalLevels[index] ?? 0))
         : state.rivalLevels;
       const passed = moved.landing.passedStart ? "經過起點。" : "";
       const change = moved.landing.points;
       const effect = searching
-        ? `搜尋敵人，配到${CITIES[rivalCity].rival.name}，佢啲建築合共 ${totalLevels(rivalLevels)} 級。`
+        ? `搜尋敵人，配到${CHARACTERS[rivalFace].name}（${THEMES[rivalCity].name}），佢啲建築合共 ${totalLevels(rivalLevels)} 級。`
         : moved.landing.dice > 0
           ? "多一粒骰。"
           : "";
@@ -490,6 +516,7 @@ export function reduce(state: GameState, action: Action): GameState {
         lastRivalFaces: searching ? enemyFaces : null,
         rivalLevels,
         rivalCity,
+        rivalFace,
         rivalNfts: state.rivalHasNft ? (inRange(action.rivalNfts, 1, NFT_SLOTS) ? action.rivalNfts : 1) : 0,
         enemyLuck,
         // Only a rival holding an NFT has a shield.
@@ -551,7 +578,7 @@ export function reduce(state: GameState, action: Action): GameState {
       };
       const verdict = shieldBreak ? "盾破，打中" : hit ? "打中" : "打唔中";
       const pay = dst > 0 ? `搬走 ${dst} DST。` : "DST 0。";
-      const smashText = smashed === null ? "" : `打低咗${CITIES[state.rivalCity].rival.name}嘅${LANDMARK_NAMES[smashed]}一級。`;
+      const smashText = smashed === null ? "" : `打低咗${CHARACTERS[state.rivalFace].name}嘅${LANDMARK_NAMES[smashed]}一級。`;
       const nextPoints = state.points + pointsGained;
       return pushLog(
         {
@@ -580,15 +607,31 @@ export function reduce(state: GameState, action: Action): GameState {
       const levels = state.levels.map((level, index) => (index === building ? level + 1 : level));
       const best = state.best.map((top, index) => Math.max(top, levels[index]));
       const next: GameState = { ...state, levels, best, points: state.points - cost };
-      return pushLog(
+      const logged = pushLog(
         next,
         "you",
         `你花 ${cost} 金幣，${repairing ? "修返" : "升咗"}${LANDMARK_NAMES[building]}，而家第 ${levels[building]} 級。金幣剩 ${next.points}。`,
       );
+      if (!pageDone(levels)) return logged;
+      // Page finished: it is locked for good, a reward is paid, and the next theme opens (empty).
+      const coins = themeRewardCoins(state.theme);
+      const last = state.theme >= THEMES.length - 1;
+      const rewarded: GameState = {
+        ...logged,
+        points: logged.points + coins,
+        dice: Math.max(logged.dice, Math.min(DICE_CAP, logged.dice + THEME_REWARD_DICE)),
+        ...(last ? {} : { theme: state.theme + 1, levels: noLevels(), best: noLevels() }),
+      };
+      return pushLog(
+        rewarded,
+        "rule",
+        `完成咗「${THEMES[state.theme].name}」！送 ${coins} 金幣同 ${THEME_REWARD_DICE} 粒骰。${last ? "所有主題都完成咗。" : `下一頁：「${THEMES[state.theme + 1].name}」。`}`,
+      );
     }
     case "raided": {
       // Another player's hit knocks one of your standing buildings down a level.
-      if (!inRange(action.target, 0, BUILDINGS - 1) || state.levels[action.target] < 1) return state;
+      // A finished page is locked: nobody can knock it down.
+      if (!inRange(action.target, 0, BUILDINGS - 1) || state.levels[action.target] < 1 || pageDone(state.levels)) return state;
       const levels = state.levels.map((level, index) => (index === action.target ? level - 1 : level));
       // Being hit earns nothing; the loss is the repair bill (half price back to the old level).
       return pushLog(

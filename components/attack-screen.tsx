@@ -1,10 +1,11 @@
 "use client";
 
 import { TipHand } from "@/components/tip-hand";
-import { FX_ART, LANDMARK_NAMES, TILE_INFO } from "@/lib/board";
-import { CITIES } from "@/lib/cities";
+import { LANDMARK_NAMES, TILE_INFO } from "@/lib/board";
+import { CityView } from "@/components/city-view";
+import { CHARACTERS } from "@/lib/characters";
+import { THEMES } from "@/lib/themes";
 import { ShieldFx } from "@/components/shield-fx";
-import { Building, LevelPips } from "@/components/building";
 import { standingIndexes, type GameState } from "@/lib/game";
 import { useLang } from "@/lib/i18n";
 import { play } from "@/lib/sfx";
@@ -31,7 +32,8 @@ export function AttackScreen({
   onStrike: (target: number | null) => void;
   onReturn: () => void;
 }) {
-  const city = CITIES[state.rivalCity] ?? CITIES[0];
+  const rival = CHARACTERS[state.rivalFace] ?? CHARACTERS[1];
+  const theme = THEMES[state.rivalCity] ?? THEMES[0];
   const readout = state.weaponReadout;
   const standing = standingIndexes(state.rivalLevels);
   const picking = !state.fightSettled && standing.length > 0;
@@ -84,95 +86,53 @@ export function AttackScreen({
 
   return (
     <main
-      className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden [container-type:size]"
-      style={{ background: `linear-gradient(${city.sky} 0 50%, ${city.ground} 50% 100%)` }}
+      className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-[#0B1B3F] [container-type:size]"
       data-testid="search"
     >
-      {/* City art, fitted inside the screen, with the landmark targets on it. */}
-      <div
-        className={cn(
-          "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[56%] bg-cover bg-center",
-          // The whole town shudders when a building goes down.
-          flash?.kind === "smash" && "animate-[smash_0.5s_ease-out]",
-        )}
-        style={{
-          backgroundImage: `url(${city.art})`,
-          width: `min(100cqw, calc(100cqh * ${city.width / city.height}))`,
-          aspectRatio: `${city.width} / ${city.height}`,
-        }}
-      >
-        {city.plots.map((spot, index) => {
-          const level = state.rivalLevels[index] ?? 0;
-          const smashedNow = flash?.kind === "smash" && readout?.smashed === index;
-          const place = { left: `${spot.x * 100}%`, top: `${spot.y * 100}%` };
-          if (level === 0) {
-            // An empty plot, or one just knocked flat: the explosion lingers where it stood.
-            return readout?.smashed === index ? (
-              <img
-                key={index}
-                src={FX_ART.smash}
-                alt=""
-                draggable={false}
-                className="absolute size-[min(18cqw,5rem)] -translate-x-1/2 -translate-y-[70%] object-contain animate-[smash_0.5s_ease-out]"
-                style={place}
-                data-testid={`ruined-${index}`}
-              />
-            ) : null;
-          }
-          return (
-            <button
-              key={index}
-              type="button"
-              disabled={!picking}
-              onClick={() => strike(index)}
-              className={cn(
-                "absolute flex -translate-x-1/2 -translate-y-[75%] flex-col items-center",
-                picking ? "cursor-pointer" : "cursor-default",
-              )}
-              style={place}
-              aria-label={t("攻擊{b}", { b: t(LANDMARK_NAMES[index]) })}
-              data-testid={`target-${index}`}
-            >
-              <span className={cn(smashedNow && "animate-[smash_0.5s_ease-out]")}>
-                <Building level={level} className="text-[min(14cqw,3.8rem)]" />
-              </span>
-              <LevelPips level={level} className="mt-1" />
-              {smashedNow ? (
-                <img
-                  src={FX_ART.smash}
-                  alt=""
-                  draggable={false}
-                  className="pointer-events-none absolute left-1/2 top-1/3 size-[min(22cqw,6rem)] max-w-none -translate-x-1/2 -translate-y-1/2 animate-[pop_0.3s_ease-out]"
-                />
-              ) : null}
-              {/* Small target ring over the building. */}
-              <span
-                className={cn(
-                  "absolute left-1/2 top-[40%] size-[min(9cqw,2.4rem)] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow-[0_0_0_2px_rgba(229,37,33,0.9),inset_0_0_0_2px_rgba(229,37,33,0.9)]",
-                  picking ? "animate-pulse" : "opacity-0",
-                )}
-              />
-              {picking && state.strikes === 0 && index === standing[0] ? (
-                <TipHand className="-top-12 left-1/2 -translate-x-1/2" />
-              ) : null}
-              {aimed === index && state.fightSettled ? (
-                <span className="absolute -top-8 text-3xl animate-[hammer_0.6s_ease-out]">🔨</span>
-              ) : null}
-            </button>
-          );
-        })}
+      {/* The rival's town page in 3D: tap a building to strike it. */}
+      <div className={cn("absolute inset-0", flash?.kind === "smash" && "animate-[smash_0.5s_ease-out]")}>
+        <CityView
+          theme={state.rivalCity}
+          levels={state.rivalLevels}
+          targets={picking}
+          onPick={(index) => {
+            if (picking && standing.includes(index)) strike(index);
+          }}
+          smash={readout?.smashed ?? null}
+          smashKey={flash?.kind === "smash" ? flash.key : 0}
+        />
       </div>
+      {/* The same targets as buttons, for keyboards and screen readers. */}
+      <div className="sr-only">
+        {standing.map((index) => (
+          <button
+            key={index}
+            type="button"
+            disabled={!picking}
+            onClick={() => strike(index)}
+            aria-label={t("攻擊{b}", { b: t(LANDMARK_NAMES[index]) })}
+            data-testid={`target-${index}`}
+          />
+        ))}
+      </div>
+      {picking && state.strikes === 0 ? <TipHand className="left-1/2 top-[40%] z-20 -translate-x-1/2" /> : null}
+      {aimed !== null && state.fightSettled ? (
+        <span className="pointer-events-none absolute left-1/2 top-[38%] z-20 -translate-x-1/2 text-5xl animate-[hammer_0.6s_ease-out]">🔨</span>
+      ) : null}
 
       {/* Rival: framed face and name, small, centred at the top. */}
       <header className="relative z-10 mx-auto mt-[max(env(safe-area-inset-top),0.75rem)] flex flex-col items-center" data-testid="rival">
         <img
-          src={city.rival.avatar}
+          src={rival.avatar}
           alt=""
           draggable={false}
           className="size-16 rounded-full border-[3px] border-[#FBD000] object-cover shadow-[0_0_0_3px_#E52521,0_6px_12px_rgba(0,0,0,0.3)]"
         />
         <p className="-mt-2 rounded-full border-2 border-[#FBD000] bg-[#E52521] px-3 text-sm font-black text-white shadow-md">
-          {t(city.rival.name)}
+          {t(rival.name)}
+        </p>
+        <p className="mt-1 rounded-full bg-[#1E3A8A]/80 px-2 text-xs font-black text-white" data-testid="rival-theme">
+          {t(theme.name)} · {t("第 {n} 頁", { n: state.rivalCity + 1 })}
         </p>
       </header>
 

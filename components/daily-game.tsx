@@ -11,7 +11,7 @@ import { LangPicker } from "@/components/lang-picker";
 import { TipHand } from "@/components/tip-hand";
 import { Button } from "@/components/ui/button";
 import { FX_ART, TILES, TILE_INFO } from "@/lib/board";
-import { CITIES, plotCount } from "@/lib/cities";
+import { THEMES } from "@/lib/themes";
 import {
   STORAGE_KEY,
   attackPower,
@@ -24,7 +24,7 @@ import {
   reduce,
   type GameState,
 } from "@/lib/game";
-import { DAILY_DST_CAP, DICE_CAP, REFILL_MS, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
+import { BUILDINGS, DAILY_DST_CAP, DICE_CAP, MAX_LEVEL, REFILL_MS, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
 import { cn } from "cn";
 import { useLang } from "@/lib/i18n";
 import { isMuted, play, setMuted, type Sound } from "@/lib/sfx";
@@ -42,6 +42,7 @@ type PendingWalk = {
   enemyDice: [number, number] | null;
   rivalLevels: number[];
   rivalCity: number;
+  rivalFace: number;
   rivalNfts: number;
   chest: number;
   running: boolean;
@@ -295,6 +296,7 @@ export function DailyGame() {
         enemyDice: move.enemyDice,
         rivalLevels: move.rivalLevels,
         rivalCity: move.rivalCity,
+        rivalFace: move.rivalFace,
         rivalNfts: move.rivalNfts,
         chest: move.chest,
         now: Date.now(),
@@ -312,12 +314,16 @@ export function DailyGame() {
     const from = state.position;
     const nextIndex = (from + steps) % TILES.length;
     const enemyDice = TILES[nextIndex]?.kind === "attack" ? rollPair() : null;
-    // Each 攻擊 square meets a rival in a random city, one building per plot at a random level 0–5.
-    const rivalCity = Math.floor(Math.random() * CITIES.length);
-    const rivalLevels = Array.from({ length: plotCount(rivalCity) }, () => Math.floor(Math.random() * 6));
+    // Each 攻擊 square meets another character on a page near yours (one before, the same or one
+    // after), with five buildings at random levels — never all five at 5, as that page would be finished.
+    const rivalCity = Math.max(0, Math.min(THEMES.length - 1, state.theme + Math.floor(Math.random() * 3) - 1));
+    const rivalLevels = Array.from({ length: BUILDINGS }, () => Math.floor(Math.random() * (MAX_LEVEL + 1)));
+    if (rivalLevels.every((level) => level >= MAX_LEVEL)) rivalLevels[0] = MAX_LEVEL - 1;
+    const others = CHARACTERS.map((_, i) => i).filter((i) => i !== pick);
+    const rivalFace = others[Math.floor(Math.random() * others.length)];
     const chest = 3 + Math.floor(Math.random() * 4);
     const rivalNfts = 1 + Math.floor(Math.random() * 5);
-    setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalNfts, chest, running: true, committed: false });
+    setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalFace, rivalNfts, chest, running: true, committed: false });
   }
 
   function onBuild() {

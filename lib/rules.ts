@@ -2,11 +2,20 @@ export const DICE_CAP = 20;
 /** One die comes back every 3 minutes, up to DICE_CAP. */
 export const REFILL_MS = 3 * 60 * 1000;
 export const DAILY_DST_CAP = 5;
-/** Your town has three buildings, each raised through five levels. */
-export const BUILDINGS = 3;
+/** Each theme (page) of your town has five buildings, each raised through five levels. */
+export const BUILDINGS = 5;
 export const MAX_LEVEL = 5;
 /** Money to raise a building to level 1, 2, 3, 4 and 5. Tunable. */
 export const LEVEL_COSTS = [5, 10, 20, 30, 50] as const;
+/** Each later theme's buildings cost this much more than the one before (1.5×, rounded). */
+export const THEME_COST_STEP = 1.5;
+/** Attack (and defence) each finished theme adds for good, so moving on to an empty page never weakens you. */
+export const THEME_ATTACK = 10;
+/** Finishing a theme pays dice (up to the cap) and coins that grow with the theme. */
+export const THEME_REWARD_DICE = 5;
+export function themeRewardCoins(theme: number): number {
+  return 20 * (theme + 1);
+}
 /** Attack (and defence) each standing level adds. */
 export const LEVEL_ATTACK = 2;
 /** Up to five NFTs can be placed; each adds the same +2 attack, so no single one decides a fight. */
@@ -47,9 +56,10 @@ export const CHEST_MIN = 3;
 export const CHEST_MAX = 6;
 export const CHEST_DEFAULT = 4;
 
-/** Cost to raise a building from `level` to the next, or null at the top level. */
-export function levelCost(level: number): number | null {
-  return LEVEL_COSTS[level] ?? null;
+/** Cost to raise a building from `level` to the next in theme `theme` (0 = first), or null at the top level. */
+export function levelCost(level: number, theme = 0): number | null {
+  const base = LEVEL_COSTS[level];
+  return base === undefined ? null : Math.round(base * Math.pow(THEME_COST_STEP, theme));
 }
 
 /** A level knocked down by an attacker comes back for half its price, rounded up. */
