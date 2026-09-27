@@ -44,10 +44,12 @@ function riverAt(t: number): [number, number] {
   const u = -0.55 + t * 1.1;
   return [u, 0.16 * Math.sin(t * 5.2 + 0.6) + (t - 0.5) * 0.25 + 0.05];
 }
-const TOWN = { u: 0.1, v: -0.12, r: 0.13 };
+const TOWN = { u: 0.06, v: -0.08, r: 0.2 };
 
 export function createBackdrop(T: any, scene: any, camera: any, opts: Options): Backdrop {
   const S = opts.size;
+  /** World units per pixel of the town card (things on the ground are sized in card pixels). */
+  const px = S / 2048;
   const k = opts.scale ?? 1;
   const still = !!opts.reduceMotion;
   const tex = (c: HTMLCanvasElement) => {
@@ -91,18 +93,18 @@ export function createBackdrop(T: any, scene: any, camera: any, opts: Options): 
     }
     g.globalAlpha = 1;
     // Patchwork fields out of town.
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < 260; i++) {
       const u = rnd() - 0.5, v = rnd() - 0.5;
-      if (Math.hypot(u - TOWN.u, v - TOWN.v) < TOWN.r + 0.08) continue;
+      if (Math.hypot(u - TOWN.u, v - TOWN.v) < TOWN.r + 0.05) continue;
       g.save();
       g.translate(P(u), P(v));
       g.rotate(rnd() * Math.PI);
-      const w = 60 + rnd() * 110, h = 40 + rnd() * 80;
+      const w = 30 + rnd() * 60, h = 22 + rnd() * 44;
       g.fillStyle = ["#c9d46a", "#a7c75a", "#e2c86a", "#8fbf5a", "#d7b35a"][i % 5];
       g.fillRect(-w / 2, -h / 2, w, h);
       g.strokeStyle = "rgba(90,120,50,0.35)";
       g.lineWidth = 2;
-      for (let s = -w / 2 + 6; s < w / 2; s += 8) {
+      for (let s = -w / 2 + 3; s < w / 2; s += 5) {
         g.beginPath();
         g.moveTo(s, -h / 2);
         g.lineTo(s, h / 2);
@@ -123,12 +125,12 @@ export function createBackdrop(T: any, scene: any, camera: any, opts: Options): 
       }
       g.stroke();
     };
-    river(78, "#d9cf9a");
-    river(60, "#3f97d6");
-    river(26, "#5bb2ea");
+    river(40, "#d9cf9a");
+    river(30, "#3f97d6");
+    river(12, "#5bb2ea");
     // Roads: a ring round the town and spokes out.
     g.strokeStyle = "#e8dcb4";
-    g.lineWidth = 12;
+    g.lineWidth = 6;
     g.beginPath();
     g.arc(P(TOWN.u), P(TOWN.v), TOWN.r * N, 0, Math.PI * 2);
     g.stroke();
@@ -143,23 +145,23 @@ export function createBackdrop(T: any, scene: any, camera: any, opts: Options): 
     // Houses: rows of little roofs inside the ring, a few out along the roads.
     const roofs = ["#d9573b", "#e8873a", "#c94a5a", "#3c9ab0", "#8b5fbf", "#e0b040", "#b5553a"];
     const houses: [number, number][] = [];
-    for (let i = 0; i < 900 && houses.length < 420; i++) {
+    for (let i = 0; i < 6000 && houses.length < 1600; i++) {
       const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * (TOWN.r + 0.05);
       const u = TOWN.u + Math.cos(a) * d, v = TOWN.v + Math.sin(a) * d;
       if (d < 0.03) continue;
       let nearRiver = false;
       for (let t = 0; t <= 1; t += 0.02) {
         const [ru, rv] = riverAt(t);
-        if (Math.hypot(ru - u, rv - v) < 0.03) nearRiver = true;
+        if (Math.hypot(ru - u, rv - v) < 0.016) nearRiver = true;
       }
-      if (nearRiver || Math.abs(Math.hypot(u - TOWN.u, v - TOWN.v) - TOWN.r) < 0.01) continue;
+      if (nearRiver || Math.abs(Math.hypot(u - TOWN.u, v - TOWN.v) - TOWN.r) < 0.005) continue;
       houses.push([u, v]);
       g.save();
       g.translate(P(u), P(v));
       g.rotate(a + (rnd() < 0.5 ? 0 : Math.PI / 2));
-      const w = 16 + rnd() * 12, h = 11 + rnd() * 8;
+      const w = 7 + rnd() * 5, h = 5 + rnd() * 4;
       g.fillStyle = "rgba(0,0,0,0.25)";
-      g.fillRect(-w / 2 + 3, -h / 2 + 3, w, h);
+      g.fillRect(-w / 2 + 1.5, -h / 2 + 1.5, w, h);
       const roof = roofs[Math.floor(rnd() * roofs.length)];
       g.fillStyle = roof;
       g.fillRect(-w / 2, -h / 2, w, h / 2);
@@ -170,6 +172,7 @@ export function createBackdrop(T: any, scene: any, camera: any, opts: Options): 
     // The castle in the middle.
     g.save();
     g.translate(P(TOWN.u), P(TOWN.v));
+    g.scale(0.55, 0.55);
     g.fillStyle = "#cfc8b8";
     g.fillRect(-34, -34, 68, 68);
     g.fillStyle = "#2f5fae";
@@ -188,13 +191,13 @@ export function createBackdrop(T: any, scene: any, camera: any, opts: Options): 
     }
     g.restore();
     // Trees: clumps out of town.
-    for (let i = 0; i < 1100; i++) {
+    for (let i = 0; i < 3500; i++) {
       const u = rnd() - 0.5, v = rnd() - 0.5;
-      if (Math.hypot(u - TOWN.u, v - TOWN.v) < TOWN.r + 0.04) continue;
-      const x = P(u), y = P(v), r = 7 + rnd() * 9;
+      if (Math.hypot(u - TOWN.u, v - TOWN.v) < TOWN.r + 0.02) continue;
+      const x = P(u), y = P(v), r = 3 + rnd() * 4;
       g.fillStyle = "rgba(0,0,0,0.22)";
       g.beginPath();
-      g.arc(x + 3, y + 3, r, 0, Math.PI * 2);
+      g.arc(x + 1.5, y + 1.5, r, 0, Math.PI * 2);
       g.fill();
       g.fillStyle = ["#3f8a3a", "#4f9c3f", "#2f7a38"][i % 3];
       g.beginPath();
@@ -226,7 +229,7 @@ export function createBackdrop(T: any, scene: any, camera: any, opts: Options): 
     }
     const geo = new T.BufferGeometry();
     geo.setAttribute("position", new T.BufferAttribute(pos, 3));
-    const glints = new T.Points(geo, new T.PointsMaterial({ size: 0.9 * (S / 320), map: dotTex(T), color: 0xffffff, transparent: true, depthWrite: false, blending: T.AdditiveBlending }));
+    const glints = new T.Points(geo, new T.PointsMaterial({ size: 5 * px, map: dotTex(T), color: 0xffffff, transparent: true, depthWrite: false, blending: T.AdditiveBlending }));
     scene.add(glints);
     movers.push((t) => {
       glints.material.opacity = 0.55 + Math.sin(t * 2.3) * 0.25;
@@ -237,7 +240,7 @@ export function createBackdrop(T: any, scene: any, camera: any, opts: Options): 
     const boat = boatTex(T);
     for (let i = 0; i < 5; i++) {
       const b = sprite(boat);
-      b.scale.set(3 * (S / 320), 3 * (S / 320), 1);
+      b.scale.set(16 * px, 16 * px, 1);
       scene.add(b);
       const speed = 0.012 + Math.random() * 0.01, start = Math.random(), dir = i % 2 ? 1 : -1;
       movers.push((t) => {
@@ -260,7 +263,7 @@ export function createBackdrop(T: any, scene: any, camera: any, opts: Options): 
     const geo = new T.BufferGeometry();
     geo.setAttribute("position", new T.BufferAttribute(pos, 3));
     geo.setAttribute("color", new T.BufferAttribute(cols, 3));
-    const carts = new T.Points(geo, new T.PointsMaterial({ size: 0.9 * (S / 320), vertexColors: true, map: dotTex(T), transparent: true, depthWrite: false }));
+    const carts = new T.Points(geo, new T.PointsMaterial({ size: 5 * px, vertexColors: true, map: dotTex(T), transparent: true, depthWrite: false }));
     scene.add(carts);
     movers.push((t) => {
       const p = geo.attributes.position;
@@ -275,10 +278,10 @@ export function createBackdrop(T: any, scene: any, camera: any, opts: Options): 
   // Windmills out in the fields.
   {
     const tower = windmillTex(T), blades = bladesTex(T);
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2 + 0.7, d = TOWN.r + 0.1 + Math.random() * 0.12;
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2 + 0.7, d = TOWN.r + 0.06 + Math.random() * 0.12;
       const base = world(TOWN.u + Math.cos(a) * d, TOWN.v + Math.sin(a) * d);
-      const sz = 4 * (S / 320);
+      const sz = 26 * px;
       const t1 = sprite(tower);
       t1.center.set(0.5, 0);
       t1.scale.set(sz * 0.6, sz, 1);
@@ -294,7 +297,7 @@ export function createBackdrop(T: any, scene: any, camera: any, opts: Options): 
   // Chimney smoke from some houses.
   {
     const puff = softTex(T, "rgba(255,255,255,0.8)", "rgba(255,255,255,0)");
-    const spots = houseSpots.filter((_, i) => i % 18 === 0).slice(0, 18);
+    const spots = houseSpots.filter((_, i) => i % 60 === 0).slice(0, 24);
     spots.forEach(([u, v], i) => {
       for (let j = 0; j < 3; j++) {
         const s = sprite(puff, { opacity: 0.6 });
@@ -302,8 +305,8 @@ export function createBackdrop(T: any, scene: any, camera: any, opts: Options): 
         const at = world(u, v), off = (j / 3) * 4 + i * 0.37;
         movers.push((t) => {
           const f = ((t + off) % 4) / 4;
-          s.position.set(at.x + f * 1.5, at.y + 0.5 + f * 5 * (S / 320), at.z);
-          const sz = (0.8 + f * 2.2) * (S / 320);
+          s.position.set(at.x + f * 8 * px, at.y + 1 + f * 30 * px, at.z);
+          const sz = (5 + f * 14) * px;
           s.scale.set(sz, sz, 1);
           s.material.opacity = 0.55 * (1 - f);
         });
@@ -318,11 +321,11 @@ export function createBackdrop(T: any, scene: any, camera: any, opts: Options): 
       const c = sprite(cloud, { opacity: 0.8 });
       const sz = (10 + Math.random() * 12) * k;
       c.scale.set(sz, sz * 0.5, 1);
-      const y = opts.groundY * (0.12 + Math.random() * 0.3);
-      const z = (Math.random() - 0.5) * S * 0.55, x0 = (Math.random() - 0.5) * S * 0.6, speed = (0.6 + Math.random() * 0.6) * k;
+      const y = -8 * k - Math.random() * 30 * k;
+      const z = (Math.random() - 0.5) * 160 * k, x0 = (Math.random() - 0.5) * 180 * k, speed = (0.6 + Math.random() * 0.6) * k;
       scene.add(c);
       movers.push((t) => {
-        const span = S * 0.6;
+        const span = 180 * k;
         c.position.set(((((x0 + t * speed) % span) + span * 1.5) % span) - span / 2, y, z);
       });
     }

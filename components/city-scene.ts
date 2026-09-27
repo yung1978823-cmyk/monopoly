@@ -345,7 +345,7 @@ export function createCityScene(
   floorShadow.position.y = -7;
   // The busy world far below (the old dark floor's shadow and glow are hidden).
   floorShadow.visible = false;
-  const backdrop = createBackdrop(T, scene, camera, { groundY: -32, size: 280, fogNear: 38, fogFar: 140, scale: 0.8, reduceMotion });
+  const backdrop = createBackdrop(T, scene, camera, { groundY: -80, size: 520, fogNear: 45, fogFar: 230, scale: 0.8, reduceMotion });
   // A few far rocks, turning at half the camera's speed for depth.
   const far = new T.Group();
   scene.add(far);

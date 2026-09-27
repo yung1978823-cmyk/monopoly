@@ -409,7 +409,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     }
   }
   // The busy world far below replaces the dark floor (and the islands' shadows on it).
-  const backdrop = createBackdrop(T, scene, camera, { groundY: -45, size: 360, fogNear: 50, fogFar: 170, reduceMotion });
+  const backdrop = createBackdrop(T, scene, camera, { groundY: -110, size: 700, fogNear: 60, fogFar: 300, reduceMotion });
   for (const b of breathers) if (b.shadow) b.shadow.visible = false;
 
   // Drifting motes of light.
