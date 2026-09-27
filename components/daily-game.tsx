@@ -174,6 +174,15 @@ export function DailyGame() {
   /** A dragon that just hatched on the board, shown in a banner for a moment. */
   const [hatchedNow, setHatchedNow] = useState<number | null>(null);
   const petStage = useRef<number | null>(null);
+  /** A look-only preview of a dragon from the link (?dragon=0-1 is a light N); the save isn't touched. */
+  const [preview, setPreview] = useState<{ element: number; stage: number } | null>(null);
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get("dragon");
+    const [element, stage] = (v ?? "").split("-").map(Number);
+    if (!(element >= 0 && element <= 2 && stage >= 1 && stage <= 4)) return;
+    const id = window.setTimeout(() => setPreview({ element, stage }), 0);
+    return () => window.clearTimeout(id);
+  }, []);
   useEffect(() => {
     const stage = state.pet?.stage ?? null;
     const was = petStage.current;
@@ -472,7 +481,9 @@ export function DailyGame() {
         dice={pending ? { key: goPresses, faces: [pending.faces[0], pending.faces[1]] } : null}
         // No dragon yet: an egg waits on the stone — tap it to take it.
         pet={
-          state.pet
+          preview
+            ? { element: preview.element, stage: preview.stage, legend: false, hungry: false }
+            : state.pet
             ? { element: state.pet.element, stage: state.pet.stage, legend: holdsNft(state), hungry: state.pet.hungry > 0, rolls: state.pet.rolls, hatchAt: HATCH_ROLLS }
             : { element: 0, stage: 0, legend: false, hungry: false }
         }
