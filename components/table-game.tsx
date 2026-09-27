@@ -1,6 +1,6 @@
 "use client";
 
-import { createBoardScene, loadThree, type BoardScene, type Decor } from "@/components/eight-scene";
+import { ACTORS, createBoardScene, loadThree, type BoardScene, type Decor } from "@/components/eight-scene";
 import { TILE_INFO } from "@/lib/board";
 import {
   BAIL,
@@ -41,6 +41,21 @@ const CAST = [
   { name: "阿蝠", avatar: "", colour: "#9333EA", bot: true },
 ];
 const EMOJI: Record<string, string> = { 阿狼: "🐺", 阿鬼: "👻", 阿蝠: "🦇" };
+
+/** The 3D character for a seat, from its avatar picture (vampire, jiangshi, mummy, zombie), or null. */
+function actorOf(avatar: string): string | null {
+  const key = /avatars\/(\w+)\./.exec(avatar)?.[1];
+  return key && ACTORS[key] ? key : null;
+}
+
+/** When each character does its special move: the vampire bows when paid rent, 阿殭 casts a spell on
+ * a chance card, 阿木 raises his shield when he has to pay, 阿強 swings his hammer when he builds. */
+const SPECIAL_WHEN: Record<string, "paid" | "card" | "pays" | "builds"> = {
+  vampire: "paid",
+  jiangshi: "card",
+  mummy: "pays",
+  zombie: "builds",
+};
 
 /** A player's face: the drawn avatar, or an emoji in a coloured circle. */
 function Face({ seat, className }: { seat: { name: string; avatar: string; colour: string }; className?: string }) {
@@ -253,6 +268,10 @@ export function EightBoard({
   const playEvents = useCallback(
     async (scene: BoardScene, events: TableEvent[], state: TableState) => {
       const who = (seat: number) => tRef.current(state.seats[seat]?.name ?? "");
+      const special = (seat: number, when: string) => {
+        const actor = actorOf(state.seats[seat]?.avatar ?? "");
+        if (actor && SPECIAL_WHEN[actor] === when) scene.special(seat);
+      };
       for (const event of events) {
         if (sceneRef.current !== scene) return;
         switch (event.kind) {
@@ -294,11 +313,13 @@ export function EightBoard({
           case "bought":
             play("coin");
             say("{name} 買地起樓 −{n}", { name: who(event.seat), n: event.price });
+            special(event.seat, "builds");
             await Promise.all([scene.own(event.key, event.seat, 1), scene.pulse(event.seat)]);
             break;
           case "upgraded":
             play("build");
             say(event.level >= 4 ? "{name} 起咗地標！" : "{name} 升到第 {n} 級", { name: who(event.seat), n: event.level });
+            if (event.level < 4) special(event.seat, "builds");
             await Promise.all([scene.own(event.key, event.seat, event.level), scene.pulse(event.seat, true)]);
             if (event.level >= 4) {
               scene.cheer(event.seat);
@@ -308,7 +329,9 @@ export function EightBoard({
           case "rent":
             play("bad");
             say("{name} 交租 {n} 俾 {owner}", { name: who(event.seat), n: event.amount, owner: who(event.to) });
+            special(event.seat, "pays");
             await scene.coinsFly(event.seat, event.to, event.amount);
+            special(event.to, "paid");
             break;
           case "bonus":
             play(event.reason === "chest" ? "chest" : "coin");
@@ -319,12 +342,14 @@ export function EightBoard({
           case "tax":
             play("bad");
             say("{name} 交稅 −{n}", { name: who(event.seat), n: event.amount });
+            special(event.seat, "pays");
             await scene.coinsFly(event.seat, null, event.amount);
             break;
           case "card": {
             const good = event.card.kind === "money" ? event.card.amount >= 0 : event.card.kind === "forward";
             play(good ? "lucky" : "miss");
             say("❓ {text}", { text: tRef.current(event.card.text) });
+            special(event.seat, "card");
             await scene.wait(900);
             if (event.card.kind === "money" && event.card.amount > 0) await scene.coinsBurst(event.seat, event.card.amount);
             break;
@@ -342,6 +367,7 @@ export function EightBoard({
           case "house":
             play("coin");
             say("{name} 交租 {n} 俾主人", { name: who(event.seat), n: event.amount });
+            special(event.seat, "pays");
             await scene.coinsFly(event.seat, null, event.amount);
             break;
           case "bankrupt":
@@ -399,15 +425,14 @@ export function EightBoard({
     loadThree()
       .then((T) => {
         if (cancelled || !mount.current) return;
-        // You play as the 3D vampire; the computer players keep their pawns.
-        const heroSeat = stateRef.current.seats.findIndex((seat) => !seat.bot && seat.avatar.includes("vampire"));
+        // Players with a 3D character (you as the vampire, 阿殭, 阿木, 阿強) use it; the rest keep pawns.
         scene = createBoardScene(
           T,
           mount.current,
           stateRef.current.seats.map((seat) => seat.colour),
           decorRef.current,
           stateRef.current.board,
-          heroSeat >= 0 ? heroSeat : undefined,
+          stateRef.current.seats.map((seat) => actorOf(seat.avatar)),
         );
         sceneRef.current = scene;
         setLoaded("ready");

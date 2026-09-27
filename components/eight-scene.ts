@@ -57,9 +57,17 @@ function loadGltfLoader(T: any): Promise<any> {
   return gltfLoading;
 }
 
-/** The vampire: a rigged 3D character with a walking animation, standing 1.2 tall. */
-const HERO_URL = "/models/vampire.glb";
-const HERO_HEIGHT = 0.8;
+/**
+ * The 3D characters. Each file carries a rigged body and three clips — "walk" (their own way of
+ * walking), "cheer" and "special" — so no two players move alike.
+ */
+export const ACTORS: Record<string, { url: string; walkPace: number }> = {
+  vampire: { url: "/models/vampire.glb", walkPace: 2.4 },
+  jiangshi: { url: "/models/jiangshi.glb", walkPace: 1.8 },
+  mummy: { url: "/models/mummy.glb", walkPace: 2.2 },
+  zombie: { url: "/models/zombie.glb", walkPace: 2.2 },
+};
+const CHARACTER_HEIGHT = 0.8;
 const FIREWORK_COLOURS = [0xfbd000, 0xe52521, 0x22c55e, 0x3b82f6, 0xec4899, 0xf97316];
 
 export type BoardScene = {
@@ -83,8 +91,10 @@ export type BoardScene = {
   fireworks(seat: number, shots?: number): Promise<void>;
   /** Gold twinkles rising from a seat (chests) or around the dice (doubles). */
   sparkle(seat: number | "dice"): Promise<void>;
-  /** The vampire throws his arms up (only the hero seat has the moves); doesn't hold up the game. */
+  /** A 3D character celebrates (seats with pawns do nothing); doesn't hold up the game. */
   cheer(seat: number): void;
+  /** A 3D character's own special move (bow, spell, shield, hammer); doesn't hold up the game. */
+  special(seat: number): void;
   removeToken(seat: number): void;
   wait(ms: number): Promise<void>;
   /** 領地 buildings on show: rent houses on their squares, a gold facade, train stations. */
@@ -179,7 +189,7 @@ function layoutFor(board: BoardId): Layout {
 const GROUP_COLOURS = [0xe52521, 0xf59e0b, 0x22a447, 0x38bdf8, 0x3949ab, 0xec4899, 0x9a5b2e, 0x14b8a6];
 
 /**
- * `heroSeat` is the seat played by the 3D vampire (you); the others keep their pawns. If the model
+ * `actors` names each seat's 3D character (a key of ACTORS, or null for a pawn). If a model
  * can't load, that seat simply keeps its pawn.
  */
 export function createBoardScene(
@@ -188,7 +198,7 @@ export function createBoardScene(
   colours: string[],
   decor?: Decor,
   board: BoardId = "eight",
-  heroSeat?: number,
+  actors?: (string | null)[],
 ): BoardScene {
   const layout = layoutFor(board);
   const island = board === "island";
@@ -674,13 +684,15 @@ export function createBoardScene(
     tokens[seat].rotation.y = Math.atan2(target.x - p.x, target.z - p.z);
   };
 
-  // ---------- The vampire takes over the hero seat's token ----------
-  let hero: { mixer: any; walk: any; cheer: any } | null = null;
-  let heroIdle = 0;
+  // ---------- 3D characters take over their seats' tokens ----------
+  type Rig = { mixer: any; walk: any; cheer: any; special: any; idle: number };
+  const rigs = new Map<number, Rig>();
   let disposed = false;
-  if (heroSeat !== undefined && tokens[heroSeat]) {
+  (actors ?? []).forEach((key, seat) => {
+    const actor = key ? ACTORS[key] : undefined;
+    if (!actor || !tokens[seat]) return;
     loadGltfLoader(T)
-      .then((Loader) => new Promise<any>((resolve, reject) => new Loader().load(HERO_URL, resolve, undefined, reject)))
+      .then((Loader) => new Promise<any>((resolve, reject) => new Loader().load(actor.url, resolve, undefined, reject)))
       .then((gltf) => {
         if (disposed) return;
         const model = gltf.scene;
@@ -691,54 +703,73 @@ export function createBoardScene(
             o.frustumCulled = false;
           }
         });
-        // The skinned body stands 1.2 tall with its feet at 0; its bones carry the armature's
+        // Each skinned body stands 1.2 tall with its feet at 0; its bones carry the armature's
         // 0.01 scale, so a bounding box of the raw mesh would read it 100× too small.
-        model.scale.setScalar(HERO_HEIGHT / 1.2);
-        const g = tokens[heroSeat];
+        model.scale.setScalar(CHARACTER_HEIGHT / 1.2);
+        const g = tokens[seat];
         g.children.forEach((c: any) => (c.visible = false));
         g.add(model);
         const mixer = new T.AnimationMixer(model);
-        const walk = mixer.clipAction(gltf.animations.find((a: any) => a.name !== "cheer") ?? gltf.animations[0]);
+        const clip = (name: string) => gltf.animations.find((a: any) => a.name === name);
+        const walk = mixer.clipAction(clip("walk") ?? gltf.animations[0]);
+        walk.timeScale = actor.walkPace;
         walk.play();
         walk.paused = true;
-        const clip = gltf.animations.find((a: any) => a.name === "cheer");
-        const cheer = clip ? mixer.clipAction(clip) : null;
-        if (cheer) {
-          cheer.setLoop(T.LoopOnce, 1);
-          cheer.clampWhenFinished = true;
-          // Back to standing when the cheer ends.
-          mixer.addEventListener("finished", (e: any) => {
-            if (e.action !== cheer) return;
-            walk.reset();
-            walk.play();
-            walk.paused = true;
-            cheer.crossFadeTo(walk, 0.3, false);
-          });
-        }
-        hero = { mixer, walk, cheer };
+        const once = (name: string) => {
+          const found = clip(name);
+          if (!found) return null;
+          const action = mixer.clipAction(found);
+          action.setLoop(T.LoopOnce, 1);
+          action.clampWhenFinished = true;
+          return action;
+        };
+        const cheer = once("cheer"), special = once("special");
+        // Back to standing when a cheer or special move ends.
+        mixer.addEventListener("finished", (e: any) => {
+          if (e.action !== cheer && e.action !== special) return;
+          walk.reset();
+          walk.timeScale = actor.walkPace;
+          walk.play();
+          walk.paused = true;
+          e.action.crossFadeTo(walk, 0.3, false);
+        });
+        rigs.set(seat, { mixer, walk, cheer, special, idle: 0 });
       })
       .catch(() => {
         // Keep the pawn.
       });
-  }
+  });
   /** Walk while stepping; stand still (first frame of the walk) a moment after the last step. */
-  function heroWalking(on: boolean) {
-    if (!hero) return;
-    window.clearTimeout(heroIdle);
+  function walking(seat: number, on: boolean) {
+    const rig = rigs.get(seat);
+    if (!rig) return;
+    window.clearTimeout(rig.idle);
     if (on) {
-      if (hero.cheer?.isRunning() || hero.cheer?.getEffectiveWeight() > 0) {
-        hero.cheer.stop();
-        hero.walk.reset();
-        hero.walk.play();
+      for (const move of [rig.cheer, rig.special]) {
+        if (move && (move.isRunning() || move.getEffectiveWeight() > 0)) {
+          move.stop();
+          rig.walk.reset();
+          rig.walk.play();
+        }
       }
-      hero.walk.paused = false;
+      rig.walk.paused = false;
       return;
     }
-    heroIdle = window.setTimeout(() => {
-      if (!hero) return;
-      hero.walk.paused = true;
-      hero.walk.time = 0;
+    rig.idle = window.setTimeout(() => {
+      rig.walk.paused = true;
+      rig.walk.time = 0;
     }, 200);
+  }
+  /** Play a one-off move (cheer or special) without holding up the game. */
+  function perform(seat: number, which: "cheer" | "special") {
+    const rig = rigs.get(seat);
+    const move = rig?.[which];
+    if (!rig || !move) return;
+    window.clearTimeout(rig.idle);
+    for (const other of [rig.cheer, rig.special]) if (other && other !== move) other.stop();
+    move.reset();
+    move.play();
+    rig.walk.crossFadeTo(move, 0.25, false);
   }
 
   // ---------- Dice ----------
@@ -868,7 +899,7 @@ export function createBoardScene(
       const p = tokens[goal.follow].position;
       goal.target.set(p.x, 0, p.z - 0.6);
     }
-    if (hero) hero.mixer.update(dt * speed);
+    rigs.forEach((rig) => rig.mixer.update(dt * speed));
     const ease = 1 - Math.pow(0.03, dt * speed);
     if (!dragged || goal.follow < 0) cam.target.lerp(goal.target, ease);
     cam.dist += (goal.dist - cam.dist) * ease;
@@ -1086,14 +1117,14 @@ export function createBoardScene(
       settle(left, seat);
       settle(squareOf(spot), seat);
       face(seat, to);
-      if (seat === heroSeat && hero) {
-        // The vampire walks rather than hops.
-        heroWalking(true);
+      if (rigs.has(seat)) {
+        // 3D characters walk their own walk rather than hop.
+        walking(seat, true);
         await tween(380, (k) => {
           token.position.lerpVectors(from, to, k);
           token.position.y = TOP + Math.abs(Math.sin(k * Math.PI * 2)) * 0.03;
         });
-        heroWalking(false);
+        walking(seat, false);
       } else {
         await tween(230, (k) => {
           token.position.lerpVectors(from, to, k);
@@ -1110,13 +1141,13 @@ export function createBoardScene(
       settle(left, seat);
       settle(squareOf(spot), seat);
       face(seat, to);
-      if (seat === heroSeat) heroWalking(true);
+      walking(seat, true);
       await tween(1100, (k) => {
         token.position.lerpVectors(from, to, k);
         token.position.y = TOP + Math.sin(k * Math.PI) * 4.5;
         token.rotation.y += 0.2;
       });
-      if (seat === heroSeat) heroWalking(false);
+      walking(seat, false);
       squash(keyOf(spot));
     },
     async own(key, seat, level) {
@@ -1242,11 +1273,10 @@ export function createBoardScene(
       await Promise.all(jobs);
     },
     cheer(seat) {
-      if (seat !== heroSeat || !hero?.cheer) return;
-      window.clearTimeout(heroIdle);
-      hero.cheer.reset();
-      hero.cheer.play();
-      hero.walk.crossFadeTo(hero.cheer, 0.25, false);
+      perform(seat, "cheer");
+    },
+    special(seat) {
+      perform(seat, "special");
     },
     async pulse(seat, gold = false) {
       const at = tokens[seat].position;
@@ -1274,7 +1304,7 @@ export function createBoardScene(
     wait,
     dispose() {
       disposed = true;
-      window.clearTimeout(heroIdle);
+      rigs.forEach((rig) => window.clearTimeout(rig.idle));
       cancelAnimationFrame(frameId);
       timers.forEach((id) => window.clearTimeout(id));
       anims.length = 0;
