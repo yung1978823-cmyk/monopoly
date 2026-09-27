@@ -53,9 +53,9 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
   sg.fillStyle = grd; sg.fillRect(0, 0, 4, 256);
   const skyTex = new T.CanvasTexture(sky); skyTex.encoding = T.sRGBEncoding;
   scene.background = skyTex;
-  scene.fog = new T.Fog(0x1d3522, 22, 60);
+  scene.fog = new T.Fog(0x1d3522, 30, 120);
 
-  const camera = new T.PerspectiveCamera(40, 1, 0.1, 200);
+  const camera = new T.PerspectiveCamera(40, 1, 0.1, 300);
   scene.add(new T.HemisphereLight(0xdff5c8, 0x1a2a1c, 0.75));
   const sun = new T.DirectionalLight(0xfff0c8, 1.0);
   sun.position.set(-6, 14, 8);
@@ -168,17 +168,17 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
   });
 
   // Mist floor far below to catch the shadows.
-  const mist = new T.Mesh(new T.PlaneGeometry(120, 120), new T.MeshStandardMaterial({ color: 0x1a3020, roughness: 1 }));
+  const mist = new T.Mesh(new T.PlaneGeometry(400, 400), new T.MeshStandardMaterial({ color: 0x1a3020, roughness: 1 }));
   mist.rotation.x = -Math.PI / 2; mist.position.y = -2.5; scene.add(mist);
 
   // ---------- Far layer: big rock pillars and islands in the haze ----------
   for (let i = 0; i < 16; i++) {
-    const a = (i / 16) * Math.PI * 2, r = 20 + (i % 4) * 5;
-    const h = 6 + (i % 5) * 3;
-    const pillar = new T.Mesh(rough(new T.CylinderGeometry(1.4 + (i % 3), 2 + (i % 3), h, 7), 0.5, 300 + i), mat(0x3f5a3a));
-    pillar.position.set(Math.cos(a) * r, h / 2 - 3, Math.sin(a) * r - 6);
-    const cap = new T.Mesh(rough(new T.CylinderGeometry(1.8 + (i % 3), 1.5 + (i % 3), 0.8, 7), 0.4, 400 + i), mat(0x5e9c41));
-    cap.position.set(pillar.position.x, h - 3 + 0.3, pillar.position.z);
+    const a = (i / 16) * Math.PI * 2, r = 55 + (i % 4) * 10;
+    const h = 14 + (i % 5) * 5;
+    const pillar = new T.Mesh(rough(new T.CylinderGeometry(3 + (i % 3) * 1.5, 4 + (i % 3) * 1.5, h, 7), 0.5, 300 + i), mat(0x3f5a3a));
+    pillar.position.set(Math.cos(a) * r, h / 2 - 8, Math.sin(a) * r);
+    const cap = new T.Mesh(rough(new T.CylinderGeometry(4 + (i % 3) * 1.5, 3.2 + (i % 3) * 1.5, 1.4, 7), 0.4, 400 + i), mat(0x5e9c41));
+    cap.position.set(pillar.position.x, h - 8 + 0.6, pillar.position.z);
     far.add(pillar, cap);
   }
 
@@ -211,7 +211,9 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
   function resize() {
     const w = stage.clientWidth, h = stage.clientHeight;
     renderer.setSize(w, h); camera.aspect = w / h;
-    dist = w < h ? 27 : 17; camera.updateProjectionMatrix();
+    // Far enough back that the whole board (about 15 wide) fits across the screen.
+    const half = Math.atan(Math.tan((40 * Math.PI) / 360) * camera.aspect);
+    dist = Math.max(16, 8.2 / Math.tan(half)); camera.updateProjectionMatrix();
   }
   window.addEventListener("resize", resize); resize();
   renderer.domElement.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY }; renderer.domElement.setPointerCapture(e.pointerId); });
@@ -239,7 +241,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
     camera.position.set(Math.sin(y) * Math.cos(pitch) * dist, Math.sin(pitch) * dist, Math.cos(y) * Math.cos(pitch) * dist);
     camera.lookAt(0, 0, 0);
     // Parallax: the far layer follows the camera part of the way, so it seems to drift slower.
-    far.position.set(opts.para ? camera.position.x * 0.45 : 0, 0, opts.para ? (camera.position.z - dist) * 0.3 : 0);
+    far.position.set(opts.para ? camera.position.x * 0.45 : 0, 0, 0);
     // Each island breathes up and down on its own clock.
     tiles.forEach((tl) => {
       const h = opts.bob ? Math.sin((t / tl.period) * Math.PI * 2 + tl.phase) * 0.06 : 0;
