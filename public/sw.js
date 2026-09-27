@@ -1,5 +1,5 @@
 // 大富翁 service worker: keeps the app shell and art so the board opens without a network.
-const CACHE = "dafuweng-v16";
+const CACHE = "dafuweng-v17";
 const SHELL = [
   "/",
   "/manifest.webmanifest",
@@ -68,7 +68,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Build output and art never change under the same name: serve from cache, fill on first use.
-  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/art/") || url.pathname.startsWith("/icon")) {
+  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/art/") || url.pathname.startsWith("/models/") || url.pathname.startsWith("/icon")) {
     event.respondWith(
       caches.match(request).then(
         (hit) =>

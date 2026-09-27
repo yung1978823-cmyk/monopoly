@@ -35,6 +35,32 @@ export function loadThree(): Promise<any> {
   return loading;
 }
 
+const GLTF_URL = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js";
+let gltfLoading: Promise<any> | null = null;
+
+/** Load three.js's model loader once (after three.js itself). */
+function loadGltfLoader(T: any): Promise<any> {
+  if (T.GLTFLoader) return Promise.resolve(T.GLTFLoader);
+  if (!gltfLoading) {
+    gltfLoading = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = GLTF_URL;
+      script.async = true;
+      script.onload = () => (T.GLTFLoader ? resolve(T.GLTFLoader) : reject(new Error("gltf")));
+      script.onerror = () => {
+        gltfLoading = null;
+        reject(new Error("gltf"));
+      };
+      document.head.appendChild(script);
+    });
+  }
+  return gltfLoading;
+}
+
+/** The vampire: a rigged 3D character with a walking animation, standing 1.2 tall. */
+const HERO_URL = "/models/vampire.glb";
+const HERO_HEIGHT = 0.8;
+
 export type BoardScene = {
   /** Fly in close to a seat, or null to pull back and see the whole board. */
   focus(seat: number | null): void;
@@ -146,7 +172,18 @@ const GROUP_COLOURS = [0xe52521, 0xf59e0b, 0x22a447, 0x38bdf8, 0x3949ab, 0xec489
 /** Up to six tokens share a square: two rows of three. */
 const OFFSETS: [number, number][] = [[-0.26, -0.18], [0, -0.18], [0.26, -0.18], [-0.26, 0.18], [0, 0.18], [0.26, 0.18]];
 
-export function createBoardScene(T: any, container: HTMLElement, colours: string[], decor?: Decor, board: BoardId = "eight"): BoardScene {
+/**
+ * `heroSeat` is the seat played by the 3D vampire (you); the others keep their pawns. If the model
+ * can't load, that seat simply keeps its pawn.
+ */
+export function createBoardScene(
+  T: any,
+  container: HTMLElement,
+  colours: string[],
+  decor?: Decor,
+  board: BoardId = "eight",
+  heroSeat?: number,
+): BoardScene {
   const layout = layoutFor(board);
   const island = board === "island";
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -606,6 +643,54 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
     tokens[seat].rotation.y = Math.atan2(target.x - p.x, target.z - p.z);
   };
 
+  // ---------- The vampire takes over the hero seat's token ----------
+  let hero: { mixer: any; walk: any } | null = null;
+  let heroIdle = 0;
+  let disposed = false;
+  if (heroSeat !== undefined && tokens[heroSeat]) {
+    loadGltfLoader(T)
+      .then((Loader) => new Promise<any>((resolve, reject) => new Loader().load(HERO_URL, resolve, undefined, reject)))
+      .then((gltf) => {
+        if (disposed) return;
+        const model = gltf.scene;
+        model.traverse((o: any) => {
+          if (o.isMesh) {
+            o.castShadow = true;
+            o.receiveShadow = true;
+            o.frustumCulled = false;
+          }
+        });
+        // The skinned body stands 1.2 tall with its feet at 0; its bones carry the armature's
+        // 0.01 scale, so a bounding box of the raw mesh would read it 100× too small.
+        model.scale.setScalar(HERO_HEIGHT / 1.2);
+        const g = tokens[heroSeat];
+        g.children.forEach((c: any) => (c.visible = false));
+        g.add(model);
+        const mixer = new T.AnimationMixer(model);
+        const walk = mixer.clipAction(gltf.animations[0]);
+        walk.play();
+        walk.paused = true;
+        hero = { mixer, walk };
+      })
+      .catch(() => {
+        // Keep the pawn.
+      });
+  }
+  /** Walk while stepping; stand still (first frame of the walk) a moment after the last step. */
+  function heroWalking(on: boolean) {
+    if (!hero) return;
+    window.clearTimeout(heroIdle);
+    if (on) {
+      hero.walk.paused = false;
+      return;
+    }
+    heroIdle = window.setTimeout(() => {
+      if (!hero) return;
+      hero.walk.paused = true;
+      hero.walk.time = 0;
+    }, 200);
+  }
+
   // ---------- Dice ----------
   function dieFace(n: number) {
     const c = document.createElement("canvas");
@@ -729,6 +814,7 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
       const p = tokens[goal.follow].position;
       goal.target.set(p.x, 0, p.z - 0.6);
     }
+    if (hero) hero.mixer.update(dt * speed);
     const ease = 1 - Math.pow(0.03, dt * speed);
     if (!dragged || goal.follow < 0) cam.target.lerp(goal.target, ease);
     cam.dist += (goal.dist - cam.dist) * ease;
@@ -943,21 +1029,33 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
       const token = tokens[seat];
       const from = token.position.clone(), to = place(seat, spot);
       face(seat, to);
-      await tween(230, (k) => {
-        token.position.lerpVectors(from, to, k);
-        token.position.y = TOP + Math.sin(k * Math.PI) * 0.6;
-      });
+      if (seat === heroSeat && hero) {
+        // The vampire walks rather than hops.
+        heroWalking(true);
+        await tween(380, (k) => {
+          token.position.lerpVectors(from, to, k);
+          token.position.y = TOP + Math.abs(Math.sin(k * Math.PI * 2)) * 0.03;
+        });
+        heroWalking(false);
+      } else {
+        await tween(230, (k) => {
+          token.position.lerpVectors(from, to, k);
+          token.position.y = TOP + Math.sin(k * Math.PI) * 0.6;
+        });
+      }
       squash(keyOf(spot));
     },
     async flyTo(seat, spot) {
       const token = tokens[seat];
       const from = token.position.clone(), to = place(seat, spot);
       face(seat, to);
+      if (seat === heroSeat) heroWalking(true);
       await tween(1100, (k) => {
         token.position.lerpVectors(from, to, k);
         token.position.y = TOP + Math.sin(k * Math.PI) * 4.5;
         token.rotation.y += 0.2;
       });
+      if (seat === heroSeat) heroWalking(false);
       squash(keyOf(spot));
     },
     async own(key, seat, level) {
@@ -1049,6 +1147,8 @@ export function createBoardScene(T: any, container: HTMLElement, colours: string
     },
     wait,
     dispose() {
+      disposed = true;
+      window.clearTimeout(heroIdle);
       cancelAnimationFrame(frameId);
       timers.forEach((id) => window.clearTimeout(id));
       anims.length = 0;

@@ -362,7 +362,16 @@ export function EightBoard({
     loadThree()
       .then((T) => {
         if (cancelled || !mount.current) return;
-        scene = createBoardScene(T, mount.current, stateRef.current.seats.map((seat) => seat.colour), decorRef.current, stateRef.current.board);
+        // You play as the 3D vampire; the computer players keep their pawns.
+        const heroSeat = stateRef.current.seats.findIndex((seat) => !seat.bot && seat.avatar.includes("vampire"));
+        scene = createBoardScene(
+          T,
+          mount.current,
+          stateRef.current.seats.map((seat) => seat.colour),
+          decorRef.current,
+          stateRef.current.board,
+          heroSeat >= 0 ? heroSeat : undefined,
+        );
         sceneRef.current = scene;
         setLoaded("ready");
         aim(scene, stateRef.current.current);
