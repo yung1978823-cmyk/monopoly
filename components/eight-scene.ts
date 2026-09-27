@@ -60,6 +60,7 @@ function loadGltfLoader(T: any): Promise<any> {
 /** The vampire: a rigged 3D character with a walking animation, standing 1.2 tall. */
 const HERO_URL = "/models/vampire.glb";
 const HERO_HEIGHT = 0.8;
+const FIREWORK_COLOURS = [0xfbd000, 0xe52521, 0x22c55e, 0x3b82f6, 0xec4899, 0xf97316];
 
 export type BoardScene = {
   /** Fly in close to a seat, or null to pull back and see the whole board. */
@@ -77,6 +78,10 @@ export type BoardScene = {
   coinsFly(from: number, to: number | null, count: number): Promise<void>;
   coinsBurst(seat: number, count: number): Promise<void>;
   pulse(seat: number, gold?: boolean): Promise<void>;
+  /** A rocket goes up over a seat and bursts into coloured sparks (landmarks, the winner). */
+  fireworks(seat: number, shots?: number): Promise<void>;
+  /** Gold twinkles rising from a seat (chests) or around the dice (doubles). */
+  sparkle(seat: number | "dice"): Promise<void>;
   removeToken(seat: number): void;
   wait(ms: number): Promise<void>;
   /** 領地 buildings on show: rent houses on their squares, a gold facade, train stations. */
@@ -743,6 +748,10 @@ export function createBoardScene(
     scene.add(d);
     return d;
   });
+  // Firework sparks and gold twinkles.
+  const sparkGeo = new T.SphereGeometry(0.07, 6, 4);
+  const starGeo = new T.OctahedronGeometry(0.09);
+  const starMat = new T.MeshBasicMaterial({ color: 0xfff1a8 });
   const UP: Record<number, [number, number, number]> = {
     2: [0, 0, 0], 5: [Math.PI, 0, 0], 1: [0, 0, Math.PI / 2], 6: [0, 0, -Math.PI / 2], 3: [-Math.PI / 2, 0, 0], 4: [Math.PI / 2, 0, 0],
   };
@@ -1153,6 +1162,61 @@ export function createBoardScene(
             if (k === 1) scene.remove(coin);
           }),
         );
+      }
+      await Promise.all(jobs);
+    },
+    async fireworks(seat, shots = 1) {
+      const base = tokens[seat].position.clone();
+      const shoot = async (n: number) => {
+        await wait(n * 380);
+        const colour = FIREWORK_COLOURS[(seat + n) % FIREWORK_COLOURS.length];
+        const mat = new T.MeshBasicMaterial({ color: colour, transparent: true });
+        const rocket = new T.Mesh(sparkGeo, mat);
+        const from = new T.Vector3(base.x + (n % 2 ? 0.5 : -0.5) * Math.min(n, 1), TOP, base.z);
+        const top = from.y + 3 + Math.random();
+        scene.add(rocket);
+        await tween(500, (k) => {
+          rocket.position.set(from.x, from.y + (top - from.y) * (1 - (1 - k) * (1 - k)), from.z);
+          if (k === 1) scene.remove(rocket);
+        });
+        const sparks = Array.from({ length: 28 }, () => {
+          const spark = new T.Mesh(sparkGeo, mat);
+          const a = Math.random() * Math.PI * 2, b = Math.acos(Math.random() * 2 - 1), v = 1.4 + Math.random() * 0.6;
+          scene.add(spark);
+          return { spark, dir: new T.Vector3(Math.sin(b) * Math.cos(a) * v, Math.cos(b) * v, Math.sin(b) * Math.sin(a) * v) };
+        });
+        await tween(1100, (k) => {
+          const e = 1 - (1 - k) * (1 - k);
+          for (const { spark, dir } of sparks) {
+            spark.position.set(from.x + dir.x * e, top + dir.y * e - k * k * 1.2, from.z + dir.z * e);
+            spark.scale.setScalar(1.3 - k);
+            if (k === 1) scene.remove(spark);
+          }
+          mat.opacity = 1 - k * k;
+        });
+        mat.dispose();
+      };
+      await Promise.all(Array.from({ length: shots }, (_, n) => shoot(n)));
+    },
+    async sparkle(seat) {
+      const centres =
+        seat === "dice" ? dice.filter((d) => d.visible).map((d) => d.position.clone()) : [tokens[seat].position.clone().setY(TOP + 0.3)];
+      const jobs = centres.flatMap((at) =>
+        Array.from({ length: 10 }, (_, n) => {
+          const star = new T.Mesh(starGeo, starMat);
+          const a = (n / 10) * Math.PI * 2 + Math.random() * 0.4, r = 0.35 + Math.random() * 0.35;
+          scene.add(star);
+          return tween(700 + Math.random() * 300, (k) => {
+            star.position.set(at.x + Math.cos(a) * r * (0.6 + k), at.y + 0.2 + k * 1.1, at.z + Math.sin(a) * r * (0.6 + k));
+            star.rotation.set(k * 6, k * 4, 0);
+            star.scale.setScalar(Math.sin(k * Math.PI) * 1.2);
+            if (k === 1) scene.remove(star);
+          });
+        }),
+      );
+      if (seat === "dice") {
+        const shown = dice.filter((d) => d.visible);
+        jobs.push(tween(500, (k) => shown.forEach((d) => d.scale.setScalar(1 + Math.sin(k * Math.PI) * 0.35))));
       }
       await Promise.all(jobs);
     },

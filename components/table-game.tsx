@@ -57,6 +57,26 @@ function Face({ seat, className }: { seat: { name: string; avatar: string; colou
 export type Player = (typeof CAST)[number];
 export { CAST };
 
+/** Paper confetti falling over the results when you win. */
+function Confetti() {
+  const colours = ["#FBD000", "#E52521", "#22C55E", "#3B82F6", "#EC4899", "#F97316"];
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+      {Array.from({ length: 40 }, (_, n) => (
+        <span
+          key={n}
+          className="absolute top-0 block h-3 w-2 rounded-sm"
+          style={{
+            left: `${(n * 37) % 100}%`,
+            background: colours[n % colours.length],
+            animation: `confetti ${2.2 + ((n * 7) % 10) / 6}s linear ${((n * 13) % 20) / 10}s infinite`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function Coin({ className }: { className?: string }) {
   return <img src={TILE_INFO.coin.art} alt="" className={cn("inline-block size-[1.1em] align-[-0.15em]", className)} />;
 }
@@ -271,7 +291,7 @@ export function EightBoard({
             play("build");
             say(event.level >= 4 ? "{name} 起咗地標！" : "{name} 升到第 {n} 級", { name: who(event.seat), n: event.level });
             await Promise.all([scene.own(event.key, event.seat, event.level), scene.pulse(event.seat, true)]);
-            if (event.level >= 4) await scene.coinsBurst(event.seat, 4);
+            if (event.level >= 4) await Promise.all([scene.fireworks(event.seat, 2), scene.coinsBurst(event.seat, 4)]);
             break;
           case "rent":
             play("bad");
@@ -281,7 +301,7 @@ export function EightBoard({
           case "bonus":
             play(event.reason === "chest" ? "chest" : "coin");
             say(event.reason === "chest" ? "{name} 開寶箱 +{n}" : "{name} 十字路口 +{n}", { name: who(event.seat), n: event.amount });
-            await scene.coinsBurst(event.seat, event.amount);
+            await Promise.all([scene.coinsBurst(event.seat, event.amount), event.reason === "chest" ? scene.sparkle(event.seat) : null]);
             break;
           case "tax":
             play("bad");
@@ -340,13 +360,16 @@ export function EightBoard({
         await scene.roll(before.current, next.lastDice);
         const [a, b] = next.lastDice;
         say(a === b ? "擲出 {n}，孖寶！" : "擲出 {n}", { n: a + b });
-        await scene.wait(350);
+        await (a === b ? scene.sparkle("dice") : scene.wait(350));
       }
       await playEvents(scene, next.events, next);
       if (sceneRef.current !== scene) return;
       if (next.phase === "over") {
         scene.hideDice();
         scene.focus(null);
+        // The winner gets a show before the results come up.
+        await scene.fireworks(standings(next)[0], 3);
+        if (sceneRef.current !== scene) return;
       }
       running.current = false;
       setTable(next);
@@ -583,8 +606,11 @@ export function EightBoard({
       {/* Final standings. */}
       {table.phase === "over" ? (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#1E3A8A]/70 px-5" data-testid="table-over">
-          <div className="w-full animate-[pop_0.4s_ease-out] rounded-[32px] border-4 border-[#FBD000] bg-white p-4 shadow-2xl">
-            <h2 className="mb-3 text-center text-2xl font-black">{t("🏆 結果")}</h2>
+          {standings(table)[0] === 0 && !table.seats[0].bot ? <Confetti /> : null}
+          <div className="relative w-full animate-[pop_0.4s_ease-out] rounded-[32px] border-4 border-[#FBD000] bg-white p-4 shadow-2xl">
+            <h2 className="mb-3 text-center text-2xl font-black">
+              {standings(table)[0] === 0 && !table.seats[0].bot ? t("🎉 你贏咗！") : t("🏆 結果")}
+            </h2>
             <ol className="space-y-2">
               {standings(table).map((seat, place) => {
                 const player = table.seats[seat];

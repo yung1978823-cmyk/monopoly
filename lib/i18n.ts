@@ -131,6 +131,7 @@ const DICT: Record<string, { hans: string; en: string }> = {
   跟住睇: { hans: "跟随", en: "Follow" },
   "{n} 秒後自動擲骰": { hans: "{n} 秒后自动掷骰", en: "Auto roll in {n}s" },
   "🏆 結果": { hans: "🏆 结果", en: "🏆 Results" },
+  "🎉 你贏咗！": { hans: "🎉 你赢了！", en: "🎉 You won!" },
   "+{n} 分": { hans: "+{n} 分", en: "+{n} pts" },
   再嚟一局: { hans: "再来一局", en: "Play again" },
   // 領地
