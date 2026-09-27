@@ -19,6 +19,7 @@ import {
   nextSpot,
   reduceTable,
   standings,
+  type Power,
   type Spot,
   type TableState,
 } from "./eight";
@@ -190,6 +191,51 @@ describe("public table on the 八字 board", () => {
     const flown = reduceTable(at(start(), 0, { on: "loop", i: 11 }), { type: "roll", dice: [1, 3], fly: 0 });
     assert.ok(flown.events.some((event) => event.kind === "fly"));
     assert.ok(!flown.events.some((event) => event.kind === "second"));
+  });
+
+  it("power cards: drawn at chance 3 times in 10, two at most, and each one works", () => {
+    const onChance = (state: TableState, power: number) => reduceTable(quiet(at(state, 0, { on: "loop", i: 18 }), 0, "o19"), { type: "roll", dice: [1, 1], power });
+    const got = onChance(start(), 10); // 10 % 10 = 0 → a card; 10 / 10 = 1 → POWERS[1]
+    assert.deepEqual(got.seats[0].powers, ["lock"]);
+    assert.ok(got.events.some((e) => e.kind === "power"));
+    assert.deepEqual(onChance(start(), 7).seats[0].powers, [], "7 in 10 is an ordinary card");
+    const full = { ...start(), seats: start().seats.map((s, i) => (i === 0 ? { ...s, powers: ["boost", "swap"] as Power[] } : s)) };
+    assert.equal(onChance(full, 0).seats[0].powers.length, 2, "no room for a third");
+
+    const withHand = (powers: Power[], deeds: TableState["deeds"]) => ({
+      ...start(3),
+      deeds,
+      seats: start(3).seats.map((s, i) => (i === 0 ? { ...s, powers } : s)),
+    });
+    // 全城加建: every lot of yours up a level, landmarks stay.
+    const boost = reduceTable(withHand(["boost"], { o1: { owner: 0, level: 1 }, o2: { owner: 0, level: 4 }, o3: { owner: 1, level: 1 } }), { type: "power", index: 0 });
+    assert.deepEqual([boost.deeds.o1.level, boost.deeds.o2.level, boost.deeds.o3.level], [2, 4, 1]);
+    assert.deepEqual(boost.seats[0].powers, []);
+    // 拆樓: the opponent's best lot drops a level; a level-1 lot goes back to the bank.
+    const wreck = reduceTable(withHand(["wreck"], { o5: { owner: 1, level: 3 }, o6: { owner: 2, level: 1 } }), { type: "power", index: 0 });
+    assert.equal(wreck.deeds.o5.level, 2);
+    const flatten = reduceTable(withHand(["wreck"], { o6: { owner: 2, level: 1 } }), { type: "power", index: 0 });
+    assert.equal(flatten.deeds.o6, undefined);
+    // 封地: no rent there for two rounds.
+    let lock = reduceTable(withHand(["lock"], { o2: { owner: 1, level: 3 } }), { type: "power", index: 0 });
+    assert.equal(lock.deeds.o2.locked, 6);
+    lock = reduceTable(quiet(at(lock, 0, { on: "loop", i: 0 }), 0, "o1"), { type: "roll", dice: [1, 1] });
+    assert.equal(lock.seats[0].cash, STAKE, "locked: no rent");
+    assert.ok(lock.events.some((e) => e.kind === "lockedLot"));
+    // 換位: trade places.
+    const placed = at(at(withHand(["swap"], {}), 0, { on: "loop", i: 3 }), 2, { on: "loop", i: 9 });
+    const swap = reduceTable(placed, { type: "power", index: 0, target: 2 });
+    assert.deepEqual([swap.seats[0].spot, swap.seats[2].spot], [{ on: "loop", i: 9 }, { on: "loop", i: 3 }]);
+    // 免租牌: can't be played, but lets the next rent off by itself.
+    const shielded = withHand(["shield"], { o2: { owner: 1, level: 4 } });
+    assert.equal(reduceTable(shielded, { type: "power", index: 0 }), shielded);
+    const saved = reduceTable(quiet(shielded, 0, "o1"), { type: "roll", dice: [1, 1] });
+    assert.equal(saved.seats[0].cash, STAKE);
+    assert.deepEqual(saved.seats[0].powers, []);
+    assert.ok(saved.events.some((e) => e.kind === "shielded"));
+    // Only before rolling.
+    const forked = { ...withHand(["boost"], { o1: { owner: 0, level: 1 } }), phase: "fork" as const };
+    assert.equal(reduceTable(forked, { type: "power", index: 0 }), forked);
   });
 
   it("ends after 12 turns each and ranks by net worth", () => {

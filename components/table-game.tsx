@@ -12,6 +12,8 @@ import {
   STAKE,
   START_PAY,
   botMove,
+  canPlay,
+  type Power,
   netWorth,
   newTable,
   reduceTable,
@@ -84,6 +86,15 @@ const SPECIAL_WHEN: Record<string, "paid" | "card" | "pays" | "builds"> = {
   jiangshi: "card",
   mummy: "pays",
   zombie: "builds",
+};
+
+/** 功能卡 names, icons and what they do, for the hand and the messages. */
+const POWER_INFO: Record<Power, { name: string; icon: string; what: string }> = {
+  boost: { name: "全城加建", icon: "🏗️", what: "自己全部地升一級" },
+  lock: { name: "封地", icon: "🔒", what: "對手最好嗰塊地兩轉收唔到租" },
+  wreck: { name: "拆樓", icon: "💣", what: "對手最好嗰塊地降一級" },
+  swap: { name: "換位", icon: "🔄", what: "同一個對手交換位置" },
+  shield: { name: "免租牌", icon: "🛡️", what: "下次交租唔使俾（自動用）" },
 };
 
 /** A player's face: the drawn avatar, or an emoji in a coloured circle. */
@@ -296,6 +307,7 @@ export function EightBoard({
   const [fast, setFast] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const [wide, setWide] = useState(false);
+  const [picking, setPicking] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const { t } = useLang();
   const tRef = useRef(t);
@@ -360,6 +372,7 @@ export function EightBoard({
               play("coin");
               say("經過起點 +{n}", { n: START_PAY });
               void scene.coinsBurst(event.seat, 2);
+              void scene.rainbow(event.seat);
             }
             break;
           case "second": {
@@ -398,7 +411,9 @@ export function EightBoard({
             play("bad");
             say("{name} 交租 {n} 俾 {owner}", { name: who(event.seat), n: event.amount, owner: who(event.to) });
             special(event.seat, "pays");
+            void scene.floatText(event.seat, `−${event.amount}`);
             await scene.coinsFly(event.seat, event.to, event.amount);
+            void scene.floatText(event.to, `+${event.amount}`, "#16A34A");
             special(event.to, "paid");
             break;
           case "bonus":
@@ -411,6 +426,7 @@ export function EightBoard({
             play("bad");
             say("{name} 交稅 −{n}", { name: who(event.seat), n: event.amount });
             special(event.seat, "pays");
+            void scene.floatText(event.seat, `−${event.amount}`);
             await scene.coinsFly(event.seat, null, event.amount);
             break;
           case "card": {
@@ -441,9 +457,65 @@ export function EightBoard({
           case "bankrupt":
             play("smash");
             say("{name} 破產！", { name: who(event.seat) });
-            scene.removeToken(event.seat);
-            event.lost.forEach((key) => scene.clear(key));
-            await scene.wait(900);
+            event.lost.forEach((key) => {
+              scene.clear(key);
+              scene.lockTile(key, false);
+            });
+            await scene.shatter(event.seat);
+            break;
+          case "power":
+            play("lucky");
+            say("{name} 抽到功能卡：{card}", { name: who(event.seat), card: tRef.current(POWER_INFO[event.power].name) });
+            void scene.floatText(event.seat, POWER_INFO[event.power].icon, "#7C3AED");
+            await scene.sparkle(event.seat);
+            break;
+          case "played": {
+            const info = POWER_INFO[event.power];
+            say(event.target !== undefined ? "{name} 用 {card} 對付 {target}！" : "{name} 用 {card}！", {
+              name: who(event.seat),
+              card: tRef.current(info.name),
+              target: who(event.target ?? 0),
+            });
+            void scene.floatText(event.seat, info.icon, "#7C3AED");
+            if (event.power === "boost") {
+              play("build");
+              await Promise.all([
+                ...Object.entries(event.levels ?? {}).map(([key, level]) => scene.own(key, event.seat, level)),
+                scene.pulse(event.seat, true),
+                scene.sparkle(event.seat),
+              ]);
+              scene.cheer(event.seat);
+            } else if (event.power === "lock" && event.key) {
+              play("smash");
+              scene.lockTile(event.key, true);
+              await scene.wait(700);
+            } else if (event.power === "wreck" && event.key) {
+              play("smash");
+              await scene.blast(event.key);
+              const level = event.levels?.[event.key] ?? 0;
+              if (level > 0) await scene.own(event.key, event.target ?? 0, level);
+              else scene.clear(event.key);
+            } else if (event.power === "swap" && event.target !== undefined) {
+              play("lucky");
+              await Promise.all([scene.puff(event.seat), scene.puff(event.target)]);
+              scene.warp(event.seat, state.seats[event.seat].spot);
+              scene.warp(event.target, state.seats[event.target].spot);
+              await Promise.all([scene.puff(event.seat), scene.puff(event.target)]);
+            }
+            break;
+          }
+          case "shielded":
+            play("lucky");
+            say("{name} 用免租牌，唔使交租！", { name: who(event.seat) });
+            void scene.floatText(event.seat, "🛡️", "#FBD000");
+            await Promise.all([scene.pulse(event.seat, true), scene.sparkle(event.seat)]);
+            break;
+          case "lockedLot":
+            say("{name} 踩中封咗嘅地，唔使交租", { name: who(event.seat) });
+            await scene.wait(600);
+            break;
+          case "unlocked":
+            scene.lockTile(event.key, false);
             break;
         }
       }
@@ -558,7 +630,7 @@ export function EightBoard({
       setCountdown(null);
       const now = stateRef.current;
       if (now.phase === "fork") void run({ type: "choose", road: false });
-      else void run({ type: "roll", dice: [rollFace(), rollFace()], card: Math.floor(Math.random() * 1000), fly: Math.floor(Math.random() * 1000) });
+      else void run({ type: "roll", dice: [rollFace(), rollFace()], card: Math.floor(Math.random() * 1000), fly: Math.floor(Math.random() * 1000), power: Math.floor(Math.random() * 1000) });
     }, 1000);
     return () => window.clearInterval(id);
   }, [waiting, table.tick, run]);
@@ -578,6 +650,7 @@ export function EightBoard({
   const mine = !busy && loaded === "ready" && table.current === 0 && table.phase !== "over" && !me.bankrupt;
   const turnsEach = table.rules.turnsEach;
   const round = Math.min(turnsEach, Math.max(...table.seats.map((seat) => seat.turnsTaken)) + 1);
+  const lastRound = table.seats.every((seat) => seat.bankrupt || seat.turnsTaken >= turnsEach - 1);
 
   return (
     <main className="relative h-dvh w-full touch-none select-none overflow-hidden bg-[#3B1D6E] text-[#1E3A8A]" data-testid="table">
@@ -617,6 +690,11 @@ export function EightBoard({
                 {seat.cash}
               </span>
               {seat.jailed ? <span className="text-xs">🔒</span> : null}
+              {seat.powers.length ? (
+                <span className="text-[11px] font-black leading-none" aria-label={t("功能卡 {n} 張", { n: seat.powers.length })}>
+                  {"🃏".repeat(seat.powers.length)}
+                </span>
+              ) : null}
             </div>
           ))}
         </div>
@@ -674,6 +752,75 @@ export function EightBoard({
         </div>
       ) : null}
 
+      {/* The last round: gold glow round the screen and a banner. */}
+      {lastRound && table.phase !== "over" ? (
+        <>
+          <div className="pointer-events-none absolute inset-0 z-[5] shadow-[inset_0_0_60px_18px_rgba(251,208,0,0.55)]" />
+          <p className="pointer-events-none absolute inset-x-0 top-[17%] z-20 text-center text-lg font-black text-[#FBD000] drop-shadow-[0_2px_0_#1E3A8A]">
+            {t("⏳ 最後一轉！")}
+          </p>
+        </>
+      ) : null}
+
+      {/* Your 功能卡: play one before rolling. */}
+      {me.powers.length && table.phase !== "over" ? (
+        <div className="absolute inset-x-0 bottom-[8.5rem] z-20 flex justify-center gap-2 px-4" data-testid="power-hand">
+          {me.powers.map((power, index) => {
+            const info = POWER_INFO[power];
+            const usable = mine && table.phase === "roll" && canPlay(table, 0, power);
+            return (
+              <button
+                key={`${power}-${index}`}
+                type="button"
+                disabled={!usable}
+                onClick={() => {
+                  const others = table.seats.flatMap((seat, i) => (i !== 0 && !seat.bankrupt ? [i] : []));
+                  if (power === "swap" && others.length > 1) setPicking(index);
+                  else void run({ type: "power", index, target: others[0] });
+                }}
+                className="flex w-28 cursor-pointer flex-col items-center rounded-2xl border-[3px] border-[#7C3AED] bg-white/95 px-2 py-1 text-[#1E3A8A] shadow-[0_4px_0_#4C1D95] disabled:cursor-default disabled:opacity-60 enabled:animate-[glow_1.8s_ease-in-out_infinite]"
+                data-testid={`power-${power}`}
+              >
+                <span className="text-2xl leading-none">{info.icon}</span>
+                <span className="text-sm font-black">{t(info.name)}</span>
+                <span className="text-[10px] font-bold leading-tight">{t(info.what)}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {/* 換位: who to trade places with. */}
+      {picking !== null && mine ? (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#1E3A8A]/60 px-5" data-testid="swap-pick">
+          <div className="w-full max-w-xs rounded-3xl border-4 border-[#FBD000] bg-white p-4 text-center">
+            <p className="mb-3 font-black">{t("同邊個換位？")}</p>
+            <div className="flex justify-center gap-3">
+              {table.seats.map((seat, i) =>
+                i === 0 || seat.bankrupt ? null : (
+                  <button
+                    key={seat.name}
+                    type="button"
+                    className="flex cursor-pointer flex-col items-center"
+                    onClick={() => {
+                      const index = picking;
+                      setPicking(null);
+                      void run({ type: "power", index, target: i });
+                    }}
+                  >
+                    <Face seat={seat} className="size-12 border-[3px]" />
+                    <span className="text-xs font-black">{t(seat.name)}</span>
+                  </button>
+                ),
+              )}
+            </div>
+            <button type="button" className="mt-3 cursor-pointer text-sm font-black text-[#3B5BA9]" onClick={() => setPicking(null)}>
+              {t("唔換住")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {/* Controls. */}
       <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-10 mx-auto flex max-w-xl items-end justify-between px-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
         <button
@@ -690,7 +837,7 @@ export function EightBoard({
         <button
           type="button"
           disabled={!mine || table.phase !== "roll"}
-          onClick={() => void run({ type: "roll", dice: [rollFace(), rollFace()], card: Math.floor(Math.random() * 1000), fly: Math.floor(Math.random() * 1000) })}
+          onClick={() => void run({ type: "roll", dice: [rollFace(), rollFace()], card: Math.floor(Math.random() * 1000), fly: Math.floor(Math.random() * 1000), power: Math.floor(Math.random() * 1000) })}
           className="pointer-events-auto size-24 cursor-pointer rounded-full border-[6px] border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-2xl font-black text-white shadow-[0_6px_0_#8E1210] active:translate-y-1 disabled:cursor-default disabled:opacity-50 enabled:animate-[glow_1.8s_ease-in-out_infinite]"
           aria-label={countdown !== null ? t("{n} 秒後自動擲骰", { n: countdown }) : t("擲骰")}
           data-testid="table-roll"

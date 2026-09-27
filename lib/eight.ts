@@ -197,9 +197,37 @@ export type Seat = {
   jailed: boolean;
   bankrupt: boolean;
   turnsTaken: number;
+  /** Power cards in hand (at most MAX_POWERS). */
+  powers: Power[];
 };
 
-export type Deed = { owner: number; level: number };
+/** `locked`: turns left (anyone's) during which the lot collects no rent — a 封地 card. */
+export type Deed = { owner: number; level: number; locked?: number };
+
+/**
+ * 功能卡: drawn instead of a chance card 3 times in 10, kept (two at most) and played before rolling.
+ * boost 全城加建: every lot you own goes up a level · lock 封地: an opponent's best lot collects
+ * no rent for two rounds · wreck 拆樓: an opponent's best lot drops a level (level 1 goes back to the
+ * bank) · swap 換位: trade places with an opponent · shield 免租牌: the next rent you'd pay is let off
+ * (used by itself when it happens).
+ */
+export type Power = "boost" | "lock" | "wreck" | "swap" | "shield";
+export const POWERS: readonly Power[] = ["boost", "lock", "wreck", "swap", "shield"];
+export const MAX_POWERS = 2;
+/** Out of 10 chance draws, how many give a power card instead; and out of 10 chests. */
+export const POWER_ODDS = 5;
+export const CHEST_POWER_ODDS = 4;
+
+/** A power card from this landing's draw, if the odds (out of 10) say so and there's room in the hand. */
+function drawPower(state: TableState, seat: number, odds: number, events: TableEvent[]): TableState | null {
+  const player = state.seats[seat];
+  if (state.draw.power === undefined || player.powers.length >= MAX_POWERS) return null;
+  const roll = Math.abs(Math.floor(state.draw.power));
+  if (roll % 10 >= odds) return null;
+  const power = POWERS[Math.floor(roll / 10) % POWERS.length];
+  events.push({ kind: "power", seat, power });
+  return withSeat(state, seat, { powers: [...player.powers, power] });
+}
 
 /** roll: waiting for dice · fork: stopped at a fork mid-walk, choose the way · over. */
 export type TablePhase = "roll" | "fork" | "over";
@@ -223,7 +251,17 @@ export type TableEvent =
   /** Could have bought or built here, but it would have left less than BUY_RESERVE. */
   | { kind: "saved"; seat: number; key: string }
   /** The first die's walk is done; the second die is thrown now. */
-  | { kind: "second"; seat: number; die: number };
+  | { kind: "second"; seat: number; die: number }
+  /** Drew a power card at a chance square. */
+  | { kind: "power"; seat: number; power: Power }
+  /** Played a power card. `levels`: each lot's new level (boost, wreck; 0 = back to the bank). */
+  | { kind: "played"; seat: number; power: Power; target?: number; key?: string; levels?: Record<string, number> }
+  /** A 免租牌 let this rent off. */
+  | { kind: "shielded"; seat: number; to: number; key: string }
+  /** Landed on a 封地-locked lot: no rent. */
+  | { kind: "lockedLot"; seat: number; key: string }
+  /** A lock ran out. */
+  | { kind: "unlocked"; key: string };
 
 /**
  * House rules for this table. The public table uses the defaults; a hosted game on someone's
@@ -249,7 +287,7 @@ export type TableState = {
   /** The second die, still to walk once the first die's walk has landed (0 when none). */
   pending: number;
   /** The roll's card and plane draws, used when the walk ends. */
-  draw: { card: number; fly: number };
+  draw: { card: number; fly: number; power?: number };
   lastDice: [number, number] | null;
   events: TableEvent[];
   /** Bumps on every action. */
@@ -261,8 +299,10 @@ export type TableState = {
 };
 
 export type TableAction =
-  | { type: "roll"; dice: [number, number]; card?: number; fly?: number }
-  | { type: "choose"; road: boolean };
+  | { type: "roll"; dice: [number, number]; card?: number; fly?: number; power?: number }
+  | { type: "choose"; road: boolean }
+  /** Play the power card in hand at `index`; `target` is the opponent for swap (lock and wreck pick their best lot). */
+  | { type: "power"; index: number; target?: number };
 
 export function newTable(
   players: { name: string; avatar: string; colour: string; bot: boolean }[],
@@ -286,6 +326,7 @@ export function newTable(
       jailed: false,
       bankrupt: false,
       turnsTaken: 0,
+      powers: [],
     })),
     deeds: {},
     current: 0,
@@ -424,13 +465,25 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
         events.push({ kind: "upgraded", seat, key, level });
         return { ...withSeat(state, seat, { cash: player.cash - UPGRADE_PRICE }), deeds: { ...state.deeds, [key]: { owner: seat, level } } };
       }
+      if (deed.locked) {
+        events.push({ kind: "lockedLot", seat, key });
+        return state;
+      }
+      const shield = player.powers.indexOf("shield");
+      if (shield >= 0) {
+        events.push({ kind: "shielded", seat, to: deed.owner, key });
+        return withSeat(state, seat, { powers: player.powers.filter((_, i) => i !== shield) });
+      }
       const rent = rentOf(key, deed.level, state.board);
       events.push({ kind: "rent", seat, to: deed.owner, amount: Math.min(rent, player.cash), key });
       return pay(state, seat, rent, deed.owner, events);
     }
-    case "chest":
+    case "chest": {
+      const carded = drawPower(state, seat, CHEST_POWER_ODDS, events);
+      if (carded) return carded;
       events.push({ kind: "bonus", seat, amount: CHEST_PAY, reason: "chest" });
       return withSeat(state, seat, { cash: player.cash + CHEST_PAY });
+    }
     case "cross":
       events.push({ kind: "bonus", seat, amount: CROSS_PAY, reason: "cross" });
       return withSeat(state, seat, { cash: player.cash + CROSS_PAY });
@@ -449,6 +502,9 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
     }
     case "chance": {
       if (depth > 0) return state;
+      // Half the draws are a power card, if there's room in the hand.
+      const carded = drawPower(state, seat, POWER_ODDS, events);
+      if (carded) return carded;
       const deck = state.rules.cards;
       const card = deck[((state.draw.card % deck.length) + deck.length) % deck.length];
       events.push({ kind: "card", seat, card });
@@ -472,7 +528,16 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
 
 /** Hand the turn to the next seat still playing, or finish the game. */
 function finishTurn(state: TableState, events: TableEvent[]): TableState {
-  const done = withSeat(state, state.current, { turnsTaken: state.seats[state.current].turnsTaken + 1 });
+  // Locks count down one per turn played.
+  let deeds = state.deeds;
+  for (const [key, deed] of Object.entries(state.deeds)) {
+    if (!deed.locked) continue;
+    deeds = deeds === state.deeds ? { ...deeds } : deeds;
+    const locked = deed.locked - 1;
+    deeds[key] = locked > 0 ? { ...deed, locked } : { owner: deed.owner, level: deed.level };
+    if (locked <= 0) events.push({ kind: "unlocked", key });
+  }
+  const done = withSeat({ ...state, deeds }, state.current, { turnsTaken: state.seats[state.current].turnsTaken + 1 });
   if (isOver(done)) return { ...done, phase: "over", stepsLeft: 0 };
   let seat = done.current;
   for (let i = 0; i < done.seats.length; i += 1) {
@@ -496,13 +561,19 @@ export function reduceTable(state: TableState, action: TableAction): TableState 
   if (action.type === "roll") {
     const [a, b] = action.dice ?? [];
     if (state.phase !== "roll" || !isFace(a) || !isFace(b)) return state;
-    let next: TableState = { ...state, lastDice: [a, b], draw: { card: action.card ?? 0, fly: action.fly ?? 0 } };
+    let next: TableState = { ...state, lastDice: [a, b], draw: { card: action.card ?? 0, fly: action.fly ?? 0, power: action.power } };
     if (next.seats[seat].jailed) {
       events.push({ kind: "freed", seat });
       next = withSeat(pay(next, seat, BAIL, null, events), seat, { jailed: false });
       if (next.seats[seat].bankrupt) return bump(finishTurn(next, events));
     }
     return bump(walk({ ...next, stepsLeft: a, pending: b }, seat, events));
+  }
+
+  if (action.type === "power") {
+    if (state.phase !== "roll") return state;
+    const next = playPower(state, seat, action.index, action.target, events);
+    return next === state ? state : bump(next);
   }
 
   if (action.type === "choose") {
@@ -514,9 +585,80 @@ export function reduceTable(state: TableState, action: TableAction): TableState 
   return state;
 }
 
+/** Seats still playing, other than `seat`. */
+function opponents(state: TableState, seat: number): number[] {
+  return alive(state).filter((other) => other !== seat);
+}
+
+/** The opponent lot a lock or wreck goes for: highest level, then dearest rent. */
+export function bestTarget(state: TableState, seat: number): string | null {
+  const theirs = Object.entries(state.deeds).filter(([, d]) => d.owner !== seat && !state.seats[d.owner]?.bankrupt);
+  if (theirs.length === 0) return null;
+  theirs.sort(([ka, a], [kb, b]) => b.level - a.level || rentOf(kb, b.level, state.board) - rentOf(ka, a.level, state.board) || (ka < kb ? -1 : 1));
+  return theirs[0][0];
+}
+
+/** Whether a power card can do anything right now (shield only works by itself). */
+export function canPlay(state: TableState, seat: number, power: Power): boolean {
+  if (power === "shield") return false;
+  if (power === "boost") return Object.values(state.deeds).some((d) => d.owner === seat && d.level < MAX_LEVEL);
+  if (power === "swap") return opponents(state, seat).length > 0;
+  if (power === "lock") {
+    const key = bestTarget(state, seat);
+    return key !== null && !state.deeds[key].locked;
+  }
+  return bestTarget(state, seat) !== null;
+}
+
+function playPower(state: TableState, seat: number, index: number, target: number | undefined, events: TableEvent[]): TableState {
+  const player = state.seats[seat];
+  const power = player.powers[index];
+  if (!power || !canPlay(state, seat, power)) return state;
+  const hand = { powers: player.powers.filter((_, i) => i !== index) };
+  if (power === "boost") {
+    const deeds = { ...state.deeds };
+    const levels: Record<string, number> = {};
+    for (const [key, deed] of Object.entries(state.deeds)) {
+      if (deed.owner !== seat || deed.level >= MAX_LEVEL) continue;
+      deeds[key] = { ...deed, level: deed.level + 1 };
+      levels[key] = deed.level + 1;
+    }
+    events.push({ kind: "played", seat, power, levels });
+    return { ...withSeat(state, seat, hand), deeds };
+  }
+  if (power === "lock" || power === "wreck") {
+    const key = bestTarget(state, seat)!;
+    const deed = state.deeds[key];
+    const deeds = { ...state.deeds };
+    if (power === "lock") {
+      // Two rounds: every seat still playing gets two turns before it opens again.
+      deeds[key] = { ...deed, locked: alive(state).length * 2 };
+      events.push({ kind: "played", seat, power, key, target: deed.owner });
+    } else {
+      if (deed.level > 1) deeds[key] = { ...deed, level: deed.level - 1 };
+      else delete deeds[key];
+      events.push({ kind: "played", seat, power, key, target: deed.owner, levels: { [key]: deed.level - 1 } });
+    }
+    return { ...withSeat(state, seat, hand), deeds };
+  }
+  // swap
+  const others = opponents(state, seat);
+  const other = target !== undefined && others.includes(target) ? target : others[0];
+  const mine = player.spot, theirs = state.seats[other].spot;
+  events.push({ kind: "played", seat, power, target: other });
+  return withSeat(withSeat(withSeat(state, seat, hand), seat, { spot: theirs }), other, { spot: mine });
+}
+
 /** A simple computer player. */
 export function botMove(state: TableState, random: () => number): TableAction {
   if (state.phase === "fork") return { type: "choose", road: random() < 0.5 };
+  // Half the time, play a card that would do something.
+  const hand = state.seats[state.current].powers;
+  const index = hand.findIndex((power) => canPlay(state, state.current, power));
+  if (index >= 0 && random() < 0.5) {
+    const others = opponents(state, state.current);
+    return { type: "power", index, target: others[Math.floor(random() * others.length)] };
+  }
   const die = () => 1 + Math.floor(random() * 6);
-  return { type: "roll", dice: [die(), die()], card: Math.floor(random() * 1000), fly: Math.floor(random() * 1000) };
+  return { type: "roll", dice: [die(), die()], card: Math.floor(random() * 1000), fly: Math.floor(random() * 1000), power: Math.floor(random() * 1000) };
 }

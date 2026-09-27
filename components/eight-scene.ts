@@ -95,6 +95,20 @@ export type BoardScene = {
   cheer(seat: number): void;
   /** A 3D character's own special move (bow, spell, shield, hammer); doesn't hold up the game. */
   special(seat: number): void;
+  /** Words that float up from a seat and fade, e.g. "−1.5" when paying rent. */
+  floatText(seat: number, text: string, colour?: string): Promise<void>;
+  /** 封地: chains and a padlock on a lot (or take them off). */
+  lockTile(key: string, locked: boolean): void;
+  /** 拆樓: an explosion of fire and rubble on a lot. */
+  blast(key: string): Promise<void>;
+  /** A puff of smoke round a seat. */
+  puff(seat: number): Promise<void>;
+  /** Put a seat straight onto a square, no walking (換位, hidden by puffs of smoke). */
+  warp(seat: number, spot: Spot): void;
+  /** A rainbow over a seat (passing start). */
+  rainbow(seat: number): Promise<void>;
+  /** A seat goes to pieces (bankrupt) and leaves the board. */
+  shatter(seat: number): Promise<void>;
   removeToken(seat: number): void;
   wait(ms: number): Promise<void>;
   /** 領地 buildings on show: rent houses on their squares, a gold facade, train stations. */
@@ -1320,6 +1334,162 @@ export function createBoardScene(
     },
     removeToken(seat) {
       tokens[seat].visible = false;
+      gone.add(seat);
+      settle(squareOf(spots[seat]), seat);
+    },
+    async floatText(seat, text, colour = "#E52521") {
+      const c = document.createElement("canvas");
+      c.width = 256;
+      c.height = 96;
+      const x = c.getContext("2d")!;
+      x.font = "900 64px system-ui, sans-serif";
+      x.textAlign = "center";
+      x.textBaseline = "middle";
+      x.lineWidth = 12;
+      x.strokeStyle = "#ffffff";
+      x.strokeText(text, 128, 50);
+      x.fillStyle = colour;
+      x.fillText(text, 128, 50);
+      const map = new T.CanvasTexture(c);
+      const sprite = new T.Sprite(new T.SpriteMaterial({ map, transparent: true, depthTest: false }));
+      sprite.scale.set(1.2, 0.45, 1);
+      sprite.renderOrder = 10;
+      const at = tokens[seat].position.clone();
+      scene.add(sprite);
+      await tween(1200, (k) => {
+        sprite.position.set(at.x, at.y + 1.3 + k * 0.9, at.z);
+        sprite.material.opacity = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3;
+        if (k === 1) {
+          scene.remove(sprite);
+          map.dispose();
+          sprite.material.dispose();
+        }
+      });
+    },
+    lockTile(key, locked) {
+      const tile = tiles[key];
+      if (!tile) return;
+      const old = tile.group.getObjectByName("lock");
+      if (old) tile.group.remove(old);
+      if (!locked) return;
+      const g = new T.Group();
+      g.name = "lock";
+      const steel = mat(0x94a3b8, 0.3, { metalness: 0.6 });
+      // Two chains across the square, links alternating flat and upright.
+      for (const turn of [Math.PI / 4, -Math.PI / 4]) {
+        const chain = new T.Group();
+        for (let i = -4; i <= 4; i++) {
+          const link = new T.Mesh(new T.TorusGeometry(0.07, 0.022, 6, 12), steel);
+          link.position.x = i * 0.11;
+          link.rotation.x = i % 2 ? Math.PI / 2 : 0;
+          chain.add(link);
+        }
+        chain.rotation.y = turn;
+        chain.position.y = TOP + 0.06;
+        g.add(chain);
+      }
+      const body = shadowy(new T.Mesh(new T.BoxGeometry(0.3, 0.26, 0.12), mat(0xfbd000, 0.25, { metalness: 0.6 })));
+      body.position.y = TOP + 0.2;
+      g.add(body);
+      const shackle = new T.Mesh(new T.TorusGeometry(0.1, 0.03, 8, 16, Math.PI), steel);
+      shackle.position.y = TOP + 0.33;
+      g.add(shackle);
+      tile.group.add(g);
+      g.scale.setScalar(0.01);
+      void tween(400, (k) => g.scale.setScalar(0.01 + (1 + Math.sin(k * Math.PI) * 0.3 - 0.01) * k));
+    },
+    async blast(key) {
+      const tile = tiles[key];
+      if (!tile) return;
+      const at = tile.group.position.clone().setY(TOP + 0.3);
+      const flash = new T.Mesh(new T.SphereGeometry(0.5, 16, 12), new T.MeshBasicMaterial({ color: 0xffb020, transparent: true }));
+      flash.position.copy(at);
+      scene.add(flash);
+      const colours = [0xff5a1f, 0xffb020, 0x6b7280, 0x9a5b2e];
+      const bits = Array.from({ length: 26 }, (_, n) => {
+        const bit = new T.Mesh(n % 3 ? sparkGeo : new T.BoxGeometry(0.1, 0.1, 0.1), new T.MeshBasicMaterial({ color: colours[n % 4], transparent: true }));
+        const a = Math.random() * Math.PI * 2, up = 1.5 + Math.random() * 1.5, out = 0.8 + Math.random();
+        scene.add(bit);
+        return { bit, v: new T.Vector3(Math.cos(a) * out, up, Math.sin(a) * out) };
+      });
+      // The square itself jolts.
+      const base = tile.group.position.clone();
+      await tween(900, (k) => {
+        flash.scale.setScalar(0.3 + k * 2.2);
+        flash.material.opacity = Math.max(0, 1 - k * 1.6);
+        for (const { bit, v } of bits) {
+          bit.position.set(at.x + v.x * k, at.y + v.y * k - 3 * k * k, at.z + v.z * k);
+          bit.rotation.x += 0.3;
+          bit.material.opacity = 1 - k;
+        }
+        tile.group.position.set(base.x + Math.sin(k * 60) * 0.06 * (1 - k), base.y, base.z);
+        if (k === 1) {
+          scene.remove(flash);
+          bits.forEach(({ bit }) => scene.remove(bit));
+          tile.group.position.copy(base);
+        }
+      });
+    },
+    async puff(seat) {
+      const at = tokens[seat].position.clone();
+      const clouds = Array.from({ length: 10 }, () => {
+        const cloud = new T.Mesh(new T.SphereGeometry(0.22, 10, 8), new T.MeshBasicMaterial({ color: 0xe5e7eb, transparent: true }));
+        const a = Math.random() * Math.PI * 2;
+        scene.add(cloud);
+        return { cloud, dx: Math.cos(a) * 0.5, dz: Math.sin(a) * 0.5, dy: 0.3 + Math.random() * 0.6 };
+      });
+      await tween(650, (k) => {
+        for (const { cloud, dx, dz, dy } of clouds) {
+          cloud.position.set(at.x + dx * k, at.y + 0.35 + dy * k, at.z + dz * k);
+          cloud.scale.setScalar(0.6 + k * 1.2);
+          cloud.material.opacity = 0.9 * (1 - k);
+          if (k === 1) scene.remove(cloud);
+        }
+      });
+    },
+    warp(seat, spot) {
+      const left = squareOf(spots[seat]);
+      spots[seat] = spot;
+      tokens[seat].position.copy(place(seat, spot));
+      settle(left, seat);
+      settle(squareOf(spot), seat);
+    },
+    async rainbow(seat) {
+      const at = tokens[seat].position.clone();
+      const bands = [0xe52521, 0xf97316, 0xfbd000, 0x22c55e, 0x3b82f6, 0x8b5cf6];
+      const arc = new T.Group();
+      bands.forEach((colour, i) => {
+        const band = new T.Mesh(new T.TorusGeometry(0.9 - i * 0.07, 0.035, 6, 32, Math.PI), new T.MeshBasicMaterial({ color: colour, transparent: true }));
+        arc.add(band);
+      });
+      arc.position.set(at.x, at.y + 0.1, at.z);
+      scene.add(arc);
+      await tween(1300, (k) => {
+        arc.scale.set(Math.min(1, k * 3), Math.min(1, k * 3), 1);
+        arc.children.forEach((band: any) => (band.material.opacity = k < 0.7 ? 1 : 1 - (k - 0.7) / 0.3));
+        if (k === 1) scene.remove(arc);
+      });
+    },
+    async shatter(seat) {
+      const token = tokens[seat];
+      const at = token.position.clone();
+      const colour = hex(colours[seat]);
+      const shards = Array.from({ length: 18 }, () => {
+        const shard = new T.Mesh(new T.TetrahedronGeometry(0.09), new T.MeshStandardMaterial({ color: colour, roughness: 0.4, transparent: true }));
+        const a = Math.random() * Math.PI * 2;
+        scene.add(shard);
+        return { shard, v: new T.Vector3(Math.cos(a) * (0.6 + Math.random()), 1 + Math.random() * 1.5, Math.sin(a) * (0.6 + Math.random())) };
+      });
+      token.visible = false;
+      await tween(900, (k) => {
+        for (const { shard, v } of shards) {
+          shard.position.set(at.x + v.x * k, at.y + 0.4 + v.y * k - 2.5 * k * k, at.z + v.z * k);
+          shard.rotation.x += 0.2;
+          shard.rotation.z += 0.15;
+          shard.material.opacity = 1 - k;
+          if (k === 1) scene.remove(shard);
+        }
+      });
       gone.add(seat);
       settle(squareOf(spots[seat]), seat);
     },
