@@ -190,6 +190,11 @@ const SPRITES: Record<number, { dir: string; views: Record<"front" | "side" | "b
 /** How tall the whole drawing (wings included) stands, per unit of MODEL_HEIGHT. */
 const SPRITE_TALL = 1.8;
 const spriteTex: Record<string, any> = {};
+/** Use the 3D model instead of the flat drawing (for comparing the two in a preview). */
+let preferModel = false;
+export function setPreferModel(on: boolean) {
+  preferModel = on;
+}
 
 function spriteDragon(T: any, element: number, stage: number, legend: boolean, root: any, body: any): Monster {
   const art = SPRITES[element];
@@ -423,7 +428,7 @@ export function buildMonster(T: any, element: number, stage: number, legend = fa
     };
   }
 
-  if (useModel && SPRITES[element]) return spriteDragon(T, element, stage, legend, root, body);
+  if (useModel && SPRITES[element] && !(preferModel && MODELS[element])) return spriteDragon(T, element, stage, legend, root, body);
   if (useModel && MODELS[element]) return modelDragon(T, element, stage, legend, root, body);
 
   const headR = HEAD[stage];

@@ -2,6 +2,7 @@
 
 import { AttackScreen } from "@/components/attack-screen";
 import { PetScreen } from "@/components/pet-screen";
+import { setPreferModel } from "@/components/monster";
 import { StealScreen } from "@/components/steal-screen";
 import { MyCity } from "@/components/my-city";
 import { RealmScreen } from "@/components/realm-screen";
@@ -174,12 +175,15 @@ export function DailyGame() {
   /** A dragon that just hatched on the board, shown in a banner for a moment. */
   const [hatchedNow, setHatchedNow] = useState<number | null>(null);
   const petStage = useRef<number | null>(null);
-  /** A look-only preview of a dragon from the link (?dragon=0-1 is a light N); the save isn't touched. */
+  /** A look-only preview of a dragon from the link (?dragon=0-1 is a light N, drawn flat; ?dragon=0-1-3d
+   * shows the 3D model instead); the save isn't touched. */
   const [preview, setPreview] = useState<{ element: number; stage: number } | null>(null);
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get("dragon");
-    const [element, stage] = (v ?? "").split("-").map(Number);
+    const parts = (v ?? "").split("-");
+    const [element, stage] = parts.map(Number);
     if (!(element >= 0 && element <= 2 && stage >= 1 && stage <= 4)) return;
+    setPreferModel(parts[2] === "3d");
     const id = window.setTimeout(() => setPreview({ element, stage }), 0);
     return () => window.clearTimeout(id);
   }, []);
