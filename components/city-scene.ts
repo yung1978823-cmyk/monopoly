@@ -4,6 +4,7 @@
  * Used for your own town (tap a plot to build) and a rival's town (tap a building to strike).
  * Drag to turn and tilt, pinch to zoom, like the boards.
  */
+import { createBackdrop } from "@/components/backdrop";
 import { buildMonster, type Monster } from "@/components/monster";
 import { themeOf, type Theme } from "@/lib/themes";
 
@@ -103,7 +104,6 @@ export function createCityScene(
     x.fillRect(0, 0, 128, 128);
     return new T.CanvasTexture(c);
   };
-  const glowTex = soft("rgba(255,235,180,0.95)", "rgba(255,235,180,0)");
   const shadowTex = soft("rgba(0,0,0,0.5)", "rgba(0,0,0,0)");
   const box = (w: number, h: number, d: number, color: number, y = 0, x = 0, z = 0) => {
     const m = shadowy(new T.Mesh(new T.BoxGeometry(w, h, d), mat(color)));
@@ -324,7 +324,7 @@ export function createCityScene(
     island.add(stand);
     m.group.position.set(stand.position.x, TOP + 0.16, stand.position.z);
     m.group.rotation.y = HOME_YAW;
-    m.group.scale.setScalar(1.25);
+    m.group.scale.setScalar(m.model ? 2 : 1.25);
     island.add(m.group);
     monsters.push(m);
   }
@@ -334,7 +334,7 @@ export function createCityScene(
   const lungeState = { at: -1e9, to: new T.Vector3() };
   if (who.attacker) {
     attacker = buildMonster(T, who.attacker.element, who.attacker.stage, who.attacker.legend);
-    attacker.group.scale.setScalar(1.3);
+    attacker.group.scale.setScalar(attacker.model ? 2.1 : 1.3);
     attacker.group.position.copy(attackerHome);
     attacker.group.rotation.y = HOME_YAW + Math.PI;
     scene.add(attacker.group);
@@ -343,25 +343,13 @@ export function createCityScene(
   const floorShadow = new T.Mesh(new T.PlaneGeometry(14, 14), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
   floorShadow.rotation.x = -Math.PI / 2;
   floorShadow.position.y = -7;
-  scene.add(floorShadow);
-  const underGlow = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0x9cc4ff, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.35 }));
-  underGlow.scale.set(10, 4, 1);
-  underGlow.position.y = -3;
-  scene.add(underGlow);
-  // Stars and a few far rocks, turning at half the camera's speed for depth.
+  // The busy world far below (the old dark floor's shadow and glow are hidden).
+  floorShadow.visible = false;
+  const backdrop = createBackdrop(T, scene, camera, { groundY: -32, size: 280, fogNear: 38, fogFar: 140, scale: 0.8, reduceMotion });
+  // A few far rocks, turning at half the camera's speed for depth.
   const far = new T.Group();
   scene.add(far);
   {
-    const n = 400, sp = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) {
-      const u = Math.random() * Math.PI * 2, v = Math.acos(1 - Math.random() * 1.2), r = 60 + Math.random() * 15;
-      sp[i * 3] = Math.sin(v) * Math.cos(u) * r;
-      sp[i * 3 + 1] = Math.cos(v) * r - 15;
-      sp[i * 3 + 2] = Math.sin(v) * Math.sin(u) * r;
-    }
-    const geo = new T.BufferGeometry();
-    geo.setAttribute("position", new T.BufferAttribute(sp, 3));
-    far.add(new T.Points(geo, new T.PointsMaterial({ size: 0.45, map: glowTex, color: 0xdbe8ff, transparent: true, depthWrite: false, fog: false, blending: T.AdditiveBlending })));
     for (let k = 0; k < 9; k++) {
       const a = (k / 9) * Math.PI * 2, d = 20 + Math.random() * 10;
       const r = shadowy(new T.Mesh(new T.CylinderGeometry(0.9, 0.5, 1.2, 7), flat(theme.rock)));
@@ -555,6 +543,7 @@ export function createCityScene(
   let shakeAll = -1e9;
   function frame(now: number) {
     const dt = Math.min(0.05, (now - last) / 1000);
+    backdrop.update(now, dt);
     last = now;
     const bob = reduceMotion ? 0 : Math.sin(now / 1400) * 0.12;
     island.position.y = bob;

@@ -1,7 +1,7 @@
 "use client";
 
 import { loadThree } from "@/components/eight-scene";
-import { buildMonster } from "@/components/monster";
+import { MODEL_CLOSE_UP, buildMonster } from "@/components/monster";
 import { useEffect, useRef } from "react";
 
 /**
@@ -41,7 +41,7 @@ export function PetView({ element, stage, legend = false }: { element: number; s
         const turn = new T.Group();
         turn.add(stone, grass);
         const monster = buildMonster(T, element, stage, legend);
-        monster.group.scale.setScalar(stage === 0 ? 1.1 : 1.25);
+        monster.group.scale.setScalar(stage === 0 ? 1.1 : monster.model ? 1.25 * MODEL_CLOSE_UP : 1.25);
         monster.group.position.y = 0.07;
         turn.add(monster.group);
         scene.add(turn);
@@ -56,7 +56,7 @@ export function PetView({ element, stage, legend = false }: { element: number; s
         const watch = new ResizeObserver(fit);
         watch.observe(host);
         fit();
-        const lookY = monster.height * 0.55;
+        const lookY = monster.height * (monster.model ? MODEL_CLOSE_UP : 1) * 0.55;
         camera.position.set(0, lookY + 1.3, 5.2);
         camera.lookAt(0, lookY, 0);
         let spin = 0.4, drag: number | null = null, frame = 0;

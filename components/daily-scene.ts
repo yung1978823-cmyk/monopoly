@@ -5,6 +5,7 @@
  * table: drag to turn and tilt, pinch to zoom, a gentle sway when left alone.
  */
 import { ACTORS, loadGltfLoader } from "@/components/eight-scene";
+import { createBackdrop } from "@/components/backdrop";
 import { buildMonster, type Monster, type Mood } from "@/components/monster";
 import { BOARD_SIZE, TILES, type TileKind } from "@/lib/board";
 
@@ -396,37 +397,20 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     bits.forEach((b, n) => breathers.push({ obj: b, phase: n * 2, period: 4 + n, shadow: null, glow: null, base: b.position.y, glowY: 0, amp: 0.2 }));
   }
 
-  // ---------- Far away: the abyss and distant rocks, drifting slower than the board ----------
+  // ---------- Far away: distant floating rocks, drifting slower than the board ----------
   const far = new T.Group();
   scene.add(far);
   {
-    const n = 500, sp = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) {
-      const u = Math.random() * Math.PI * 2, v = Math.acos(1 - Math.random() * 1.2), rr = 70 + Math.random() * 20;
-      sp[i * 3] = Math.sin(v) * Math.cos(u) * rr;
-      sp[i * 3 + 1] = Math.cos(v) * rr - 20;
-      sp[i * 3 + 2] = Math.sin(v) * Math.sin(u) * rr;
-    }
-    const geo = new T.BufferGeometry();
-    geo.setAttribute("position", new T.BufferAttribute(sp, 3));
-    far.add(new T.Points(geo, new T.PointsMaterial({ size: 0.5, map: glowTex, color: 0xdbe8ff, transparent: true, depthWrite: false, fog: false, blending: T.AdditiveBlending })));
     for (let k = 0; k < 12; k++) {
       const a = (k / 12) * Math.PI * 2 + Math.random() * 0.3, d = 26 + Math.random() * 14;
       const rock = islandMesh(1.5 + Math.random() * 2.5, 900 + k * 7, 0x3f6b4a);
       rock.group.position.set(Math.cos(a) * d, -6 + Math.random() * 9, Math.sin(a) * d);
       far.add(rock.group);
     }
-    // A faint glow deep in the abyss.
-    const deep = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0x3b6fd0, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.35, fog: false }));
-    deep.scale.set(60, 30, 1);
-    deep.position.set(0, -30, 0);
-    far.add(deep);
   }
-  const floor = new T.Mesh(new T.PlaneGeometry(400, 400), new T.MeshStandardMaterial({ color: 0x0c1528, roughness: 1 }));
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.y = FLOOR;
-  floor.receiveShadow = false;
-  scene.add(floor);
+  // The busy world far below replaces the dark floor (and the islands' shadows on it).
+  const backdrop = createBackdrop(T, scene, camera, { groundY: -45, size: 360, fogNear: 50, fogFar: 170, reduceMotion });
+  for (const b of breathers) if (b.shadow) b.shadow.visible = false;
 
   // Drifting motes of light.
   const count = 180, pos = new Float32Array(count * 3);
@@ -708,7 +692,8 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     }
     if (!look || !stone) return;
     const m = buildMonster(T, look.element, look.stage, look.legend);
-    m.group.scale.setScalar(look.stage === 0 ? 1.5 : 1.25);
+    // About the size of a die on the lawn (the egg a little bigger).
+    m.group.scale.setScalar(look.stage === 0 ? 1.5 : m.model ? 1.25 : 0.55);
     stone.add(m.group);
     // The egg sits on the side of the lawn, clear of the GO sign above the middle and the dice at the front.
     const back = HOME_YAW + Math.PI / 2;
@@ -816,6 +801,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   function frame(now: number) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
+    backdrop.update(now, dt);
     // Islands breathe, each on its own clock.
     if (!reduceMotion) {
       for (const b of breathers) {

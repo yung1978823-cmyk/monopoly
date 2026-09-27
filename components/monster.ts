@@ -6,7 +6,7 @@ import { loadGltfLoader } from "@/components/eight-scene";
  * its own colours and touches — 光 cream and gold with golden wings, 暗 deep purple with bat wings,
  * 混濁 murky teal and purple with odd-coloured horns and wings. Grade 0 is an egg (plain, so the
  * attribute is a surprise at hatching); N → R → SR → SSR grow the dragon, its wings, horns and back
- * spikes, and SSR glows with a gem and a ring. Legendary (NFT) dragons carry a gold collar and a
+ * spikes, and SSR glows with a gem. Legendary (NFT) dragons carry a gold collar and a
  * second pair of horns.
  */
 export type Monster = {
@@ -15,6 +15,8 @@ export type Monster = {
   update(now: number): void;
   /** Roughly how tall it stands, for placing things above it. */
   height: number;
+  /** A model dragon (small, die-sized on the board; close-ups scale it by MODEL_CLOSE_UP). */
+  model?: boolean;
   /** How it carries itself: resting, walking (small hops), flying (fast wing beats), asleep
    * (eyes shut, wings folded, slow breathing) or happy (bouncy, wings up). */
   setMood(mood: Mood): void;
@@ -39,8 +41,12 @@ const SIZE = [0.7, 0.62, 0.8, 0.98, 1.15];
  * stands 1 unit tall, facing +z. Attributes without a model yet use the code-built dragon.
  */
 const MODELS: Record<number, string> = { 0: "/models/dragon-light.glb" };
-/** How tall the model dragon stands at each grade (N → SSR). */
-const MODEL_HEIGHT = [0, 0.5, 0.6, 0.7, 0.8];
+/** How tall the model dragon stands at each grade (N → SSR): on the board about the size of a die.
+ * Close-up screens (the pet screen, a town) scale it up by MODEL_CLOSE_UP. The current models are
+ * the N-grade look; higher grades reuse them, a little bigger, until their own models are made. */
+const MODEL_HEIGHT = [0, 0.4, 0.46, 0.52, 0.58];
+/** How much bigger model dragons are drawn in close-up screens than on the board. */
+export const MODEL_CLOSE_UP = 2.4;
 const modelCache: Record<number, Promise<any>> = {};
 
 function loadModel(T: any, element: number): Promise<any> {
@@ -57,7 +63,6 @@ function loadModel(T: any, element: number): Promise<any> {
 }
 
 function modelDragon(T: any, element: number, stage: number, legend: boolean, root: any, body: any): Monster {
-  const pal = PALETTE[element] ?? PALETTE[0];
   const h = MODEL_HEIGHT[stage];
   body.scale.setScalar(h);
   let wingL: any = null;
@@ -93,26 +98,15 @@ function modelDragon(T: any, element: number, stage: number, legend: boolean, ro
       fallback = buildMonster(T, element, stage, legend, false);
       fallback.setMood(mood);
       root.remove(body);
-      if (aura) root.remove(aura);
       root.add(fallback.group);
     });
 
-  let aura: any = null;
-  if (stage >= 4) {
-    aura = new T.Mesh(
-      new T.RingGeometry(0.75, 0.9, 48),
-      new T.MeshBasicMaterial({ color: pal.glow, transparent: true, opacity: 0.5, side: T.DoubleSide, blending: T.AdditiveBlending, depthWrite: false }),
-    );
-    aura.rotation.x = -Math.PI / 2;
-    aura.position.y = 0.03;
-    aura.scale.setScalar(h);
-    root.add(aura);
-  }
 
   let mood: Mood = "rest";
   return {
     group: root,
     height: h,
+    model: true,
     setMood(next) {
       mood = next;
       fallback?.setMood(next);
@@ -171,10 +165,6 @@ function modelDragon(T: any, element: number, stage: number, legend: boolean, ro
               : Math.sin(k * 7) * 0.35 * Math.max(0, Math.sin(k * 0.8)) ** 2;
       if (wingL) wingL.rotation.z = -beat;
       if (wingR) wingR.rotation.z = beat;
-      if (aura) {
-        aura.rotation.z = k * 0.8;
-        aura.material.opacity = 0.35 + Math.sin(k * 3) * 0.15;
-      }
     },
   };
 }
@@ -436,13 +426,6 @@ export function buildMonster(T: any, element: number, stage: number, legend = fa
   tip.rotation.x = -0.6;
   tail.add(tip);
 
-  let aura: any = null;
-  if (stage >= 4) {
-    aura = new T.Mesh(new T.RingGeometry(0.75, 0.9, 48), new T.MeshBasicMaterial({ color: pal.glow, transparent: true, opacity: 0.5, side: T.DoubleSide, blending: T.AdditiveBlending, depthWrite: false }));
-    aura.rotation.x = -Math.PI / 2;
-    aura.position.y = 0.03;
-    root.add(aura);
-  }
 
   let nextBlink = 0;
   let mood: Mood = "rest";
@@ -487,10 +470,6 @@ export function buildMonster(T: any, element: number, stage: number, legend = fa
       if (now > nextBlink) nextBlink = now + 2500 + Math.random() * 2500;
       const blink = asleep ? 0.08 : nextBlink - now < 120 ? 0.1 : 1;
       for (const eye of eyes) eye.scale.y = blink;
-      if (aura) {
-        aura.rotation.z = k * 0.8;
-        aura.material.opacity = 0.35 + Math.sin(k * 3) * 0.15;
-      }
     },
   };
 }
