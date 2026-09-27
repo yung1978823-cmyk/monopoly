@@ -199,7 +199,7 @@ function layoutFor(board: BoardId): Layout {
     spotPoint,
     hub: [0, 2.5, -D + 0.3],
     stations: [[-2 * D - 1.6, 0], [2 * D + 1.6, 0], [-D, D + 1.2], [D, D + 1.2], [-D, -D - 1.2], [D, -D - 1.2]],
-    wide: [56, 38, 29],
+    wide: [44, 38, 29],
     wideTarget: [0, 0.4],
   };
 }

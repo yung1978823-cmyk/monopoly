@@ -2,15 +2,15 @@
 
 import { AttackScreen } from "@/components/attack-screen";
 import { MyCity } from "@/components/my-city";
-import { PanZoom } from "@/components/pan-zoom";
 import { RealmScreen } from "@/components/realm-screen";
 import { TableGame } from "@/components/table-game";
-import { BoardRing, type Burst } from "@/components/board-ring";
+import { type Burst } from "@/components/board-ring";
+import { DailyBoard, type DailyFloat } from "@/components/daily-board";
 import { DieFace } from "@/components/die-face";
 import { LangPicker } from "@/components/lang-picker";
 import { TipHand } from "@/components/tip-hand";
 import { Button } from "@/components/ui/button";
-import { BOARD_SCENE, FX_ART, TILES, TILE_INFO } from "@/lib/board";
+import { FX_ART, TILES, TILE_INFO } from "@/lib/board";
 import { CITIES, plotCount } from "@/lib/cities";
 import {
   STORAGE_KEY,
@@ -123,6 +123,16 @@ function burstOf(state: GameState): Burst | null {
   };
 }
 
+/** Words to float up from the ship for a stop's burst. */
+function floatOf(burst: Burst | null, t: (text: string) => string): DailyFloat | null {
+  if (!burst) return null;
+  const parts: string[] = [];
+  if (burst.money) parts.push(`${burst.money > 0 ? "+" : ""}${burst.money} ${t("金幣")}`);
+  if (burst.dice) parts.push(`+${burst.dice} 🎲`);
+  if (parts.length === 0) return null;
+  return { key: burst.key, text: parts.join("  "), colour: burst.bad || burst.money < 0 ? "#DC2626" : "#16A34A" };
+}
+
 export function DailyGame() {
   const [state, setState] = useState<GameState>(() => createGame(0, "1970-01-01"));
   const [booted, setBooted] = useState(false);
@@ -145,10 +155,6 @@ export function DailyGame() {
   const [tableOpen, setTableOpen] = useState(false);
   const [realmOpen, setRealmOpen] = useState(false);
   /** The board and the open space it is centred in, for the camera; GO presses glide it home. */
-  const boardBox = useRef<HTMLDivElement>(null);
-  const sceneBox = useRef<HTMLDivElement>(null);
-  const tokenBox = useRef<HTMLElement | null>(null);
-  const frameBox = useRef<HTMLElement>(null);
   const [goPresses, setGoPresses] = useState(0);
   const dispatch = useCallback((action: Parameters<typeof reduce>[1]) => {
     setState((current) => reduce(current, action));
@@ -324,12 +330,7 @@ export function DailyGame() {
   const power = attackPower(state);
   const shownStep = pending?.step ?? 0;
   const tokenIndex = pending ? (pending.from + shownStep) % TILES.length : state.position;
-  const trail = pending
-    ? Array.from({ length: shownStep }, (_, index) => (pending.from + index + 1) % TILES.length)
-    : [];
   const arrived = pending !== null && shownStep > 0;
-  // The camera follows the token drawn inside the board.
-  tokenBox.current = boardBox.current?.querySelector<HTMLElement>('[data-testid="token"]') ?? null;
   const countdown = booted && now > 0 ? msUntilNextDie(state.dice, state.lastRefillAt, now) : null;
   const buildCost = cheapestUpgrade(state);
   const buildable = buildCost !== null && state.points >= buildCost;
@@ -377,53 +378,22 @@ export function DailyGame() {
 
   return (
     <main
-      className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-gradient-to-b from-[#4AA8F5] via-[#8CC63F] to-[#7DB835] text-[#1E3A8A] [container-type:size]"
+      className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-[#0B1B3F] text-[#1E3A8A] [container-type:size]"
       data-testid="walk"
     >
-      {/* Castle-garden scene on a Monopoly GO–style camera: big, dragged around freely, following the token. */}
-      <PanZoom
-        world={sceneBox}
-        focus={boardBox}
-        frame={frameBox}
-        follow={tokenBox}
-        followKey={`${goPresses}:${tokenIndex}`}
-        startScale={1.5}
-      >
-        <div
-          ref={sceneBox}
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[54%] bg-cover bg-center"
-          style={{
-            backgroundImage: `url(${BOARD_SCENE.art})`,
-            width: `min(100cqw, calc(100cqh * ${BOARD_SCENE.width} / ${BOARD_SCENE.height}))`,
-            aspectRatio: `${BOARD_SCENE.width} / ${BOARD_SCENE.height}`,
-          }}
-        >
-          <div
-            ref={boardBox}
-            className="absolute"
-            style={{
-              left: `${BOARD_SCENE.board.left * 100}%`,
-              top: `${BOARD_SCENE.board.top * 100}%`,
-              width: `${BOARD_SCENE.board.width * 100}%`,
-            }}
-          >
-            <BoardRing
-              position={tokenIndex}
-              trail={trail}
-              stopIndex={arrived ? tokenIndex : null}
-              burst={pending?.committed ? burstOf(state) : null}
-              centre={
-                pending ? (
-                  <>
-                    <DieFace value={pending.faces[0]} />
-                    <DieFace value={pending.faces[1]} />
-                  </>
-                ) : null
-              }
-            />
-          </div>
+      {/* Floating-island board in 3D: drag to turn, pinch to zoom; the ship is you. */}
+      <DailyBoard
+        position={tokenIndex}
+        stopIndex={arrived ? tokenIndex : null}
+        float={pending?.committed ? floatOf(burstOf(state), t) : null}
+        recentreKey={goPresses}
+      />
+      {pending ? (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-2">
+          <DieFace value={pending.faces[0]} />
+          <DieFace value={pending.faces[1]} />
         </div>
-      </PanZoom>
+      ) : null}
       {/* Top bar: dice and points only; everything else lives behind the menu. */}
       <header className="relative z-30 flex items-center justify-between gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
         <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-[#1E3A8A] py-1 pl-2 pr-3 text-lg font-black tabular-nums text-white shadow-md" data-testid="dice-count">
@@ -471,7 +441,7 @@ export function DailyGame() {
       ) : null}
 
       {/* The open space between the bars: the board is centred here. Taps fall through to the camera. */}
-      <section ref={frameBox} className="pointer-events-none relative z-20 min-h-0 flex-1" />
+      <section className="pointer-events-none relative z-20 min-h-0 flex-1" />
 
       {/* Bottom bar: one big GO; building sits to the side as an icon. */}
       <footer className="relative z-30 flex items-end justify-center px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-2">
