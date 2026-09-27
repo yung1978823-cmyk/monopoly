@@ -228,6 +228,8 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     // A lawn on top (Sky 2026-09-27: green grass shows the dragon off better than the carved stone).
     const big = islandMesh(6, 977, 0x5fae4a);
     big.top.material.roughness = 0.9;
+    // A real grass green (the other islands are pastel; this one should read as a lawn).
+    big.top.material.color = new T.Color(0x4f9e3a).convertSRGBToLinear();
     big.group.position.set(0, 0.1, 0);
     bigRock.add(big.group);
     stone = big.group;
@@ -310,8 +312,8 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       x.fillStyle = "#ffd34d";
       x.fillText("GO", 128, 68);
       goSign = new T.Sprite(new T.SpriteMaterial({ map: new T.CanvasTexture(c), transparent: true, depthWrite: false }));
-      goSign.scale.set(1.6, 0.8, 1);
-      goSign.position.y = TOP + 2.6;
+      goSign.scale.set(2.2, 1.1, 1);
+      goSign.position.y = TOP + 3.3;
       big.group.add(goSign);
     }
     runeRing = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0xffc860, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
@@ -664,15 +666,15 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     }
     if (!look || !stone) return;
     const m = buildMonster(T, look.element, look.stage, look.legend);
-    m.group.scale.setScalar(look.stage === 0 ? 1.1 : 0.95);
+    m.group.scale.setScalar(look.stage === 0 ? 1.5 : 1.25);
     stone.add(m.group);
     // The egg sits at the back of the stone, behind the rune, where it can be seen above it.
     const back = HOME_YAW + Math.PI;
     const food = bubbleOf("🍖");
     const zzz = bubbleOf("💤", 54);
     m.group.add(food, zzz);
-    food.position.y = m.height / 0.95 + 0.35;
-    zzz.position.y = m.height / 0.95 + 0.3;
+    food.position.y = m.height + 0.35;
+    zzz.position.y = m.height + 0.3;
     pet = { m, look, angle: back, goal: back, mode: "rest", until: performance.now() + 2000, lift: 0, spin: 0, tourAt: 0, food, zzz };
     m.group.position.copy(petSpot(back));
     m.group.rotation.y = HOME_YAW;
@@ -845,7 +847,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const pulse = rune.level * (0.75 + 0.25 * Math.sin(now / 420));
     runeGlow.material.opacity = 0.1 + pulse * 0.6;
     goSign.material.opacity = 0.35 + pulse * 0.65;
-    goSign.scale.set(1.6 * (1 + pulse * 0.08), 0.8 * (1 + pulse * 0.08), 1);
+    goSign.scale.set(2.2 * (1 + pulse * 0.08), 1.1 * (1 + pulse * 0.08), 1);
     runeRing.material.opacity = pulse * 0.18;
     runeLight.intensity = pulse * 0.45;
     const press = Math.max(0, 1 - (now - rune.pressAt) / 260);
