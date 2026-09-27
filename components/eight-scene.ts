@@ -701,6 +701,9 @@ export function createBoardScene(
             o.castShadow = true;
             o.receiveShadow = true;
             o.frustumCulled = false;
+            // Painted cloth and skin, never metal (a metal body with nothing to reflect turns dark).
+            o.material.metalness = 0;
+            o.material.roughness = Math.max(0.6, o.material.roughness ?? 0.6);
           }
         });
         // Each skinned body stands 1.2 tall with its feet at 0; its bones carry the armature's
