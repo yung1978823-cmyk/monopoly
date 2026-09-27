@@ -170,6 +170,198 @@ function modelDragon(T: any, element: number, stage: number, legend: boolean, ro
 }
 const HEAD = [0, 0.48, 0.45, 0.42, 0.4];
 
+/**
+ * "Pseudo-3D" dragons: the approved hand-drawn three-view art, cut into flat pieces (body and
+ * wings) that always face the camera. Which drawing shows depends on where the camera is — the
+ * front, the back, or the side (mirrored for the other side) — and the wings flap in code, so the
+ * drawing keeps its hand-painted look (glowing, starry wings) that a 3D model would lose.
+ */
+type SpriteView = { layers: Record<string, [number, number] | null>; w: number; h: number; feet: number };
+const SPRITES: Record<number, { dir: string; views: Record<"front" | "side" | "back", SpriteView> }> = {
+  0: {
+    dir: "/sprites/dragon-light",
+    views: {
+      front: { w: 576, h: 733, feet: 0.25, layers: { wingL: [0.3958, 0.5498], wingR: [0.6944, 0.5498], body: null } },
+      side: { w: 597, h: 806, feet: 0.235, layers: { wingN: [0.6784, 0.4913], body: null } },
+      back: { w: 544, h: 704, feet: 0.225, layers: { wingL: [0.3768, 0.5455], wingR: [0.625, 0.5455], body: null } },
+    },
+  },
+};
+/** How tall the whole drawing (wings included) stands, per unit of MODEL_HEIGHT. */
+const SPRITE_TALL = 1.8;
+const spriteTex: Record<string, any> = {};
+
+function spriteDragon(T: any, element: number, stage: number, legend: boolean, root: any, body: any): Monster {
+  const art = SPRITES[element];
+  const h = MODEL_HEIGHT[stage];
+  const unit = (h * SPRITE_TALL) / art.views.front.h;
+  const load = (url: string, flip: boolean) => {
+    const key = flip ? `${url}#flip` : url;
+    if (!spriteTex[key]) {
+      const t = flip ? load(url, false).clone() : new T.TextureLoader().load(url, (done: any) => {
+            // A mirrored copy made before the picture arrived needs the picture too.
+            const twin = spriteTex[`${url}#flip`];
+            if (twin) {
+              twin.image = done.image;
+              twin.needsUpdate = true;
+            }
+          });
+      t.encoding = T.sRGBEncoding;
+      if (flip) {
+        // Mirrored left-to-right (sprites can't be flipped by a negative scale).
+        t.repeat.x = -1;
+        t.offset.x = 1;
+        t.needsUpdate = true;
+      }
+      spriteTex[key] = t;
+    }
+    return spriteTex[key];
+  };
+  // One group of flat pieces per view; only the one facing the camera is shown.
+  type Piece = { s: any; name: string };
+  const views: Record<string, { group: any; pieces: Piece[]; view: SpriteView }> = {};
+  // "sideM" is the side drawing mirrored, for when the camera is on the dragon's other side.
+  for (const name of ["front", "side", "sideM", "back"] as const) {
+    const flip = name === "sideM";
+    const art_ = name === "sideM" ? "side" : name;
+    const view = art.views[art_];
+    const group = new T.Group();
+    group.visible = name === "front";
+    const pieces: Piece[] = [];
+    for (const [layer, pivot] of Object.entries(view.layers)) {
+      const s = new T.Sprite(new T.SpriteMaterial({ map: load(`${art.dir}/${art_}-${layer}.webp`, flip), transparent: true, depthWrite: false, depthTest: false }));
+      let [cx, cy] = pivot ?? [0.5, view.feet];
+      if (flip) cx = 1 - cx;
+      s.center.set(cx, cy);
+      s.scale.set(view.w * unit, view.h * unit, 1);
+      // The sprite's centre is its pivot, so place it so the feet land on the ground.
+      s.position.set((cx - 0.5) * view.w * unit, (cy - view.feet) * view.h * unit, 0);
+      // Front view: wings behind the body; side and back: wings in front.
+      s.renderOrder = 20 + (layer === "body" ? (name === "front" ? 1 : 0) : name === "front" ? 0 : 1);
+      group.add(s);
+      pieces.push({ s, name: layer });
+    }
+    body.add(group);
+    views[name] = { group, pieces, view };
+  }
+  // A soft shadow on the ground.
+  const shadowCanvas = document.createElement("canvas");
+  shadowCanvas.width = shadowCanvas.height = 64;
+  const sg = shadowCanvas.getContext("2d")!, grad = sg.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, "rgba(0,0,0,0.35)");
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  sg.fillStyle = grad;
+  sg.fillRect(0, 0, 64, 64);
+  const shadow = new T.Mesh(new T.PlaneGeometry(h * 1.4, h * 0.9), new T.MeshBasicMaterial({ map: new T.CanvasTexture(shadowCanvas), transparent: true, depthWrite: false }));
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.01;
+  root.add(shadow);
+  // Twinkles around the wings.
+  const twinkles: { s: any; phase: number }[] = [];
+  {
+    const c = document.createElement("canvas");
+    c.width = c.height = 32;
+    const g = c.getContext("2d")!;
+    const r = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+    r.addColorStop(0, "rgba(255,255,230,1)");
+    r.addColorStop(0.3, "rgba(255,230,140,0.8)");
+    r.addColorStop(1, "rgba(255,220,120,0)");
+    g.fillStyle = r;
+    g.fillRect(0, 0, 32, 32);
+    const tex = new T.CanvasTexture(c);
+    for (let i = 0; i < 6; i++) {
+      const s = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false, blending: T.AdditiveBlending }));
+      const side = i % 2 ? 1 : -1;
+      s.position.set(side * (0.25 + Math.random() * 0.4) * h * SPRITE_TALL * 0.5, (0.45 + Math.random() * 0.45) * h * SPRITE_TALL * 0.7, 0.01);
+      s.renderOrder = 23;
+      body.add(s);
+      twinkles.push({ s, phase: Math.random() * 6 });
+    }
+  }
+  // Work out which drawing to show from where the camera is, just before drawing.
+  const probe = new T.Sprite(new T.SpriteMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  probe.scale.set(0.001, 0.001, 1);
+  root.add(probe);
+  let current = "front";
+  const tmp = new T.Vector3(), inv = new T.Quaternion();
+  probe.onBeforeRender = (_r: any, _s: any, camera: any) => {
+    root.getWorldPosition(tmp);
+    tmp.subVectors(camera.position, tmp);
+    root.getWorldQuaternion(inv);
+    tmp.applyQuaternion(inv.invert());
+    const a = Math.atan2(tmp.x, tmp.z);
+    // The side drawing faces right; use the mirrored one when we're on the dragon's right-hand side.
+    const next = Math.abs(a) < Math.PI / 4 ? "front" : Math.abs(a) > (Math.PI * 3) / 4 ? "back" : tmp.x > 0 ? "sideM" : "side";
+    if (next !== current) {
+      views[current].group.visible = false;
+      views[next].group.visible = true;
+      current = next;
+    }
+  };
+
+  let mood: Mood = "rest";
+  return {
+    group: root,
+    height: h * SPRITE_TALL * 0.8,
+    model: true,
+    setMood(next) {
+      mood = next;
+    },
+    update(now) {
+      const k = now / 1000;
+      const asleep = mood === "sleep";
+      let y = 0, squash = 0;
+      if (mood === "walk") {
+        y = Math.abs(Math.sin(k * 9)) * 0.08;
+        squash = Math.sin(k * 18) * 0.04;
+      } else if (mood === "happy") {
+        y = Math.abs(Math.sin(k * 8)) * 0.25;
+        squash = -Math.cos(k * 16) * 0.06;
+      } else if (mood === "fly") {
+        y = Math.sin(k * 8) * 0.04;
+      } else if (asleep) {
+        squash = 0.1 + Math.sin(k * 1.6) * 0.02;
+      } else {
+        squash = Math.sin(k * 4.4) * 0.015;
+      }
+      body.position.y = y * h;
+      body.scale.set(1 + squash * 0.6, 1 - squash, 1);
+      shadow.scale.setScalar(1 - y * 0.8);
+      // Wings: positive lifts them. The flat wing also narrows as it beats, which reads as depth.
+      const beat =
+        mood === "fly"
+          ? Math.sin(k * 16) * 0.7
+          : mood === "happy"
+            ? 0.3 + Math.sin(k * 12) * 0.35
+            : asleep
+              ? -0.6
+              : Math.sin(k * 6) * 0.45 * Math.max(0, Math.sin(k * 0.8)) ** 2;
+      for (const [name, v] of Object.entries(views)) {
+        for (const p of v.pieces) {
+          if (p.name === "body") continue;
+          const w = v.view.w * unit, hh = v.view.h * unit;
+          if (name === "side" || name === "sideM") {
+            p.s.material.rotation = (name === "side" ? -1 : 1) * beat * 0.35;
+            p.s.scale.set(w, hh * (1 - Math.abs(beat) * 0.25 + (beat > 0 ? 0.05 : 0)), 1);
+          } else {
+            const left = p.name === "wingL";
+            // Front view: the left wing is on screen-left; from the back it's the other way round,
+            // but on screen the rule is the same: tip up means turning away from the body.
+            p.s.material.rotation = (left ? -1 : 1) * beat * 0.3;
+            p.s.scale.set(w * (1 - Math.abs(beat) * 0.3), hh, 1);
+          }
+        }
+      }
+      for (const t of twinkles) {
+        const f = Math.max(0, Math.sin(k * 3 + t.phase));
+        const sz = h * 0.18 * f;
+        t.s.scale.set(sz, sz, 1);
+        t.s.visible = (current === "front" || current === "back") && !asleep;
+      }
+    },
+  };
+}
+
 export function buildMonster(T: any, element: number, stage: number, legend = false, useModel = true): Monster {
   stage = Math.max(0, Math.min(4, stage));
   const pal = PALETTE[element] ?? PALETTE[0];
@@ -231,6 +423,7 @@ export function buildMonster(T: any, element: number, stage: number, legend = fa
     };
   }
 
+  if (useModel && SPRITES[element]) return spriteDragon(T, element, stage, legend, root, body);
   if (useModel && MODELS[element]) return modelDragon(T, element, stage, legend, root, body);
 
   const headR = HEAD[stage];
