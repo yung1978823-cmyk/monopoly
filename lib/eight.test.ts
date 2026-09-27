@@ -80,6 +80,13 @@ describe("public table on the 八字 board", () => {
     assert.equal(state.seats[0].cash, STAKE - SQUARES.o2.price - UPGRADE_PRICE);
   });
 
+  it("rent starts at 0.2 and money stays at one decimal place", () => {
+    assert.deepEqual([...RENTS], [0, 0.2, 0.5, 1, 1.5]);
+    let state = quiet({ ...start(), deeds: { o2: { owner: 1, level: 1 } } }, 0, "o1");
+    for (let i = 0; i < 3; i += 1) state = reduceTable(at({ ...state, current: 0 }, 0, { on: "loop", i: 0 }), { type: "roll", dice: [1, 1] });
+    assert.equal(state.seats[0].cash, 17.4, "three 0.2 rents, no floating-point crumbs");
+  });
+
   it("charges rent by level, double on the gold roads", () => {
     let state = start();
     state = quiet({ ...state, deeds: { o2: { owner: 1, level: 3 }, L2: { owner: 1, level: 1 } } }, 0, "o1");
@@ -137,10 +144,10 @@ describe("public table on the 八字 board", () => {
   it("goes bankrupt when rent can't be paid, and the land returns to the bank", () => {
     let state = start();
     state = quiet({ ...state, deeds: { o2: { owner: 1, level: 4 }, o5: { owner: 0, level: 1 } } }, 0, "o1");
-    state = { ...state, seats: state.seats.map((seat, index) => (index === 0 ? { ...seat, cash: 3 } : seat)) };
+    state = { ...state, seats: state.seats.map((seat, index) => (index === 0 ? { ...seat, cash: 1 } : seat)) };
     const after = reduceTable(state, { type: "roll", dice: [1, 1] });
     assert.equal(after.seats[0].bankrupt, true);
-    assert.equal(after.seats[1].cash, STAKE + 3);
+    assert.equal(after.seats[1].cash, STAKE + 1);
     assert.equal(after.deeds.o5, undefined);
     assert.equal(after.phase, "over");
   });

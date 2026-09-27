@@ -27,7 +27,11 @@ export const TAX = 2;
 export const UPGRADE_PRICE = 2;
 export const MAX_LEVEL = 4;
 /** Rent by level (1 house … 4 landmark); gold inner-road lots charge double. */
-export const RENTS = [0, 1, 2, 4, 6] as const;
+// 2026-09-27: every die walks on its own now (two stops a turn), so rent starts at 0.2, not 1.
+export const RENTS = [0, 0.2, 0.5, 1, 1.5] as const;
+
+/** Money is kept to one decimal place (0.2, 0.5 …), without floating-point crumbs. */
+const money = (value: number) => Math.round(value * 10) / 10;
 
 /** Season points by finishing place, by table size. */
 export const SEASON_POINTS: Record<number, readonly number[]> = {
@@ -292,7 +296,7 @@ export function newTable(
 }
 
 export function rentOf(key: string, level: number, board: BoardId = "eight"): number {
-  return RENTS[level] * (BOARDS[board].squares[key]?.gold ? 2 : 1);
+  return money(RENTS[level] * (BOARDS[board].squares[key]?.gold ? 2 : 1));
 }
 
 /** Cash plus what land and levels cost to put down. */
@@ -336,12 +340,12 @@ function isOver(state: TableState): boolean {
 function pay(state: TableState, seat: number, amount: number, to: number | null, events: TableEvent[]): TableState {
   const payer = state.seats[seat];
   if (payer.cash >= amount) {
-    let next = withSeat(state, seat, { cash: payer.cash - amount });
-    if (to !== null) next = withSeat(next, to, { cash: next.seats[to].cash + amount });
+    let next = withSeat(state, seat, { cash: money(payer.cash - amount) });
+    if (to !== null) next = withSeat(next, to, { cash: money(next.seats[to].cash + amount) });
     return next;
   }
   let next = withSeat(state, seat, { cash: 0, bankrupt: true });
-  if (to !== null) next = withSeat(next, to, { cash: next.seats[to].cash + payer.cash });
+  if (to !== null) next = withSeat(next, to, { cash: money(next.seats[to].cash + payer.cash) });
   const lost = Object.keys(state.deeds).filter((key) => state.deeds[key].owner === seat);
   const deeds = { ...next.deeds };
   for (const key of lost) delete deeds[key];
