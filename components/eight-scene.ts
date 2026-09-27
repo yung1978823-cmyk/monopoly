@@ -61,10 +61,11 @@ function loadGltfLoader(T: any): Promise<any> {
  * The 3D characters. Each file carries a rigged body and three clips — "walk" (their own way of
  * walking), "cheer" and "special" — so no two players move alike.
  */
-export const ACTORS: Record<string, { url: string; walkPace: number }> = {
+export const ACTORS: Record<string, { url: string; walkPace: number; shield?: boolean }> = {
   vampire: { url: "/models/vampire.glb", walkPace: 2.4 },
   jiangshi: { url: "/models/jiangshi.glb", walkPace: 1.5 },
-  mummy: { url: "/models/mummy.glb", walkPace: 2.2 },
+  // 阿木's shield melted into his arm when the model was stood in a T-pose, so a real one is strapped on.
+  mummy: { url: "/models/mummy.glb", walkPace: 2.2, shield: true },
   zombie: { url: "/models/zombie.glb", walkPace: 2.2 },
 };
 const CHARACTER_HEIGHT = 0.8;
@@ -712,6 +713,7 @@ export function createBoardScene(
         const g = tokens[seat];
         g.children.forEach((c: any) => (c.visible = false));
         g.add(model);
+        if (actor.shield) strapShield(model);
         const mixer = new T.AnimationMixer(model);
         const clip = (name: string) => gltf.animations.find((a: any) => a.name === name);
         const walk = mixer.clipAction(clip("walk") ?? gltf.animations[0]);
@@ -742,6 +744,55 @@ export function createBoardScene(
         // Keep the pawn.
       });
   });
+  /**
+   * 阿木's round shield: bandage-wrapped with a red star, on the outside of his right forearm.
+   * Bone units carry the armature's 0.01 scale, so sizes here are in centimetres.
+   */
+  function strapShield(model: any) {
+    const bone = model.getObjectByName("RightForeArm");
+    if (!bone) return;
+    const size = 256;
+    const c = document.createElement("canvas");
+    c.width = c.height = size;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "#EFE6D2";
+    x.fillRect(0, 0, size, size);
+    // Wrapped bandage strips across the face.
+    for (let i = -size; i < size * 2; i += 26) {
+      x.strokeStyle = i % 52 ? "#D9CCB0" : "#E4D8BE";
+      x.lineWidth = 14;
+      x.beginPath();
+      x.moveTo(i, 0);
+      x.lineTo(i - size * 0.45, size);
+      x.stroke();
+    }
+    x.strokeStyle = "#CDBF9F";
+    x.lineWidth = 10;
+    x.beginPath();
+    x.arc(size / 2, size / 2, size / 2 - 6, 0, Math.PI * 2);
+    x.stroke();
+    // The red star.
+    x.fillStyle = "#E52521";
+    x.beginPath();
+    for (let k = 0; k < 10; k += 1) {
+      const r = k % 2 ? size * 0.13 : size * 0.3;
+      const a = -Math.PI / 2 + (k * Math.PI) / 5;
+      x.lineTo(size / 2 + Math.cos(a) * r, size / 2 + Math.sin(a) * r);
+    }
+    x.closePath();
+    x.fill();
+    const face = new T.CanvasTexture(c);
+    face.encoding = T.sRGBEncoding;
+    const rim = new T.MeshStandardMaterial({ color: 0xd9ccb0, roughness: 0.85, metalness: 0 });
+    const front = new T.MeshStandardMaterial({ map: face, roughness: 0.85, metalness: 0 });
+    const shield = new T.Mesh(new T.CylinderGeometry(15, 15, 3, 40), [rim, front, rim]);
+    // The cylinder's top (its face) points along the bone's local +x, which faces forward in the T-pose.
+    shield.rotation.z = -Math.PI / 2;
+    shield.position.set(6.5, 6.5, 0);
+    shield.castShadow = true;
+    bone.add(shield);
+  }
+
   /** Walk while stepping; stand still (first frame of the walk) a moment after the last step. */
   function walking(seat: number, on: boolean) {
     const rig = rigs.get(seat);
