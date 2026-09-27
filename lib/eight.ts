@@ -226,11 +226,11 @@ export function sideOf(spot: Spot): "left" | "right" {
 }
 export const MAX_POWERS = 2;
 /** Out of 10 chance draws, how many give a power card instead; and out of 10 chests. */
-export const POWER_ODDS = 8;
-export const CHEST_POWER_ODDS = 6;
+export const POWER_ODDS = 5;
+export const CHEST_POWER_ODDS = 3;
 /** Out of 10 crossroads (on top of the +1) and passes of start (on top of the pay). */
-export const CROSS_POWER_ODDS = 5;
-export const START_POWER_ODDS = 3;
+export const CROSS_POWER_ODDS = 2;
+export const START_POWER_ODDS = 1;
 
 /** A power card from this landing's draw, if the odds (out of 10) say so and there's room in the hand. */
 function drawPower(state: TableState, seat: number, odds: number, events: TableEvent[], salt = 0): TableState | null {

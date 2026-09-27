@@ -1071,6 +1071,8 @@ export function createBoardScene(
 
   // ---------- Camera: 40° down; close on the player, wide between turns ----------
   const ELEV = (40 * Math.PI) / 180;
+  /** The player can turn the board round (drag sideways) and tilt it (drag up and down). */
+  const view = { yaw: 0, elev: ELEV, goalYaw: 0, goalElev: ELEV, idle: 0 };
   const WIDE = { dist: layout.wide[2], target: new T.Vector3(layout.wideTarget[0], 0, layout.wideTarget[1]) };
   const CLOSE = 13;
   const cam = { target: WIDE.target.clone(), dist: WIDE.dist };
@@ -1088,17 +1090,23 @@ export function createBoardScene(
     if (!before) return;
     const pts = [...pointers.values()];
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    dragged = true;
+    view.idle = 0;
     if (pts.length === 1) {
-      const k = cam.dist / 700;
-      goal.target.x = Math.max(-10, Math.min(10, goal.target.x - (e.clientX - before.x) * k));
-      goal.target.z = Math.max(-10, Math.min(11, goal.target.z - ((e.clientY - before.y) * k) / Math.sin(ELEV)));
-      cam.target.copy(goal.target);
+      // One finger (or the mouse): turn round the board and tilt it.
+      view.goalYaw -= (e.clientX - before.x) * 0.006;
+      view.goalElev = Math.max(0.35, Math.min(1.35, view.goalElev + (e.clientY - before.y) * 0.004));
     } else {
+      // Two fingers: pinch to zoom, move together to slide the board.
+      dragged = true;
       const other = pts.find((p) => p !== before)!;
       const was = Math.hypot(before.x - other.x, before.y - other.y);
       const is = Math.hypot(e.clientX - other.x, e.clientY - other.y);
-      if (was > 1 && is > 1) goal.dist = cam.dist = Math.max(6, Math.min(56, cam.dist * (was / is)));
+      if (was > 1 && is > 1) goal.dist = cam.dist = Math.max(6, Math.min(60, cam.dist * (was / is)));
+      const k = cam.dist / 1400, dx = (e.clientX - before.x) * k, dz = (e.clientY - before.y) * k;
+      const c = Math.cos(view.yaw), s = Math.sin(view.yaw);
+      goal.target.x = Math.max(-12, Math.min(12, goal.target.x - (dx * c + dz * s)));
+      goal.target.z = Math.max(-12, Math.min(12, goal.target.z - (-dx * s + dz * c)));
+      cam.target.copy(goal.target);
     }
   };
   const onUp = (e: PointerEvent) => pointers.delete(e.pointerId);
@@ -1143,7 +1151,7 @@ export function createBoardScene(
     }
     if (goal.follow >= 0 && !dragged) {
       const p = tokens[goal.follow].position;
-      goal.target.set(p.x, 0, p.z - 0.6);
+      goal.target.set(p.x - Math.sin(view.yaw) * 0.6, 0, p.z - Math.cos(view.yaw) * 0.6);
     }
     rigs.forEach((rig) => rig.mixer.update(dt * speed));
     // Standing still: turn (smoothly) to face the camera, never back or side on.
@@ -1207,7 +1215,13 @@ export function createBoardScene(
         f.obj.position.y = (f.base ?? 0) + Math.sin(now / 400 + i) * 0.08;
       });
     }
-    camera.position.set(cam.target.x, cam.target.y + Math.sin(ELEV) * cam.dist, cam.target.z + Math.cos(ELEV) * cam.dist);
+    // Ease towards where the player turned it; left alone, it sways gently from side to side.
+    view.idle += dt;
+    view.yaw += (view.goalYaw - view.yaw) * Math.min(1, dt * 8);
+    view.elev += (view.goalElev - view.elev) * Math.min(1, dt * 8);
+    const sway = reduceMotion ? 0 : Math.sin(now / 7000) * 0.12 * Math.min(1, Math.max(0, view.idle - 2) / 3);
+    const yaw = view.yaw + sway, flat = Math.cos(view.elev) * cam.dist;
+    camera.position.set(cam.target.x + Math.sin(yaw) * flat, cam.target.y + Math.sin(view.elev) * cam.dist, cam.target.z + Math.cos(yaw) * flat);
     camera.lookAt(cam.target);
     renderer.render(scene, camera);
     frameId = requestAnimationFrame(frame);
