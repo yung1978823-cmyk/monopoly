@@ -2,6 +2,7 @@
 
 import { ACTORS, createBoardScene, loadThree, type BoardScene, type Decor } from "@/components/eight-scene";
 import { TILE_INFO } from "@/lib/board";
+import { CHARACTERS, savePick, savedPick } from "@/lib/characters";
 import {
   BUY_RESERVE,
   BAIL,
@@ -49,28 +50,11 @@ const EMOJI: Record<string, string> = { 阿狼: "🐺", 阿鬼: "👻", 阿蝠: 
  * The four 3D characters a player can be. First come, first served: once you take one, the computer
  * players get the others (with real players later, a character someone has taken is greyed out).
  */
-const CHARACTERS = [
-  { name: "伯爵", avatar: "/art/avatars/vampire.jpg", colour: "#7C3AED" },
-  { name: "阿殭", avatar: "/art/avatars/jiangshi.jpg", colour: "#2563EB" },
-  { name: "阿木", avatar: "/art/avatars/mummy.jpg", colour: "#D97706" },
-  { name: "阿強", avatar: "/art/avatars/zombie.jpg", colour: "#16A34A" },
-];
-const PICK_KEY = "boolionaire-character";
-
 /** You as the character you picked, then the computer players as the characters left over. */
 function seatsFor(pick: number, opponents: number): Player[] {
   const mine = CHARACTERS[pick] ?? CHARACTERS[0];
   const rest = CHARACTERS.filter((_, i) => i !== pick).map((c) => ({ ...c, bot: true }));
   return [{ name: "你", avatar: mine.avatar, colour: mine.colour, bot: false }, ...rest].slice(0, opponents + 1);
-}
-
-function savedPick(): number {
-  try {
-    const n = Number(window.localStorage.getItem(PICK_KEY));
-    return Number.isInteger(n) && n >= 0 && n < CHARACTERS.length ? n : 0;
-  } catch {
-    return 0;
-  }
 }
 
 /** The 3D character for a seat, from its avatar picture (vampire, jiangshi, mummy, zombie), or null. */
@@ -144,11 +128,7 @@ function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onEx
   useEffect(() => setPick(savedPick()), []);
   const choose = (i: number) => {
     setPick(i);
-    try {
-      window.localStorage.setItem(PICK_KEY, String(i));
-    } catch {
-      // Remembering the pick is only a convenience.
-    }
+    savePick(i);
   };
   const seats = seatsFor(pick, opponents);
   return (

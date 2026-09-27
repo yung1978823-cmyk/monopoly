@@ -39,7 +39,7 @@ const GLTF_URL = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders
 let gltfLoading: Promise<any> | null = null;
 
 /** Load three.js's model loader once (after three.js itself). */
-function loadGltfLoader(T: any): Promise<any> {
+export function loadGltfLoader(T: any): Promise<any> {
   if (T.GLTFLoader) return Promise.resolve(T.GLTFLoader);
   if (!gltfLoading) {
     gltfLoading = new Promise((resolve, reject) => {
@@ -67,7 +67,7 @@ export const ACTORS: Record<string, { url: string; walkPace: number }> = {
   mummy: { url: "/models/mummy.glb", walkPace: 2.2 },
   zombie: { url: "/models/zombie.glb", walkPace: 2.2 },
 };
-const CHARACTER_HEIGHT = 0.8;
+export const CHARACTER_HEIGHT = 0.8;
 const FIREWORK_COLOURS = [0xfbd000, 0xe52521, 0x22c55e, 0x3b82f6, 0xec4899, 0xf97316];
 
 export type BoardScene = {

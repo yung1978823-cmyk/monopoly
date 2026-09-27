@@ -1,9 +1,10 @@
 /**
  * 第一層 每日棋盤 in 3D: the 28 squares as floating islands in a diamond ring, each labelled in
  * words, a big stone island in the middle with GO carved in it as a glowing rune (tap it to roll),
- * and you as a hot-air balloon drifting round. Same floating look and camera as the public
+ * and you as your chosen 3D character walking round (a hot-air balloon until the model loads). Same floating look and camera as the public
  * table: drag to turn and tilt, pinch to zoom, a gentle sway when left alone.
  */
+import { ACTORS, loadGltfLoader } from "@/components/eight-scene";
 import { BOARD_SIZE, TILES, type TileKind } from "@/lib/board";
 
 export type DailyScene = {
@@ -15,6 +16,8 @@ export type DailyScene = {
   floatText(text: string, colour?: string): void;
   /** Light the GO rune on the middle rock (your turn, dice left) or let it go dim. */
   setReady(ready: boolean): void;
+  /** Your character throws up its arms (a good landing). */
+  cheer(): void;
   /** Throw two small dice onto the middle stone; they tumble and settle showing these faces. */
   throwDice(faces: [number, number]): void;
   /** Fade the dice away (the walk is over). */
@@ -44,6 +47,12 @@ const TOPS: Record<TileKind, number> = {
 };
 
 /** Square i on the diamond: start at the front corner, then round the left, back and right corners. */
+/** Ease an angle toward another the short way round. */
+function turnToward(from: number, to: number, rate: number) {
+  const delta = ((to - from + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+  return from + delta * Math.min(1, rate);
+}
+
 function squarePoint(i: number): [number, number] {
   const corners: [number, number][] = [[0, R], [-R, 0], [0, -R], [R, 0]];
   const side = Math.floor(i / SIDE), k = i % SIDE;
@@ -51,7 +60,7 @@ function squarePoint(i: number): [number, number] {
   return [ax + ((bx - ax) * k) / SIDE, az + ((bz - az) * k) / SIDE];
 }
 
-export function createDailyScene(T: any, container: HTMLElement, labels: string[], start: number, onGo: () => void = () => undefined): DailyScene {
+export function createDailyScene(T: any, container: HTMLElement, labels: string[], start: number, onGo: () => void = () => undefined, actor?: string): DailyScene {
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const renderer = new T.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
@@ -174,7 +183,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
 
   // ---------- The ring of islands ----------
   const breathers: { obj: any; phase: number; period: number; shadow: any; glow: any; base: number; glowY: number; amp?: number }[] = [];
-  const islands: { group: any; top: any; base: number; glow: any }[] = [];
+  const islands: { group: any; top: any; base: number; glow: any; tag: any }[] = [];
   TILES.forEach((tile, i) => {
     const [x, z] = squarePoint(i);
     const big = tile.kind !== "coin";
@@ -194,7 +203,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     scene.add(glow);
     // Neighbours are well out of step (golden-angle phases), so some rise while others sink.
     breathers.push({ obj: isle.group, phase: i * 2.39996 + Math.random() * 0.4, period: 4.2 + Math.random() * 1.6, shadow, glow, base: 0, glowY: TOP - 1.2, amp: 0.08 });
-    islands.push({ group: isle.group, top: isle.top, base: TOPS[tile.kind], glow });
+    islands.push({ group: isle.group, top: isle.top, base: TOPS[tile.kind], glow, tag });
   });
   // The main island in the middle: a big stone with GO carved in as a rune. Tap it to roll;
   // the rune glows when it's your go. Open air between it and the ring of squares.
@@ -419,8 +428,61 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   flameGlow.position.y = 0.45;
   ship.add(flameGlow);
   let burnAt = -1e9;
+
+  // ---------- Your character (replaces the balloon once its model has loaded) ----------
+  const HERO_HEIGHT = 0.95;
+  const hero = new T.Group();
+  scene.add(hero);
+  const heroState = { ready: false, mixer: null as any, walk: null as any, cheer: null as any, pace: 2, still: 0, cheering: false };
+  let disposed = false;
+  const who = actor ? ACTORS[actor] : undefined;
+  if (who) {
+    loadGltfLoader(T)
+      .then((Loader) => new Promise<any>((resolve, reject) => new Loader().load(who.url, resolve, undefined, reject)))
+      .then((gltf) => {
+        if (disposed) return;
+        const model = gltf.scene;
+        model.traverse((o: any) => {
+          if (o.isMesh) {
+            o.castShadow = true;
+            o.receiveShadow = true;
+            o.frustumCulled = false;
+            o.material.metalness = 0;
+            o.material.roughness = Math.max(0.6, o.material.roughness ?? 0.6);
+          }
+        });
+        // The bodies stand 1.2 tall with their feet at 0.
+        model.scale.setScalar(HERO_HEIGHT / 1.2);
+        hero.add(model);
+        const mixer = new T.AnimationMixer(model);
+        const clip = (name: string) => gltf.animations.find((a: any) => a.name === name);
+        const walk = mixer.clipAction(clip("walk") ?? gltf.animations[0]);
+        walk.timeScale = who.walkPace;
+        walk.play();
+        walk.paused = true;
+        const found = clip("cheer");
+        const cheer = found ? mixer.clipAction(found) : null;
+        if (cheer) {
+          cheer.setLoop(T.LoopOnce, 1);
+          cheer.clampWhenFinished = true;
+        }
+        mixer.addEventListener("finished", (e: any) => {
+          if (e.action !== cheer) return;
+          heroState.cheering = false;
+          walk.reset();
+          walk.play();
+          walk.paused = true;
+          cheer.crossFadeTo(walk, 0.3, false);
+        });
+        Object.assign(heroState, { ready: true, mixer, walk, cheer, pace: who.walkPace });
+        ship.visible = false;
+      })
+      .catch(() => {
+        // Keep the balloon.
+      });
+  }
   scene.add(ship);
-  const shipAt = { index: start, from: new T.Vector3(), to: new T.Vector3(), t: 1 };
+  const shipAt = { index: start, fromIndex: start, from: new T.Vector3(), to: new T.Vector3(), t: 1 };
   const spotOf = (i: number) => {
     const [x, z] = squarePoint(((i % BOARD_SIZE) + BOARD_SIZE) % BOARD_SIZE);
     return new T.Vector3(x, TOP + 1.25, z);
@@ -540,6 +602,34 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     flame.scale.set(1 + burn, (0.35 + burn * 1.4) * flick, 1 + burn);
     flame.position.y = 0.2 + (0.35 + burn * 1.4) * 0.11;
     flameGlow.material.opacity = burn * 0.9;
+    // Your character walks square to square on top of the (breathing) islands.
+    if (heroState.ready) {
+      const k = shipAt.t;
+      const fromIsle = islands[shipAt.fromIndex], toIsle = islands[shipAt.index];
+      const groundY = (fromIsle?.group.position.y ?? 0) * (1 - k) + (toIsle?.group.position.y ?? 0) * k;
+      hero.position.set(ship.position.x, TOP + groundY + Math.sin(k * Math.PI) * 0.12, ship.position.z);
+      heroState.mixer.update(dt);
+      const moving = k < 1;
+      if (moving) {
+        heroState.still = 0;
+        if (!heroState.cheering) heroState.walk.paused = false;
+        const want = Math.atan2(shipAt.to.x - shipAt.from.x, shipAt.to.z - shipAt.from.z);
+        hero.rotation.y = turnToward(hero.rotation.y, want, dt * 14);
+      } else {
+        heroState.still += dt;
+        if (heroState.still > 0.25 && !heroState.cheering) {
+          heroState.walk.paused = true;
+          heroState.walk.time = 0;
+        }
+        // Standing still: turn to face the camera.
+        if (heroState.still > 0.5) hero.rotation.y = turnToward(hero.rotation.y, Math.atan2(camera.position.x - hero.position.x, camera.position.z - hero.position.z), dt * 5);
+      }
+    }
+    // The label of the square you stand on lifts above your head so it stays readable.
+    islands.forEach((isle, i) => {
+      const want = heroState.ready && i === shipAt.index ? TOP + HERO_HEIGHT + 0.45 : TOP + 0.55;
+      isle.tag.position.y += (want - isle.tag.position.y) * Math.min(1, dt * 8);
+    });
     // Floating words.
     for (let i = floats.length - 1; i >= 0; i--) {
       const f = floats[i], k = (now - f.born) / 1400;
@@ -594,11 +684,20 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   return {
     moveTo(index) {
       if (index === shipAt.index) return;
+      shipAt.fromIndex = shipAt.index;
       shipAt.index = index;
       shipAt.from.copy(ship.position);
       shipAt.to.copy(spotOf(index));
       shipAt.t = 0;
       burnAt = performance.now();
+    },
+    cheer() {
+      if (!heroState.ready || !heroState.cheer) return;
+      heroState.cheering = true;
+      heroState.walk.paused = false;
+      heroState.cheer.reset();
+      heroState.cheer.play();
+      heroState.walk.crossFadeTo(heroState.cheer, 0.2, false);
     },
     throwDice(faces) {
       const now = performance.now();
@@ -648,7 +747,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       sprite.scale.set(1.6, 0.48, 1);
       sprite.renderOrder = 10;
       scene.add(sprite);
-      floats.push({ sprite, born: performance.now(), base: ship.position.clone() });
+      floats.push({ sprite, born: performance.now(), base: heroState.ready ? hero.position.clone().add(new T.Vector3(0, HERO_HEIGHT + 0.2, 0)) : ship.position.clone() });
     },
     recentre() {
       view.goalYaw = HOME_YAW;
@@ -656,6 +755,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       view.goalDist = fitDist;
     },
     dispose() {
+      disposed = true;
       cancelAnimationFrame(frameId);
       watch.disconnect();
       canvas.removeEventListener("pointerdown", onDown);

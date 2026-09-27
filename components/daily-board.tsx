@@ -6,7 +6,7 @@ import { TILES } from "@/lib/board";
 import { useLang } from "@/lib/i18n";
 import { useEffect, useRef } from "react";
 
-export type DailyFloat = { key: number; text: string; colour?: string };
+export type DailyFloat = { key: number; text: string; colour?: string; cheer?: boolean };
 
 /** The floating-island daily board: a full-screen 3D view with the spaceship. */
 export function DailyBoard({
@@ -17,6 +17,7 @@ export function DailyBoard({
   ready,
   onGo,
   dice,
+  actor,
 }: {
   position: number;
   stopIndex: number | null;
@@ -27,21 +28,23 @@ export function DailyBoard({
   onGo: () => void;
   /** The roll to throw onto the middle stone (a new key throws again); null clears the dice. */
   dice: { key: number; faces: [number, number] } | null;
+  /** Your 3D character (a key of ACTORS). Remount the board (change its key) to swap it. */
+  actor?: string;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<DailyScene | null>(null);
   const { t } = useLang();
   const startRef = useRef(position);
   const labelsRef = useRef(TILES.map((tile) => t(tile.name)));
-  const latest = useRef({ position, stopIndex, ready, onGo });
-  latest.current = { position, stopIndex, ready, onGo };
+  const latest = useRef({ position, stopIndex, ready, onGo, actor });
+  latest.current = { position, stopIndex, ready, onGo, actor };
 
   useEffect(() => {
     let dead = false;
     loadThree()
       .then((T) => {
         if (dead || !box.current) return;
-        const scene = createDailyScene(T, box.current, labelsRef.current, startRef.current, () => latest.current.onGo());
+        const scene = createDailyScene(T, box.current, labelsRef.current, startRef.current, () => latest.current.onGo(), latest.current.actor);
         sceneRef.current = scene;
         scene.moveTo(latest.current.position);
         scene.highlight(latest.current.stopIndex);
@@ -74,6 +77,7 @@ export function DailyBoard({
   }, [diceKey]);
   useEffect(() => {
     if (float) sceneRef.current?.floatText(float.text, float.colour);
+    if (float?.cheer) sceneRef.current?.cheer();
     // Only a new key floats new words.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [float?.key]);

@@ -6,6 +6,7 @@ import { RealmScreen } from "@/components/realm-screen";
 import { TableGame } from "@/components/table-game";
 import { type Burst } from "@/components/board-ring";
 import { DailyBoard, type DailyFloat } from "@/components/daily-board";
+import { CHARACTERS, savePick, savedPick } from "@/lib/characters";
 import { LangPicker } from "@/components/lang-picker";
 import { TipHand } from "@/components/tip-hand";
 import { Button } from "@/components/ui/button";
@@ -129,7 +130,12 @@ function floatOf(burst: Burst | null, t: (text: string) => string): DailyFloat |
   if (burst.money) parts.push(`${burst.money > 0 ? "+" : ""}${burst.money} ${t("金幣")}`);
   if (burst.dice) parts.push(`+${burst.dice} 🎲`);
   if (parts.length === 0) return null;
-  return { key: burst.key, text: parts.join("  "), colour: burst.bad || burst.money < 0 ? "#DC2626" : "#16A34A" };
+  return {
+    key: burst.key,
+    text: parts.join("  "),
+    colour: burst.bad || burst.money < 0 ? "#DC2626" : "#16A34A",
+    cheer: burst.money >= 3 || burst.dice > 0,
+  };
 }
 
 export function DailyGame() {
@@ -155,6 +161,12 @@ export function DailyGame() {
   const [realmOpen, setRealmOpen] = useState(false);
   /** The board and the open space it is centred in, for the camera; GO presses glide it home. */
   const [goPresses, setGoPresses] = useState(0);
+  /** Your character (shared with the public table's picker). */
+  const [pick, setPick] = useState(0);
+  useEffect(() => {
+    const id = window.setTimeout(() => setPick(savedPick()), 0);
+    return () => window.clearTimeout(id);
+  }, []);
   const dispatch = useCallback((action: Parameters<typeof reduce>[1]) => {
     setState((current) => reduce(current, action));
   }, []);
@@ -382,6 +394,8 @@ export function DailyGame() {
     >
       {/* Floating-island board in 3D: drag to turn, pinch to zoom; the ship is you. */}
       <DailyBoard
+        key={pick}
+        actor={CHARACTERS[pick]?.actor}
         position={tokenIndex}
         stopIndex={arrived ? tokenIndex : null}
         float={pending?.committed ? floatOf(burstOf(state), t) : null}
@@ -544,6 +558,28 @@ export function DailyGame() {
               </div>
             </div>
             <LangPicker />
+            <div className="grid grid-cols-4 gap-2" data-testid="daily-character-pick">
+              {CHARACTERS.map((c, i) => (
+                <button
+                  key={c.name}
+                  type="button"
+                  onClick={() => {
+                    if (pending?.running) return;
+                    setPick(i);
+                    savePick(i);
+                  }}
+                  aria-pressed={pick === i}
+                  className={cn(
+                    "flex cursor-pointer flex-col items-center rounded-2xl border-[3px] p-1 transition",
+                    pick === i ? "border-[#FBD000] bg-[#FFF8D6] shadow" : "border-transparent opacity-70",
+                  )}
+                  data-testid={`daily-character-${i}`}
+                >
+                  <img src={c.avatar} alt="" className="size-11 rounded-full border-2 object-cover" style={{ borderColor: c.colour }} />
+                  <span className="mt-0.5 text-xs font-black text-[#1E3A8A]">{t(c.name)}</span>
+                </button>
+              ))}
+            </div>
             <div className="flex flex-wrap gap-2 text-sm font-bold text-[#1E3A8A]">
               <span key={power} className="rounded-full bg-[#EAF4FF] px-3 py-1 tabular-nums animate-[bump_0.35s_ease-out]" data-testid="attack-power">
                 ⚔️ {power}
