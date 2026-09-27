@@ -6,7 +6,8 @@ import { CityView } from "@/components/city-view";
 import { CHARACTERS } from "@/lib/characters";
 import { THEMES } from "@/lib/themes";
 import { ShieldFx } from "@/components/shield-fx";
-import { holdsNft, standingIndexes, totalLevels, type GameState } from "@/lib/game";
+import { holdsNft, matchUp, standingIndexes, totalLevels, type GameState } from "@/lib/game";
+import { ELEMENTS, TYPE_EDGE } from "@/lib/pet";
 import { useLang } from "@/lib/i18n";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
@@ -34,6 +35,7 @@ export function AttackScreen({
 }) {
   const rival = CHARACTERS[state.rivalFace] ?? CHARACTERS[1];
   const theme = THEMES[state.rivalCity] ?? THEMES[0];
+  const edge = matchUp(state);
   const readout = state.weaponReadout;
   const standing = standingIndexes(state.rivalLevels);
   const picking = !state.fightSettled && standing.length > 0;
@@ -105,7 +107,7 @@ export function AttackScreen({
           attacker={state.pet ? { element: state.pet.element, stage: state.pet.stage, legend: holdsNft(state) } : null}
           resident={{
             // The rival's own monster (made up from who they are and how far along they are, for the practice board).
-            element: (state.rivalFace * 2 + state.rivalCity) % 3,
+            element: state.rivalElement,
             stage: Math.min(4, 1 + state.rivalCity + Math.floor(totalLevels(state.rivalLevels) / 9)),
             legend: state.rivalHasNft && state.rivalNfts >= 3,
           }}
@@ -144,6 +146,16 @@ export function AttackScreen({
         </p>
         <p className="mt-1 rounded-full bg-[#1E3A8A]/80 px-2 text-xs font-black text-white" data-testid="rival-theme">
           {t(theme.name)} · {t("第 {n} 頁", { n: state.rivalCity + 1 })}
+        </p>
+        <p
+          className={cn(
+            "mt-1 rounded-full px-2.5 py-0.5 text-xs font-black text-white shadow",
+            edge > 0 ? "bg-[#16A34A]" : edge < 0 ? "bg-[#E52521]" : "bg-[#1E3A8A]/80",
+          )}
+          data-testid="match-up"
+        >
+          {t("佢係{e}龍", { e: t(ELEMENTS[state.rivalElement].name) })}
+          {edge > 0 ? ` · ${t("你克佢！機會 +{n}%", { n: TYPE_EDGE })}` : edge < 0 ? ` · ${t("佢克你！機會 −{n}%", { n: TYPE_EDGE })}` : ""}
         </p>
       </header>
 

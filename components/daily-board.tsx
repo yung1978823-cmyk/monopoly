@@ -1,6 +1,6 @@
 "use client";
 
-import { createDailyScene, type DailyScene } from "@/components/daily-scene";
+import { createDailyScene, type DailyScene, type PetLook } from "@/components/daily-scene";
 import { loadThree } from "@/components/eight-scene";
 import { TILES } from "@/lib/board";
 import { useLang } from "@/lib/i18n";
@@ -18,6 +18,8 @@ export function DailyBoard({
   onGo,
   dice,
   actor,
+  pet = null,
+  onEggTap,
 }: {
   position: number;
   stopIndex: number | null;
@@ -30,14 +32,17 @@ export function DailyBoard({
   dice: { key: number; faces: [number, number] } | null;
   /** Your 3D character (a key of ACTORS). Remount the board (change its key) to swap it. */
   actor?: string;
+  /** Your dragon on the middle stone. */
+  pet?: PetLook | null;
+  onEggTap?: () => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<DailyScene | null>(null);
   const { t } = useLang();
   const startRef = useRef(position);
   const labelsRef = useRef(TILES.map((tile) => t(tile.name)));
-  const latest = useRef({ position, stopIndex, ready, onGo, actor });
-  latest.current = { position, stopIndex, ready, onGo, actor };
+  const latest = useRef({ position, stopIndex, ready, onGo, actor, pet, onEggTap });
+  latest.current = { position, stopIndex, ready, onGo, actor, pet, onEggTap };
 
   useEffect(() => {
     let dead = false;
@@ -49,6 +54,8 @@ export function DailyBoard({
         scene.moveTo(latest.current.position);
         scene.highlight(latest.current.stopIndex);
         scene.setReady(latest.current.ready);
+        scene.setPet(latest.current.pet);
+        scene.onEggTap(() => latest.current.onEggTap?.());
       })
       .catch(() => undefined);
     return () => {
@@ -67,6 +74,10 @@ export function DailyBoard({
   useEffect(() => {
     sceneRef.current?.setReady(ready);
   }, [ready]);
+  const petKey = pet ? `${pet.element}-${pet.stage}-${pet.legend}-${pet.hungry}` : "";
+  useEffect(() => {
+    sceneRef.current?.setPet(latest.current.pet);
+  }, [petKey]);
   const diceKey = dice?.key ?? null;
   const diceRef = useRef(dice);
   diceRef.current = dice;
@@ -77,7 +88,10 @@ export function DailyBoard({
   }, [diceKey]);
   useEffect(() => {
     if (float) sceneRef.current?.floatText(float.text, float.colour);
-    if (float?.cheer) sceneRef.current?.cheer();
+    if (float?.cheer) {
+      sceneRef.current?.cheer();
+      sceneRef.current?.petHappy();
+    }
     // Only a new key floats new words.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [float?.key]);

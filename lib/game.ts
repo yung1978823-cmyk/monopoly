@@ -1,7 +1,7 @@
 import { LANDMARK_NAMES, TILES, TILE_INFO, type TileKind } from "./board";
 import { CHARACTERS } from "./characters";
 import { THEMES } from "./themes";
-import { ELEMENTS, TOP_STAGE, daysBetween, eatForDay, growNeed, petAttack, petName, STAGE_NAMES, type Pet } from "./pet";
+import { ELEMENTS, TYPE_EDGE, typeEdge, TOP_STAGE, daysBetween, eatForDay, growNeed, petAttack, petName, STAGE_NAMES, type Pet } from "./pet";
 import {
   CHEST_DEFAULT,
   CHEST_MAX,
@@ -60,6 +60,8 @@ export type WeaponReadout = {
   shieldBreak: boolean;
   /** The rival building this attack knocked down a level, if any. */
   smashed: number | null;
+  /** Attribute match-up: +1 your dragon beats theirs, −1 theirs beats yours, 0 neither. */
+  edge: -1 | 0 | 1;
 };
 
 /** What the last stop did, for the picture shown on the board. */
@@ -100,6 +102,8 @@ export type GameState = {
   rivalCity: number;
   /** Who the current rival is (an index into CHARACTERS). */
   rivalFace: number;
+  /** The current rival's dragon attribute (an index into ELEMENTS). */
+  rivalElement: number;
   /** The five NFT slots: each holds an NFT id or is empty. Any NFT placed means you hold one. */
   nfts: (string | null)[];
   rivalHasNft: boolean;
@@ -136,6 +140,8 @@ export type Action =
       rivalCity?: number;
       /** Who that rival is (an index into CHARACTERS). */
       rivalFace?: number;
+      /** That rival's dragon attribute. */
+      rivalElement?: number;
       /** How many NFTs that rival has placed (1–5), when they hold any. */
       rivalNfts?: number;
       /** Points in the chest, if the walk stops on 寶箱 (3–6). */
@@ -195,6 +201,11 @@ export function rivalPower(state: Pick<GameState, "rivalLevels" | "rivalNfts" | 
   return 10 + state.rivalCity * THEME_ATTACK + totalLevels(state.rivalLevels) * LEVEL_ATTACK + nftAttack(state.rivalNfts);
 }
 
+/** Your hatched dragon against the rival's: +1 you beat their attribute, −1 they beat yours. */
+export function matchUp(state: Pick<GameState, "pet" | "rivalElement">): -1 | 0 | 1 {
+  return state.pet && state.pet.stage > 0 ? typeEdge(state.pet.element, state.rivalElement) : 0;
+}
+
 /** Attack power: your monster's (10 as an egg, up to 46 as 王者; a tenth more for a legendary NFT
  * monster), plus +2 per NFT placed. Buildings are for defence. */
 export function attackPower(state: Pick<GameState, "pet" | "nfts">): number {
@@ -224,6 +235,7 @@ export function createGame(now: number, dayKey: string): GameState {
     rivalLevels: [2, 1, 0, 0, 0],
     rivalCity: 0,
     rivalFace: 1,
+    rivalElement: 1,
     nfts: emptyNfts(),
     rivalHasNft: true,
     rivalNfts: 1,
@@ -356,7 +368,8 @@ function readWeapon(value: unknown): WeaponReadout | null {
   ) {
     return null;
   }
-  return { weapon, attackTotal, defenseTotal, chance, enemyLuck, hit, dst, pointsGained, shieldBreak, smashed };
+  const edge = readout.edge === 1 || readout.edge === -1 ? readout.edge : 0;
+  return { weapon, attackTotal, defenseTotal, chance, enemyLuck, hit, dst, pointsGained, shieldBreak, smashed, edge };
 }
 
 export function sanitizeState(
@@ -405,6 +418,7 @@ export function sanitizeState(
     rivalLevels,
     rivalCity,
     rivalFace: inRange(value.rivalFace, 0, CHARACTERS.length - 1) ? value.rivalFace : 1,
+    rivalElement: inRange(value.rivalElement, 0, ELEMENTS.length - 1) ? value.rivalElement : 1,
     nfts: readNfts(value.nfts),
     rivalHasNft: value.rivalHasNft !== false,
     rivalNfts: value.rivalHasNft === false ? 0 : clampInt(value.rivalNfts, 1, NFT_SLOTS, 1),
@@ -565,6 +579,8 @@ export function reduce(state: GameState, action: Action): GameState {
         searching && inRange(action.rivalCity, 0, THEMES.length - 1) ? action.rivalCity : state.rivalCity;
       const rivalFace =
         (searching || stealing) && inRange(action.rivalFace, 0, CHARACTERS.length - 1) ? action.rivalFace : state.rivalFace;
+      const rivalElement =
+        searching && inRange(action.rivalElement, 0, ELEMENTS.length - 1) ? action.rivalElement : state.rivalElement;
       // Five buildings on the rival's page, each 0–5; anything else falls back to what we had.
       const given = readLevels(action.rivalLevels, BUILDINGS);
       const rivalLevels = searching
@@ -598,6 +614,7 @@ export function reduce(state: GameState, action: Action): GameState {
         rivalLevels,
         rivalCity,
         rivalFace,
+        rivalElement,
         rivalNfts: state.rivalHasNft ? (inRange(action.rivalNfts, 1, NFT_SLOTS) ? action.rivalNfts : 1) : 0,
         enemyLuck,
         // Only a rival holding an NFT has a shield.
@@ -623,7 +640,9 @@ export function reduce(state: GameState, action: Action): GameState {
       const weapon = totalLevels(state.levels);
       const attackTotal = attackPower(state);
       const defenseTotal = rivalPower(state);
-      const chance = hitChance(attackTotal, defenseTotal);
+      // Attribute match-up (only once your dragon has hatched): ±10 points on the hit chance.
+      const edge = matchUp(state);
+      const chance = Math.max(HIT_MIN, Math.min(HIT_MAX, hitChance(attackTotal, defenseTotal) + edge * TYPE_EDGE));
       const roll = typeof action.roll === "number" && action.roll >= 0 && action.roll < 1 ? action.roll : 0.5;
       const hit = roll * 100 < chance;
       const bothNft = holdsNft(state) && state.rivalHasNft;
@@ -656,6 +675,7 @@ export function reduce(state: GameState, action: Action): GameState {
         pointsGained,
         shieldBreak,
         smashed,
+        edge,
       };
       const verdict = shieldBreak ? "盾破，打中" : hit ? "打中" : "打唔中";
       const pay = dst > 0 ? `搬走 ${dst} DST。` : "DST 0。";
@@ -673,7 +693,7 @@ export function reduce(state: GameState, action: Action): GameState {
           weaponReadout,
         },
         "you",
-        `總攻擊 ${attackTotal}，總防守 ${defenseTotal}，機會 ${chance}%。${verdict}。${smashText}得 ${pointsGained} 分，合計 ${nextPoints}。${pay}`,
+        `總攻擊 ${attackTotal}，總防守 ${defenseTotal}，${edge > 0 ? "屬性克制，" : edge < 0 ? "屬性被克，" : ""}機會 ${chance}%。${verdict}。${smashText}得 ${pointsGained} 分，合計 ${nextPoints}。${pay}`,
       );
     }
     case "return-walk": {

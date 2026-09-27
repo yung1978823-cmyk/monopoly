@@ -5,7 +5,10 @@
  * table: drag to turn and tilt, pinch to zoom, a gentle sway when left alone.
  */
 import { ACTORS, loadGltfLoader } from "@/components/eight-scene";
+import { buildMonster, type Monster, type Mood } from "@/components/monster";
 import { BOARD_SIZE, TILES, type TileKind } from "@/lib/board";
+
+export type PetLook = { element: number; stage: number; legend: boolean; hungry: boolean };
 
 export type DailyScene = {
   /** Fly the ship to a square (one square at a time as the walk plays). */
@@ -22,6 +25,13 @@ export type DailyScene = {
   throwDice(faces: [number, number]): void;
   /** Fade the dice away (the walk is over). */
   clearDice(): void;
+  /** Your dragon on the middle stone (null: none yet). A 龍蛋 sits at the back; once hatched it
+   * wanders, rests, flies up, naps, and waits for food with a 🍖 bubble when hungry. */
+  setPet(look: PetLook | null): void;
+  /** Your dragon hops about happily (food, a good roll, or a pat). */
+  petHappy(): void;
+  /** Called when the egg on the stone is tapped (to open the dragon screen). */
+  onEggTap(handler: () => void): void;
   /** Put the camera back over the whole board. */
   recentre(): void;
   dispose(): void;
@@ -212,12 +222,14 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   const bigRock = new T.Group();
   const dice: { mesh: any; rest: any; from: any; q: any; spin: any; born: number; fade: number }[] = [];
   const rune = { ready: false, level: 0, pressAt: -1e9 };
+  let stone: any = null;
   let runeGlow: any, runeLight: any, runeRing: any;
   {
     const big = islandMesh(6, 977, 0x9aa1ab);
     big.top.material.roughness = 0.95;
     big.group.position.set(0, 0.1, 0);
     bigRock.add(big.group);
+    stone = big.group;
     scene.add(bigRock);
     // Carved grooves (always there) and a glowing copy on top that lights up.
     const carve = (glow: boolean) => {
@@ -531,6 +543,12 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     // A tap on the middle stone rolls the dice.
     const box = canvas.getBoundingClientRect();
     ray.setFromCamera(new T.Vector2(((e.clientX - box.left) / box.width) * 2 - 1, -((e.clientY - box.top) / box.height) * 2 + 1), camera);
+    // A pat on your dragon makes it happy (it doesn't roll).
+    if (pet && ray.intersectObject(pet.m.group, true).length > 0) {
+      if (pet.look.stage > 0) happy();
+      else eggTap();
+      return;
+    }
     if (ray.intersectObject(bigRock, true).length === 0) return;
     rune.pressAt = performance.now();
     if (rune.ready) onGo();
@@ -567,6 +585,125 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   let frameId = 0;
   let last = performance.now();
   const floats: { sprite: any; born: number; base: any }[] = [];
+  // ---------- Your dragon on the middle stone ----------
+  const PET_RING = 2.45;
+  /** Where on the stone's rim: angle measured like the camera's yaw (HOME_YAW is the front). */
+  const petSpot = (angle: number, lift = 0) => new T.Vector3(Math.sin(angle) * PET_RING, TOP + lift, Math.cos(angle) * PET_RING);
+  const bubbleOf = (text: string, size = 60) => {
+    const c = document.createElement("canvas");
+    c.width = 160;
+    c.height = 120;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "rgba(255,255,255,0.95)";
+    x.beginPath();
+    x.arc(80, 52, 46, 0, Math.PI * 2);
+    x.moveTo(62, 90);
+    x.lineTo(56, 116);
+    x.lineTo(82, 94);
+    x.fill();
+    x.font = `${size}px system-ui, sans-serif`;
+    x.textAlign = "center";
+    x.textBaseline = "middle";
+    x.fillStyle = "#1E3A8A";
+    x.fillText(text, 80, 54);
+    const sprite = new T.Sprite(new T.SpriteMaterial({ map: new T.CanvasTexture(c), transparent: true, depthTest: false }));
+    sprite.scale.set(0.8, 0.6, 1);
+    sprite.renderOrder = 8;
+    sprite.visible = false;
+    return sprite;
+  };
+  type PetMode = "walk" | "rest" | "fly" | "sleep" | "happy";
+  let eggTap = () => undefined as void;
+  let pet: {
+    m: Monster;
+    look: PetLook;
+    angle: number;
+    goal: number;
+    mode: PetMode;
+    until: number;
+    lift: number;
+    spin: number;
+    food: any;
+    zzz: any;
+  } | null = null;
+  function setPet(look: PetLook | null) {
+    if (pet) {
+      stone?.remove(pet.m.group);
+      pet = null;
+    }
+    if (!look || !stone) return;
+    const m = buildMonster(T, look.element, look.stage, look.legend);
+    m.group.scale.setScalar(look.stage === 0 ? 1.1 : 0.95);
+    stone.add(m.group);
+    // The egg sits at the back of the stone, behind the rune, where it can be seen above it.
+    const back = HOME_YAW + Math.PI;
+    const food = bubbleOf("🍖");
+    const zzz = bubbleOf("💤", 54);
+    m.group.add(food, zzz);
+    food.position.y = m.height / 0.95 + 0.35;
+    zzz.position.y = m.height / 0.95 + 0.3;
+    pet = { m, look, angle: back, goal: back, mode: "rest", until: performance.now() + 2000, lift: 0, spin: 0, food, zzz };
+    m.group.position.copy(petSpot(back));
+    m.group.rotation.y = HOME_YAW;
+  }
+  function happy() {
+    if (!pet || pet.look.stage === 0) return;
+    pet.mode = "happy";
+    pet.until = performance.now() + 1300;
+    pet.spin = 0;
+  }
+  /** Pick what the dragon does next: hungry ones mostly sit and wait for food. */
+  function nextMode(now: number) {
+    if (!pet) return;
+    const r = Math.random();
+    const hungry = pet.look.hungry;
+    const mode: PetMode = hungry
+      ? r < 0.55 ? "rest" : r < 0.85 ? "walk" : "sleep"
+      : r < 0.45 ? "walk" : r < 0.7 ? "rest" : r < 0.85 ? "fly" : "sleep";
+    pet.mode = mode;
+    if (mode === "walk") {
+      // Anywhere round the back three-quarters of the rim, clear of the dice at the front.
+      pet.goal = HOME_YAW + Math.PI * (0.35 + Math.random() * 1.3);
+      pet.until = now + 9000;
+    } else {
+      pet.until = now + (mode === "sleep" ? 7000 + Math.random() * 5000 : mode === "fly" ? 2400 : 3000 + Math.random() * 3000);
+    }
+  }
+  function updatePet(now: number, dt: number) {
+    if (!pet) return;
+    pet.m.update(now);
+    if (pet.look.stage === 0) return;
+    if (now > pet.until) nextMode(now);
+    const faceCamera = () => Math.atan2(camera.position.x - pet!.m.group.position.x, camera.position.z - pet!.m.group.position.z);
+    let wantYaw = faceCamera();
+    let wantLift = 0;
+    if (pet.mode === "walk") {
+      const delta = pet.goal - pet.angle;
+      if (Math.abs(delta) < 0.02) {
+        pet.until = 0;
+      } else {
+        const step = Math.sign(delta) * Math.min(Math.abs(delta), dt * 0.45);
+        pet.angle += step;
+        // Walk along the rim: face the way it's going.
+        wantYaw = pet.angle + (step > 0 ? Math.PI / 2 : -Math.PI / 2);
+      }
+    } else if (pet.mode === "fly") {
+      wantLift = 0.9;
+    } else if (pet.mode === "happy") {
+      pet.spin += dt * 9;
+      wantYaw = faceCamera() + pet.spin;
+      wantLift = 0.15;
+    }
+    pet.lift += (wantLift - pet.lift) * Math.min(1, dt * 3);
+    pet.m.group.position.copy(petSpot(pet.angle, pet.lift));
+    pet.m.group.rotation.y = pet.mode === "happy" ? wantYaw : turnToward(pet.m.group.rotation.y, wantYaw, dt * 6);
+    const mood: Mood = pet.mode === "rest" ? "rest" : pet.mode;
+    pet.m.setMood(mood);
+    pet.food.visible = pet.look.hungry && pet.mode === "rest";
+    pet.zzz.visible = pet.mode === "sleep";
+    if (pet.zzz.visible) pet.zzz.position.x = Math.sin(now / 600) * 0.08;
+  }
+
   function frame(now: number) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
@@ -664,6 +801,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const press = Math.max(0, 1 - (now - rune.pressAt) / 260);
     bigRock.position.y = -Math.sin(press * Math.PI) * 0.18;
     // Dice: drop from above the rune, bounce twice while spinning down to their faces, then sit.
+    updatePet(now, dt);
     for (const d of dice) {
       if (!d.mesh.visible) continue;
       const t = Math.max(0, Math.min(1, (now - d.born) / 900));
@@ -725,6 +863,19 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     clearDice() {
       const now = performance.now();
       for (const d of dice) if (d.mesh.visible && d.fade < 0) d.fade = now;
+    },
+    setPet(look) {
+      if (look && pet && pet.look.element === look.element && pet.look.stage === look.stage && pet.look.legend === look.legend) {
+        pet.look = look;
+        return;
+      }
+      setPet(look);
+    },
+    petHappy() {
+      happy();
+    },
+    onEggTap(handler) {
+      eggTap = handler;
     },
     setReady(ready) {
       rune.ready = ready;

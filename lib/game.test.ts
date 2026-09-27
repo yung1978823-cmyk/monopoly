@@ -426,6 +426,22 @@ describe("daily board", () => {
     assert.equal(parseSave(JSON.stringify({ v: 1, state }), NOW, DAY)?.pet?.stage, 1);
   });
 
+  it("gives ±10% hit chance for the attribute match-up: 光 beats 暗 beats 混濁 beats 光", () => {
+    const fight = (element: number, rivalElement: number, stage = 1) =>
+      reduce(
+        { ...reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [1, 0, 0, 0, 0], rivalElement, now: NOW }), pet: { element, stage, hungry: 0 }, rivalHasNft: false, enemyShield: false, rivalNfts: 0 },
+        { type: "weapon", target: 0, roll: 0.99 },
+      ).weaponReadout;
+    // 光龍 N (16) against 10 + 1 level × 2 = 12: 50 + 16 = 66%.
+    assert.equal(fight(0, 0)?.chance, 66, "same attribute: no edge");
+    assert.equal(fight(0, 2)?.chance, 56, "光 is beaten by 混濁");
+    assert.equal(fight(0, 1)?.chance, 76, "光 beats 暗");
+    assert.equal(fight(0, 1)?.edge, 1);
+    assert.equal(fight(1, 0)?.chance, 56, "暗 is beaten by 光");
+    assert.equal(fight(2, 0)?.chance, 76, "混濁 beats 光");
+    assert.equal(fight(0, 1, 0)?.edge, 0, "an egg has no attribute yet");
+  });
+
   it("feeds the monster each day and drops it a stage after two hungry days", () => {
     const pet = { element: 0, stage: 3, hungry: 0 };
     const fed = reduce({ ...start(), pet, meat: 20, juice: 5 }, { type: "tick", now: NOW, dayKey: "2026-09-25" });

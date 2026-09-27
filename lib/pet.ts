@@ -20,6 +20,19 @@ export const ELEMENTS = [
   { id: "chaos", name: "混濁", beast: "混濁龍", legend: "混沌龍", colour: "#3E8E7E", chance: 0.3 },
 ] as const;
 
+/** 光 beats 暗, 暗 beats 混濁, 混濁 beats 光: the attribute each one beats. */
+export function beats(element: number): number {
+  return (element + 1) % ELEMENTS.length;
+}
+/** Hit chance (percentage points) gained against the attribute you beat, and lost against the one that beats you. */
+export const TYPE_EDGE = 10;
+/** +1 when the attacker's attribute beats the defender's, −1 the other way round, 0 otherwise. */
+export function typeEdge(attacker: number, defender: number): -1 | 0 | 1 {
+  if (beats(attacker) === defender) return 1;
+  if (beats(defender) === attacker) return -1;
+  return 0;
+}
+
 /** The attribute a new egg gets, from a random number in [0, 1): 光 35%, 暗 35%, 混濁 30%. */
 export function rollElement(random: number): number {
   let edge = 0;

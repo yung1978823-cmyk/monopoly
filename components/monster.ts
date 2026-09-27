@@ -13,7 +13,12 @@ export type Monster = {
   update(now: number): void;
   /** Roughly how tall it stands, for placing things above it. */
   height: number;
+  /** How it carries itself: resting, walking (small hops), flying (fast wing beats), asleep
+   * (eyes shut, wings folded, slow breathing) or happy (bouncy, wings up). */
+  setMood(mood: Mood): void;
 };
+
+export type Mood = "rest" | "walk" | "fly" | "sleep" | "happy";
 
 const PALETTE = [
   // 光
@@ -74,6 +79,9 @@ export function buildMonster(T: any, element: number, stage: number, legend = fa
     return {
       group: root,
       height: 1.1 * s,
+      setMood() {
+        // An egg just wobbles.
+      },
       update(now) {
         // A little wobble now and then, as if something inside wants out.
         const k = now / 1000;
@@ -286,21 +294,47 @@ export function buildMonster(T: any, element: number, stage: number, legend = fa
   }
 
   let nextBlink = 0;
+  let mood: Mood = "rest";
   return {
     group: root,
     height: (0.9 + headR * 1.6) * s,
+    setMood(next) {
+      mood = next;
+    },
     update(now) {
       const k = now / 1000;
-      body.position.y = Math.abs(Math.sin(k * 2.2)) * 0.05;
-      body.scale.set(s * (1 + Math.sin(k * 4.4) * 0.015), s * (1 - Math.sin(k * 4.4) * 0.015), s);
-      head.rotation.z = Math.sin(k * 1.3) * 0.08;
-      head.rotation.x = Math.sin(k * 0.9) * 0.04;
-      tail.rotation.y = Math.sin(k * 3) * 0.35;
-      // Wings beat: a quick flap every so often over a slow resting sway.
-      const beat = Math.sin(k * 7) * 0.45 * (0.4 + 0.6 * Math.max(0, Math.sin(k * 0.8)));
+      const asleep = mood === "sleep";
+      if (mood === "walk") {
+        // Waddling hops.
+        body.position.y = Math.abs(Math.sin(k * 9)) * 0.1;
+        body.rotation.z = Math.sin(k * 9) * 0.1;
+      } else if (mood === "happy") {
+        body.position.y = Math.abs(Math.sin(k * 8)) * 0.25;
+        body.rotation.z = 0;
+      } else if (asleep) {
+        body.position.y = -0.08;
+        body.rotation.z = 0;
+      } else {
+        body.position.y = Math.abs(Math.sin(k * 2.2)) * 0.05;
+        body.rotation.z = 0;
+      }
+      const breathe = asleep ? Math.sin(k * 1.6) * 0.04 : Math.sin(k * 4.4) * 0.015;
+      body.scale.set(s * (1 + breathe), s * (1 - breathe * (asleep ? 0.5 : 1)), s);
+      head.rotation.z = asleep ? 0.25 : Math.sin(k * 1.3) * 0.08;
+      head.rotation.x = asleep ? 0.35 : Math.sin(k * 0.9) * 0.04;
+      tail.rotation.y = Math.sin(k * (mood === "happy" ? 12 : asleep ? 0.8 : 3)) * 0.35;
+      // Wings: fast beats in flight, raised when happy, folded asleep, otherwise a quick flap now and then.
+      const beat =
+        mood === "fly"
+          ? Math.sin(k * 16) * 0.7
+          : mood === "happy"
+            ? 0.3 + Math.sin(k * 10) * 0.35
+            : asleep
+              ? -0.55
+              : Math.sin(k * 7) * 0.45 * (0.4 + 0.6 * Math.max(0, Math.sin(k * 0.8)));
       for (const w of wings) w.pivot.rotation.z = w.side * (0.35 + beat);
       if (now > nextBlink) nextBlink = now + 2500 + Math.random() * 2500;
-      const blink = nextBlink - now < 120 ? 0.1 : 1;
+      const blink = asleep ? 0.08 : nextBlink - now < 120 ? 0.1 : 1;
       for (const eye of eyes) eye.scale.y = blink;
       if (aura) {
         aura.rotation.z = k * 0.8;

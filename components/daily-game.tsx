@@ -14,7 +14,7 @@ import { TipHand } from "@/components/tip-hand";
 import { Button } from "@/components/ui/button";
 import { FX_ART, TILES, TILE_INFO } from "@/lib/board";
 import { THEMES } from "@/lib/themes";
-import { growNeed } from "@/lib/pet";
+import { growNeed, rollElement } from "@/lib/pet";
 import {
   STORAGE_KEY,
   attackPower,
@@ -47,6 +47,7 @@ type PendingWalk = {
   rivalLevels: number[];
   rivalCity: number;
   rivalFace: number;
+  rivalElement: number;
   rivalNfts: number;
   chest: number;
   chestMeat: boolean;
@@ -309,6 +310,7 @@ export function DailyGame() {
         rivalLevels: move.rivalLevels,
         rivalCity: move.rivalCity,
         rivalFace: move.rivalFace,
+        rivalElement: move.rivalElement,
         rivalNfts: move.rivalNfts,
         chest: move.chest,
         chestMeat: move.chestMeat,
@@ -335,6 +337,7 @@ export function DailyGame() {
     if (rivalLevels.every((level) => level >= MAX_LEVEL)) rivalLevels[0] = MAX_LEVEL - 1;
     const others = CHARACTERS.map((_, i) => i).filter((i) => i !== pick);
     const rivalFace = others[Math.floor(Math.random() * others.length)];
+    const rivalElement = rollElement(Math.random());
     const chest = 3 + Math.floor(Math.random() * 4);
     const rivalNfts = 1 + Math.floor(Math.random() * 5);
     // A chest holds 🍖 half the time. A rival's store (on 偷嘢): two crates of 🧪, one of 🍖 or coins, shuffled.
@@ -344,7 +347,7 @@ export function DailyGame() {
       { kind: "juice", amount: 1 + Math.floor(Math.random() * 3) },
       Math.random() < 0.5 ? { kind: "meat", amount: 3 } : { kind: "coins", amount: 4 },
     ].sort(() => Math.random() - 0.5) as StealBox[];
-    setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalFace, rivalNfts, chest, chestMeat, stealBoxes, running: true, committed: false });
+    setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalFace, rivalElement, rivalNfts, chest, chestMeat, stealBoxes, running: true, committed: false });
   }
 
   function onBuild() {
@@ -448,6 +451,9 @@ export function DailyGame() {
         ready={state.dice > 0 && !pending?.running}
         onGo={onWalk}
         dice={pending ? { key: goPresses, faces: [pending.faces[0], pending.faces[1]] } : null}
+        // No dragon yet: an egg waits on the stone — tap it to take it.
+        pet={state.pet ? { element: state.pet.element, stage: state.pet.stage, legend: holdsNft(state), hungry: state.pet.hungry > 0 } : { element: 0, stage: 0, legend: false, hungry: false }}
+        onEggTap={() => !pending?.running && setPetOpen(true)}
       />
       {/* First time: point at the GO stone in the middle. */}
       {state.rollCount === 0 && !pending ? <TipHand className="left-1/2 top-[42%] z-20 -translate-x-1/2" /> : null}
