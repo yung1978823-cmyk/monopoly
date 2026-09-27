@@ -74,7 +74,7 @@ export function DailyBoard({
   useEffect(() => {
     sceneRef.current?.setReady(ready);
   }, [ready]);
-  const petKey = pet ? `${pet.element}-${pet.stage}-${pet.legend}-${pet.hungry}` : "";
+  const petKey = pet ? `${pet.element}-${pet.stage}-${pet.legend}-${pet.hungry}-${pet.rolls ?? ""}` : "";
   useEffect(() => {
     sceneRef.current?.setPet(latest.current.pet);
   }, [petKey]);

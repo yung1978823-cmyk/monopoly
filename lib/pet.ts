@@ -12,7 +12,12 @@ export type Pet = {
   stage: number;
   /** Days in a row it went without its daily food (two drops a stage). */
   hungry: number;
+  /** Board rolls since the egg was taken (it hatches by itself at HATCH_ROLLS). */
+  rolls: number;
 };
+
+/** A dragon egg hatches after this many rolls on the daily board (the public table doesn't count). */
+export const HATCH_ROLLS = 60;
 
 export const ELEMENTS = [
   { id: "light", name: "光", beast: "光龍", legend: "聖光龍", colour: "#E8B420", chance: 0.35 },
@@ -45,9 +50,10 @@ export function rollElement(random: number): number {
 
 export const STAGE_NAMES = ["龍蛋", "N", "R", "SR", "SSR"] as const;
 export const TOP_STAGE = STAGE_NAMES.length - 1;
-/** 🍖 and 🧪 to grow from each stage to the next (the last stage has nowhere to go). */
-export const STAGE_NEED: readonly (readonly [number, number])[] = [
-  [20, 2],
+/** 🍖 and 🧪 to grow from each stage to the next (the last stage has nowhere to go). The egg needs no
+ * food: it hatches by itself after HATCH_ROLLS rolls. */
+export const STAGE_NEED: readonly (readonly [number, number] | null)[] = [
+  null,
   [100, 12],
   [260, 40],
   [600, 100],

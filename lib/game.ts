@@ -1,7 +1,7 @@
 import { LANDMARK_NAMES, TILES, TILE_INFO, type TileKind } from "./board";
 import { CHARACTERS } from "./characters";
 import { THEMES } from "./themes";
-import { ELEMENTS, TYPE_EDGE, typeEdge, TOP_STAGE, daysBetween, eatForDay, growNeed, petAttack, petName, STAGE_NAMES, type Pet } from "./pet";
+import { ELEMENTS, HATCH_ROLLS, TYPE_EDGE, typeEdge, TOP_STAGE, daysBetween, eatForDay, growNeed, petAttack, petName, STAGE_NAMES, type Pet } from "./pet";
 import {
   CHEST_DEFAULT,
   CHEST_MAX,
@@ -333,7 +333,12 @@ function readPet(value: unknown): Pet | null {
   const pet = value as Partial<Pet>;
   // Saves from the five-element monsters (0–4) fold onto the three dragon attributes.
   if (!inRange(pet.element, 0, 9) || !inRange(pet.stage, 0, TOP_STAGE)) return null;
-  return { element: pet.element % ELEMENTS.length, stage: pet.stage, hungry: inRange(pet.hungry, 0, 9) ? pet.hungry : 0 };
+  return {
+    element: pet.element % ELEMENTS.length,
+    stage: pet.stage,
+    hungry: inRange(pet.hungry, 0, 9) ? pet.hungry : 0,
+    rolls: inRange(pet.rolls, 0, HATCH_ROLLS) ? pet.rolls : 0,
+  };
 }
 
 function readNfts(value: unknown): (string | null)[] {
@@ -597,6 +602,14 @@ export function reduce(state: GameState, action: Action): GameState {
             : stealing
               ? "潛入敵人倉庫偷嘢。"
               : "";
+      // A dragon egg counts board rolls and hatches by itself at the 60th.
+      const egg = state.pet && state.pet.stage === 0 ? state.pet : null;
+      const nextPet: Pet | null = egg
+        ? egg.rolls + 1 >= HATCH_ROLLS
+          ? { ...egg, stage: 1, rolls: HATCH_ROLLS, hungry: 0 }
+          : { ...egg, rolls: egg.rolls + 1 }
+        : state.pet;
+      const hatched = !!egg && nextPet?.stage === 1;
       const next: GameState = {
         ...state,
         phase: searching ? "search" : stealing ? "steal" : "walk",
@@ -609,6 +622,7 @@ export function reduce(state: GameState, action: Action): GameState {
         points: moved.points,
         landing: moved.landing,
         rollCount: state.rollCount + 1,
+        pet: nextPet,
         walkFaces: faces,
         lastRivalFaces: searching ? enemyFaces : null,
         rivalLevels,
@@ -622,11 +636,12 @@ export function reduce(state: GameState, action: Action): GameState {
         fightSettled: false,
         weaponReadout: null,
       };
-      return pushLog(
+      const walked = pushLog(
         next,
         "you",
         `你花 1 顆，擲出 ${faces[0]} 和 ${faces[1]}。走 ${steps} 格。${passed}走到${TILE_INFO[tile.kind].icon}${tile.name}。分數 ${change >= 0 ? "+" : ""}${change}，合計 ${next.points}。${effect}`,
       );
+      return hatched && nextPet ? pushLog(walked, "rule", `龍蛋孵化咗！係一隻${ELEMENTS[nextPet.element].beast}。`) : walked;
     }
     case "weapon": {
       if (state.phase !== "search" || state.enemyLuck === null || state.fightSettled) return state;
@@ -717,7 +732,7 @@ export function reduce(state: GameState, action: Action): GameState {
     }
     case "pick-pet": {
       if (state.pet || !inRange(action.element, 0, ELEMENTS.length - 1)) return state;
-      return pushLog({ ...state, pet: { element: action.element, stage: 0, hungry: 0 } }, "you", `你領咗一隻龍蛋（${ELEMENTS[action.element].name}屬性）。`);
+      return pushLog({ ...state, pet: { element: action.element, stage: 0, hungry: 0, rolls: 0 } }, "you", `你領咗一隻龍蛋（${ELEMENTS[action.element].name}屬性）。`);
     }
     case "grow-pet": {
       const pet = state.pet;

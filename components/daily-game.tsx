@@ -14,7 +14,7 @@ import { TipHand } from "@/components/tip-hand";
 import { Button } from "@/components/ui/button";
 import { FX_ART, TILES, TILE_INFO } from "@/lib/board";
 import { THEMES } from "@/lib/themes";
-import { growNeed, rollElement } from "@/lib/pet";
+import { ELEMENTS, HATCH_ROLLS, growNeed, petName, rollElement } from "@/lib/pet";
 import {
   STORAGE_KEY,
   attackPower,
@@ -171,6 +171,25 @@ export function DailyGame() {
   const [realmOpen, setRealmOpen] = useState(false);
   /** Whether your monster's screen (🐾) is showing. */
   const [petOpen, setPetOpen] = useState(false);
+  /** A dragon that just hatched on the board, shown in a banner for a moment. */
+  const [hatchedNow, setHatchedNow] = useState<number | null>(null);
+  const petStage = useRef<number | null>(null);
+  useEffect(() => {
+    const stage = state.pet?.stage ?? null;
+    const was = petStage.current;
+    petStage.current = stage;
+    if (was !== 0 || stage === null || stage < 1 || !state.pet) return;
+    const element = state.pet.element;
+    const show = window.setTimeout(() => {
+      setHatchedNow(element);
+      play("chest");
+    }, 400);
+    const hide = window.setTimeout(() => setHatchedNow(null), 3600);
+    return () => {
+      window.clearTimeout(show);
+      window.clearTimeout(hide);
+    };
+  }, [state.pet]);
   /** The board and the open space it is centred in, for the camera; GO presses glide it home. */
   const [goPresses, setGoPresses] = useState(0);
   /** Your character (shared with the public table's picker). */
@@ -452,15 +471,33 @@ export function DailyGame() {
         onGo={onWalk}
         dice={pending ? { key: goPresses, faces: [pending.faces[0], pending.faces[1]] } : null}
         // No dragon yet: an egg waits on the stone — tap it to take it.
-        pet={state.pet ? { element: state.pet.element, stage: state.pet.stage, legend: holdsNft(state), hungry: state.pet.hungry > 0 } : { element: 0, stage: 0, legend: false, hungry: false }}
+        pet={
+          state.pet
+            ? { element: state.pet.element, stage: state.pet.stage, legend: holdsNft(state), hungry: state.pet.hungry > 0, rolls: state.pet.rolls, hatchAt: HATCH_ROLLS }
+            : { element: 0, stage: 0, legend: false, hungry: false }
+        }
         onEggTap={() => !pending?.running && setPetOpen(true)}
       />
+      {hatchedNow !== null ? (
+        <div className="pointer-events-none absolute inset-x-0 top-[22%] z-40 flex flex-col items-center animate-[pop_0.45s_ease-out]" data-testid="hatched">
+          <p className="rounded-3xl border-4 border-[#FBD000] bg-[#1E3A8A] px-6 py-2 text-3xl font-black text-white shadow-2xl">{t("🐉 孵化咗！")}</p>
+          <p className="mt-2 rounded-full px-4 py-1 text-xl font-black text-white shadow-lg" style={{ background: ELEMENTS[hatchedNow].colour }}>
+            {t("你隻係{name}", { name: t(petName({ element: hatchedNow, stage: 1, hungry: 0, rolls: 0 }, holdsNft(state))) })}
+          </p>
+        </div>
+      ) : null}
       {/* First time: point at the GO stone in the middle. */}
       {state.rollCount === 0 && !pending ? <TipHand className="left-1/2 top-[42%] z-20 -translate-x-1/2" /> : null}
       {/* Top bar: dice and points only; everything else lives behind the menu. */}
       <header className="relative z-30 flex items-center justify-between gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
-        <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-[#1E3A8A] py-1 pl-2 pr-3 text-lg font-black tabular-nums text-white shadow-md" data-testid="dice-count">
-          🎲 <span key={state.dice} className="inline-block animate-[bump_0.35s_ease-out]">{state.dice}</span>
+        <div className="relative">
+          <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-[#1E3A8A] py-1 pl-2 pr-3 text-lg font-black tabular-nums text-white shadow-md" data-testid="dice-count">
+            🎲 <span key={state.dice} className="inline-block animate-[bump_0.35s_ease-out]">{state.dice}</span>
+          </div>
+          {/* Time to the next free die, just the clock numbers, under the dice count. */}
+          <span className="absolute left-1/2 top-full mt-0.5 h-4 -translate-x-1/2 rounded-full bg-black/35 px-1.5 text-[11px] font-bold leading-4 tabular-nums text-white" data-testid="need-two">
+            {countdown ? formatClock(countdown) : null}
+          </span>
         </div>
         <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-white py-1 pl-2 pr-3 text-lg font-black tabular-nums text-[#1E3A8A] shadow-md" data-testid="hud-points">
           <img src={TILE_INFO.coin.art} alt={t("金幣")} className="size-6" />
@@ -565,9 +602,6 @@ export function DailyGame() {
           >
             GO
           </button>
-          <span className="h-5 rounded-full bg-white/85 px-2 text-xs font-bold tabular-nums text-[#1E3A8A]" data-testid="need-two">
-            {countdown ? `🎲+1 ⏱ ${formatClock(countdown)}` : null}
-          </span>
         </div>
       </footer>
 

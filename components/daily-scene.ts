@@ -8,7 +8,7 @@ import { ACTORS, loadGltfLoader } from "@/components/eight-scene";
 import { buildMonster, type Monster, type Mood } from "@/components/monster";
 import { BOARD_SIZE, TILES, type TileKind } from "@/lib/board";
 
-export type PetLook = { element: number; stage: number; legend: boolean; hungry: boolean };
+export type PetLook = { element: number; stage: number; legend: boolean; hungry: boolean; /** Egg only: rolls towards hatching, and how many it needs. */ rolls?: number; hatchAt?: number };
 
 export type DailyScene = {
   /** Fly the ship to a square (one square at a time as the walk plays). */
@@ -219,11 +219,22 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   });
   // The main island in the middle: a big stone with GO carved in as a rune. Tap it to roll;
   // the rune glows when it's your go. Open air between it and the ring of squares.
+  /** The turn that puts face v on top. */
+  const faceUp = (v: number) => {
+    const base = new T.Quaternion();
+    if (v === 6) base.setFromAxisAngle(new T.Vector3(1, 0, 0), Math.PI);
+    else if (v === 2) base.setFromAxisAngle(new T.Vector3(1, 0, 0), -Math.PI / 2);
+    else if (v === 5) base.setFromAxisAngle(new T.Vector3(1, 0, 0), Math.PI / 2);
+    else if (v === 3) base.setFromAxisAngle(new T.Vector3(0, 0, 1), Math.PI / 2);
+    else if (v === 4) base.setFromAxisAngle(new T.Vector3(0, 0, 1), -Math.PI / 2);
+    return base;
+  };
   const bigRock = new T.Group();
-  const dice: { mesh: any; rest: any; from: any; q: any; spin: any; born: number; fade: number }[] = [];
+  const dice: { mesh: any; rest: any; from: any; q: any; spin: any; born: number; fade: number; idle: boolean; home: any; back: number }[] = [];
+  let dieMats: any[] = [];
   const rune = { ready: false, level: 0, pressAt: -1e9 };
   let stone: any = null;
-  let runeGlow: any, runeLight: any, runeRing: any, goSign: any;
+  let runeLight: any, runeRing: any;
   {
     // A lawn on top (Sky 2026-09-27: green grass shows the dragon off better than the carved stone).
     const big = islandMesh(6, 977, 0x5fae4a);
@@ -289,33 +300,8 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     };
     void plate;
     void carve;
-    // No carving on the lawn: a golden ring round its edge glows when it's your go (tap the lawn to roll),
-    // and a small GO sign floats high over the middle, clear of the dragon.
-    runeGlow = new T.Mesh(
-      new T.RingGeometry(2.72, 2.98, 64),
-      new T.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide }),
-    );
-    runeGlow.rotation.x = -Math.PI / 2;
-    runeGlow.position.y = TOP + 0.02;
-    big.group.add(runeGlow);
-    {
-      const c = document.createElement("canvas");
-      c.width = 256;
-      c.height = 128;
-      const x = c.getContext("2d")!;
-      x.font = "900 96px Georgia, 'Times New Roman', serif";
-      x.textAlign = "center";
-      x.textBaseline = "middle";
-      x.lineWidth = 14;
-      x.strokeStyle = "#7a4a00";
-      x.strokeText("GO", 128, 68);
-      x.fillStyle = "#ffd34d";
-      x.fillText("GO", 128, 68);
-      goSign = new T.Sprite(new T.SpriteMaterial({ map: new T.CanvasTexture(c), transparent: true, depthWrite: false }));
-      goSign.scale.set(2.2, 1.1, 1);
-      goSign.position.y = TOP + 3.8;
-      big.group.add(goSign);
-    }
+    // No carving and no GO sign on the lawn (Sky 2026-09-27): the two dice sit in the middle and glow
+    // and hop when it's your go — tap them (or the lawn) to roll.
     runeRing = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0xffc860, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
     runeRing.scale.set(5, 2.2, 1);
     runeRing.position.y = TOP + 0.4;
@@ -323,13 +309,29 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     runeLight = new T.PointLight(0xffc060, 0, 7, 2);
     runeLight.position.y = TOP + 1;
     big.group.add(runeLight);
-    // A few crystals round the rim.
+    // Five old stone pillars round the rim, like ruins (some shorter, their tops broken).
+    const pillarMat = new T.MeshStandardMaterial({ color: new T.Color(0xb9b3a6).convertSRGBToLinear(), roughness: 0.95, flatShading: true });
     for (let k = 0; k < 5; k++) {
-      const a = (k / 5) * Math.PI * 2 + 1.41, h = 0.35 + (k % 2) * 0.2;
-      const gem = shadowy(new T.Mesh(new T.OctahedronGeometry(0.18, 0), mat(0x7dd3fc, 0.2, { emissive: 0x1e6fa8, emissiveIntensity: 0.6 })));
-      gem.scale.y = h / 0.18;
-      gem.position.set(Math.cos(a) * 2.75, TOP + h * 0.8, Math.sin(a) * 2.75);
-      big.group.add(gem);
+      const a = (k / 5) * Math.PI * 2 + 1.41, h = [0.95, 0.6, 1.1, 0.75, 0.5][k];
+      const pillar = new T.Group();
+      pillar.position.set(Math.cos(a) * 2.75, TOP, Math.sin(a) * 2.75);
+      big.group.add(pillar);
+      const base = shadowy(new T.Mesh(new T.BoxGeometry(0.34, 0.1, 0.34), pillarMat));
+      base.position.y = 0.05;
+      pillar.add(base);
+      const shaft = shadowy(new T.Mesh(new T.CylinderGeometry(0.11, 0.13, h, 8), pillarMat));
+      shaft.position.y = 0.1 + h / 2;
+      pillar.add(shaft);
+      if (k % 2 === 0) {
+        const cap = shadowy(new T.Mesh(new T.BoxGeometry(0.3, 0.08, 0.3), pillarMat));
+        cap.position.y = 0.1 + h + 0.04;
+        pillar.add(cap);
+      } else {
+        const chip = shadowy(new T.Mesh(new T.ConeGeometry(0.12, 0.14, 6), pillarMat));
+        chip.position.set(0.02, 0.1 + h + 0.05, 0);
+        chip.rotation.z = 0.5;
+        pillar.add(chip);
+      }
     }
     // Two small dice that land on the front edge of the stone, clear of the rune.
     const pipTex = (v: number) => {
@@ -361,13 +363,19 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     };
     // Box faces: +x, -x, +y, -y, +z, -z.
     const faceValues = [3, 4, 1, 6, 2, 5];
-    const dieMats = faceValues.map((v) => new T.MeshStandardMaterial({ map: pipTex(v), roughness: 0.4 }));
+    dieMats = faceValues.map((v) => new T.MeshStandardMaterial({ map: pipTex(v), roughness: 0.4, emissive: new T.Color(0xffc040), emissiveIntensity: 0 }));
     for (let k = 0; k < 2; k++) {
       const die = shadowy(new T.Mesh(new T.BoxGeometry(0.5, 0.5, 0.5), dieMats));
-      die.visible = false;
       big.group.add(die);
       const a = Math.PI / 4 + (k ? 0.24 : -0.24);
-      dice.push({ mesh: die, rest: new T.Vector3(Math.cos(a) * 2.35, TOP + 0.25, Math.sin(a) * 2.35), from: new T.Vector3(), q: new T.Quaternion(), spin: new T.Vector3(), born: -1e9, fade: -1e9 });
+      // Waiting spot: side by side in the middle of the lawn, across the camera's view.
+      const side = k ? 1 : -1;
+      const home = new T.Vector3(Math.cos(HOME_YAW) * 0.5 * side, TOP + 0.35, -Math.sin(HOME_YAW) * 0.5 * side);
+      const d = { mesh: die, rest: new T.Vector3(Math.cos(a) * 2.35, TOP + 0.25, Math.sin(a) * 2.35), from: new T.Vector3(), q: faceUp(k ? 5 : 6), spin: new T.Vector3(), born: -1e9, fade: -1e9, idle: true, home, back: -1e9 };
+      die.position.copy(home);
+      die.quaternion.copy(d.q);
+      die.scale.setScalar(1.4);
+      dice.push(d);
     }
     const bits: any[] = [];
     [[3.6, -2.0, 0.45], [-3.5, -2.4, 0.35], [0.4, -2.8, 0.3]].forEach(([x, y, k], n) => {
@@ -643,6 +651,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     return sprite;
   };
   type PetMode = "walk" | "rest" | "fly" | "tour" | "sleep" | "happy";
+  const ELEMENT_GLOW = [0xffe066, 0xb45cff, 0x9dff6b];
   /** A lap of the whole board: take off, circle over the squares, and land back where it left. */
   const TOUR_MS = 11000, TOUR_RADIUS = 6.1, TOUR_HEIGHT = 2.4;
   let eggTap = () => undefined as void;
@@ -658,7 +667,40 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     tourAt: number;
     food: any;
     zzz: any;
+    count: any;
   } | null = null;
+  /** The egg's hatching counter, e.g. 23/60, drawn on a little tag. */
+  const counterTex = (text: string) => {
+    const c = document.createElement("canvas");
+    c.width = 192;
+    c.height = 72;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "rgba(30,58,138,0.9)";
+    x.beginPath();
+    x.moveTo(36, 6);
+    x.arcTo(186, 6, 186, 66, 30);
+    x.arcTo(186, 66, 6, 66, 30);
+    x.arcTo(6, 66, 6, 6, 30);
+    x.arcTo(6, 6, 186, 6, 30);
+    x.fill();
+    x.font = "900 40px system-ui, sans-serif";
+    x.textAlign = "center";
+    x.textBaseline = "middle";
+    x.fillStyle = "#FBD000";
+    x.fillText(text, 96, 38);
+    return new T.CanvasTexture(c);
+  };
+  /** Sparkles burst from the lawn when the egg hatches. */
+  const sparks: { mesh: any; v: any; born: number }[] = [];
+  function hatchBurst(at: any) {
+    const colours = [0xffd34d, 0xffffff, ELEMENT_GLOW[pet?.look.element ?? 0]];
+    for (let k = 0; k < 40; k++) {
+      const m = new T.Mesh(new T.BoxGeometry(0.08, 0.08, 0.08), new T.MeshBasicMaterial({ color: colours[k % 3], transparent: true }));
+      m.position.copy(at);
+      stone.add(m);
+      sparks.push({ mesh: m, v: new T.Vector3(Math.random() - 0.5, Math.random() * 0.8 + 0.4, Math.random() - 0.5).normalize().multiplyScalar(2 + Math.random() * 2), born: performance.now() });
+    }
+  }
   function setPet(look: PetLook | null) {
     if (pet) {
       stone?.remove(pet.m.group);
@@ -672,10 +714,15 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const back = HOME_YAW + Math.PI / 2;
     const food = bubbleOf("🍖");
     const zzz = bubbleOf("💤", 54);
-    m.group.add(food, zzz);
+    const count = new T.Sprite(new T.SpriteMaterial({ map: counterTex(`${look.rolls ?? 0}/${look.hatchAt ?? 60}`), transparent: true, depthTest: false }));
+    count.scale.set(0.9, 0.34, 1);
+    count.position.y = m.height + 0.3;
+    count.renderOrder = 8;
+    count.visible = look.stage === 0 && look.hatchAt !== undefined;
+    m.group.add(food, zzz, count);
     food.position.y = m.height + 0.35;
     zzz.position.y = m.height + 0.3;
-    pet = { m, look, angle: back, goal: back, mode: "rest", until: performance.now() + 2000, lift: 0, spin: 0, tourAt: 0, food, zzz };
+    pet = { m, look, angle: back, goal: back, mode: "rest", until: performance.now() + 2000, lift: 0, spin: 0, tourAt: 0, food, zzz, count };
     m.group.position.copy(petSpot(back));
     m.group.rotation.y = HOME_YAW;
   }
@@ -704,6 +751,18 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     }
   }
   function updatePet(now: number, dt: number) {
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const sp = sparks[i], age = (now - sp.born) / 1000;
+      if (age > 1.2) {
+        stone.remove(sp.mesh);
+        sparks.splice(i, 1);
+        continue;
+      }
+      sp.v.y -= dt * 3;
+      sp.mesh.position.addScaledVector(sp.v, dt);
+      sp.mesh.rotation.x += dt * 8;
+      sp.mesh.material.opacity = 1 - age / 1.2;
+    }
     if (!pet) return;
     pet.m.update(now);
     if (pet.look.stage === 0) return;
@@ -845,9 +904,8 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     // The rune: glows and pulses on your go; the stone dips a little when tapped.
     rune.level += ((rune.ready ? 1 : 0) - rune.level) * Math.min(1, dt * 4);
     const pulse = rune.level * (0.75 + 0.25 * Math.sin(now / 420));
-    runeGlow.material.opacity = 0.1 + pulse * 0.6;
-    goSign.material.opacity = 0.35 + pulse * 0.65;
-    goSign.scale.set(2.2 * (1 + pulse * 0.08), 1.1 * (1 + pulse * 0.08), 1);
+    // The waiting dice glow gold with the pulse.
+    for (const m of dieMats) m.emissiveIntensity = pulse * 0.55;
     runeRing.material.opacity = pulse * 0.18;
     runeLight.intensity = pulse * 0.45;
     const press = Math.max(0, 1 - (now - rune.pressAt) / 260);
@@ -855,7 +913,23 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     // Dice: drop from above the rune, bounce twice while spinning down to their faces, then sit.
     updatePet(now, dt);
     for (const d of dice) {
-      if (!d.mesh.visible) continue;
+      if (d.idle) {
+        // Waiting in the middle: hop and turn a little while it's your go; pop back in after a walk.
+        const pop = Math.min(1, Math.max(0, (now - d.back) / 350));
+        const hop = rune.level * Math.abs(Math.sin(now / 380 + (d.home.x > 0 ? 0.6 : 0))) * 0.3;
+        d.mesh.visible = true;
+        d.mesh.position.set(d.home.x, d.home.y + hop, d.home.z);
+        d.mesh.quaternion.copy(d.q);
+        d.mesh.rotateY(Math.sin(now / 900 + d.home.x) * 0.25 * rune.level);
+        d.mesh.scale.setScalar(1.4 * (pop < 1 ? pop * (1 + Math.sin(pop * Math.PI) * 0.3) : 1));
+        continue;
+      }
+      if (!d.mesh.visible) {
+        // Faded out after the walk: back to the middle.
+        d.idle = true;
+        d.back = now;
+        continue;
+      }
       const t = Math.max(0, Math.min(1, (now - d.born) / 900));
       const k = 1 - Math.pow(1 - t, 2);
       d.mesh.position.lerpVectors(d.from, d.rest, k);
@@ -865,7 +939,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       d.mesh.quaternion.copy(d.q);
       if (left > 0) d.mesh.quaternion.premultiply(new T.Quaternion().setFromAxisAngle(d.spin, left));
       const out = d.fade > 0 ? Math.min(1, (now - d.fade) / 400) : 0;
-      d.mesh.scale.setScalar(1 - out);
+      d.mesh.scale.setScalar(1 + 0.4 * (1 - t) - out);
       if (out >= 1) d.mesh.visible = false;
     }
     renderer.render(scene, camera);
@@ -895,33 +969,44 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       const now = performance.now();
       const up = new T.Vector3(0, 1, 0);
       dice.forEach((d, k) => {
-        const v = faces[k];
-        // Turn the face showing v to the top, then a random turn about the up axis.
-        const base = new T.Quaternion();
-        if (v === 6) base.setFromAxisAngle(new T.Vector3(1, 0, 0), Math.PI);
-        else if (v === 2) base.setFromAxisAngle(new T.Vector3(1, 0, 0), -Math.PI / 2);
-        else if (v === 5) base.setFromAxisAngle(new T.Vector3(1, 0, 0), Math.PI / 2);
-        else if (v === 3) base.setFromAxisAngle(new T.Vector3(0, 0, 1), Math.PI / 2);
-        else if (v === 4) base.setFromAxisAngle(new T.Vector3(0, 0, 1), -Math.PI / 2);
-        d.q.copy(base).premultiply(new T.Quaternion().setFromAxisAngle(up, (Math.random() - 0.5) * 0.8));
+        // Turn the face showing the roll to the top, then a random turn about the up axis.
+        d.q.copy(faceUp(faces[k])).premultiply(new T.Quaternion().setFromAxisAngle(up, (Math.random() - 0.5) * 0.8));
         d.spin.set(Math.random() - 0.5, Math.random() * 0.3, Math.random() - 0.5).normalize();
-        d.from.set(k ? 0.35 : -0.35, TOP + 0.25, k ? -0.2 : 0.2);
+        // They leap up from where they wait in the middle and land on the front edge.
+        d.from.set(d.home.x, TOP + 0.25, d.home.z);
         d.born = now + k * 90;
         d.fade = -1e9;
-        d.mesh.scale.setScalar(1);
+        d.idle = false;
         d.mesh.visible = true;
       });
     },
     clearDice() {
       const now = performance.now();
-      for (const d of dice) if (d.mesh.visible && d.fade < 0) d.fade = now;
+      for (const d of dice) if (!d.idle && d.mesh.visible && d.fade < 0) d.fade = now;
     },
     setPet(look) {
       if (look && pet && pet.look.element === look.element && pet.look.stage === look.stage && pet.look.legend === look.legend) {
+        if (look.stage === 0 && look.rolls !== pet.look.rolls) {
+          pet.count.material.map.dispose();
+          pet.count.material.map = counterTex(`${look.rolls ?? 0}/${look.hatchAt ?? 60}`);
+          pet.count.material.needsUpdate = true;
+          pet.count.visible = look.hatchAt !== undefined;
+        }
         pet.look = look;
         return;
       }
+      // Hatching: the new dragon pops out where the egg was, in a burst of sparkles.
+      const wasEgg = pet && pet.look.stage === 0 && look && look.stage > 0;
+      const at = pet ? pet.m.group.position.clone() : null;
+      const angle = pet?.angle;
       setPet(look);
+      if (wasEgg && pet && at && angle !== undefined) {
+        pet.angle = angle;
+        pet.goal = angle;
+        pet.m.group.position.copy(at);
+        hatchBurst(at.clone().setY(TOP + 0.6));
+        happy();
+      }
     },
     petHappy() {
       happy();

@@ -146,7 +146,7 @@ describe("daily board", () => {
     );
     assert.equal(plain.enemyShield, false);
     // No shield: the first hit already needs a target and smashes it, for points only.
-    const strong = { ...plain, pet: { element: 0, stage: 4, hungry: 0 } };
+    const strong = { ...plain, pet: { element: 0, stage: 4, hungry: 0, rolls: 0 } };
     assert.equal(reduce(strong, { type: "weapon" }), strong);
     const hit = reduce(strong, { type: "weapon", target: 1 });
     assert.equal(hit.weaponReadout?.shieldBreak, false);
@@ -410,26 +410,37 @@ describe("daily board", () => {
     let state = start();
     assert.equal(reduce(state, { type: "grow-pet" }), state, "no monster yet");
     state = reduce(state, { type: "pick-pet", element: 2 });
-    assert.deepEqual(state.pet, { element: 2, stage: 0, hungry: 0 });
+    assert.deepEqual(state.pet, { element: 2, stage: 0, hungry: 0, rolls: 0 });
     assert.equal(reduce(start(), { type: "pick-pet", element: 3 }).pet, null, "only 光, 暗 and 混濁");
     assert.equal(reduce(state, { type: "pick-pet", element: 1 }), state, "picked once");
     assert.equal(reduce(state, { type: "grow-pet" }), state, "not enough food");
-    state = reduce({ ...state, meat: 25, juice: 3 }, { type: "grow-pet" });
-    assert.equal(state.pet?.stage, 1);
+    const fed = { ...state, meat: 999, juice: 999 };
+    assert.equal(reduce(fed, { type: "grow-pet" }), fed, "an egg can't be fed: it hatches by rolling");
+    // 59 rolls on the board: still an egg; the 60th hatches it.
+    let rolling = { ...state, dice: 20, pet: { ...state.pet!, rolls: 58 } };
+    rolling = reduce(rolling, { type: "move", faces: [2, 3], now: NOW });
+    assert.deepEqual([rolling.pet?.stage, rolling.pet?.rolls], [0, 59]);
+    rolling = reduce(rolling, { type: "move", faces: [2, 2], now: NOW });
+    assert.equal(rolling.pet?.stage, 1, "hatched on the 60th roll");
+    assert.match(rolling.log[0]?.text ?? "", /孵化咗！係一隻混濁龍/);
+    state = { ...state, pet: { element: 2, stage: 1, hungry: 0, rolls: 60 }, meat: 105, juice: 13 };
+    state = reduce(state, { type: "grow-pet" });
+    assert.equal(state.pet?.stage, 2, "N to R on 100 🍖 and 12 🧪");
     assert.equal(state.meat, 5);
     assert.equal(state.juice, 1);
-    assert.equal(attackPower(state), 16);
-    assert.equal(attackPower({ ...state, pet: { element: 2, stage: 4, hungry: 0 } }), 46);
-    assert.equal(attackPower({ ...state, pet: { element: 2, stage: 4, hungry: 0 }, nfts: ["a", null, null, null, null] }), 51 + 2, "legendary: a tenth more, plus the NFT");
-    const old = parseSave(JSON.stringify({ v: 1, state: { ...state, pet: { element: 4, stage: 2, hungry: 0 } } }), NOW, DAY);
-    assert.deepEqual(old?.pet, { element: 1, stage: 2, hungry: 0 }, "an old five-element monster becomes a dragon");
-    assert.equal(parseSave(JSON.stringify({ v: 1, state }), NOW, DAY)?.pet?.stage, 1);
+    assert.equal(attackPower({ ...state, pet: { element: 2, stage: 1, hungry: 0, rolls: 60 } }), 16);
+    assert.equal(attackPower({ ...state, pet: { element: 2, stage: 4, hungry: 0, rolls: 0 } }), 46);
+    assert.equal(attackPower({ ...state, pet: { element: 2, stage: 4, hungry: 0, rolls: 0 }, nfts: ["a", null, null, null, null] }), 51 + 2, "legendary: a tenth more, plus the NFT");
+    const old = parseSave(JSON.stringify({ v: 1, state: { ...state, pet: { element: 4, stage: 2, hungry: 0, rolls: 0 } } }), NOW, DAY);
+    assert.deepEqual(old?.pet, { element: 1, stage: 2, hungry: 0, rolls: 0 }, "an old five-element monster becomes a dragon");
+    assert.equal(parseSave(JSON.stringify({ v: 1, state: { ...state, pet: { element: 0, stage: 0, hungry: 0 } } }), NOW, DAY)?.pet?.rolls, 0, "an egg from before counts from 0");
+    assert.equal(parseSave(JSON.stringify({ v: 1, state }), NOW, DAY)?.pet?.stage, 2);
   });
 
   it("gives ±10% hit chance for the attribute match-up: 光 beats 暗 beats 混濁 beats 光", () => {
     const fight = (element: number, rivalElement: number, stage = 1) =>
       reduce(
-        { ...reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [1, 0, 0, 0, 0], rivalElement, now: NOW }), pet: { element, stage, hungry: 0 }, rivalHasNft: false, enemyShield: false, rivalNfts: 0 },
+        { ...reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [1, 0, 0, 0, 0], rivalElement, now: NOW }), pet: { element, stage, hungry: 0, rolls: 0 }, rivalHasNft: false, enemyShield: false, rivalNfts: 0 },
         { type: "weapon", target: 0, roll: 0.99 },
       ).weaponReadout;
     // 光龍 N (16) against 10 + 1 level × 2 = 12: 50 + 16 = 66%.
@@ -443,7 +454,7 @@ describe("daily board", () => {
   });
 
   it("feeds the monster each day and drops it a stage after two hungry days", () => {
-    const pet = { element: 0, stage: 3, hungry: 0 };
+    const pet = { element: 0, stage: 3, hungry: 0, rolls: 0 };
     const fed = reduce({ ...start(), pet, meat: 20, juice: 5 }, { type: "tick", now: NOW, dayKey: "2026-09-25" });
     assert.deepEqual([fed.meat, fed.juice, fed.pet?.stage], [12, 3, 3], "成年 eats 8 🍖 and 2 🧪");
     const hungry = reduce({ ...start(), pet, meat: 0, juice: 0 }, { type: "tick", now: NOW, dayKey: "2026-09-25" });
@@ -451,7 +462,7 @@ describe("daily board", () => {
     const dropped = reduce(hungry, { type: "tick", now: NOW, dayKey: "2026-09-26" });
     assert.deepEqual([dropped.pet?.stage, dropped.pet?.hungry], [2, 0]);
     assert.match(dropped.log[0]?.text ?? "", /跌返做R/);
-    const away = reduce({ ...start(), pet: { element: 0, stage: 4, hungry: 0 } }, { type: "tick", now: NOW, dayKey: "2026-10-01" });
+    const away = reduce({ ...start(), pet: { element: 0, stage: 4, hungry: 0, rolls: 0 } }, { type: "tick", now: NOW, dayKey: "2026-10-01" });
     assert.equal(away.pet?.stage, 1, "a week away without food: back to N, never lower");
     assert.deepEqual([0, 0.34, 0.35, 0.69, 0.7, 0.99].map(rollElement), [0, 0, 1, 1, 2, 2], "光 35%, 暗 35%, 混濁 30%");
   });

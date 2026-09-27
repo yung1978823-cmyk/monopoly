@@ -1,7 +1,6 @@
 "use client";
 
 import { BoolionaireLogo } from "@/components/boolionaire-logo";
-import { LangPicker } from "@/components/lang-picker";
 import { useLang } from "@/lib/i18n";
 import { useEffect, useState } from "react";
 
@@ -81,9 +80,8 @@ export function TitleScreen({ onStart }: { onStart: () => void }) {
             <span className="relative text-2xl tracking-[0.2em]">START</span>
           </button>
         ) : null}
-        {ready ? (
-          <LangPicker />
-        ) : (
+        {/* Languages live in the settings menu inside the game, not here. */}
+        {ready ? null : (
           <>
             <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/25 ring-1 ring-white/40">
               <div

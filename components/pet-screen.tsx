@@ -3,7 +3,7 @@
 import { PetView } from "@/components/pet-view";
 import { holdsNft, type GameState } from "@/lib/game";
 import { useLang } from "@/lib/i18n";
-import { ELEMENTS, HUNGRY_DROP, STAGE_NAMES, UPKEEP, growNeed, petAttack, petName, rollElement } from "@/lib/pet";
+import { ELEMENTS, HATCH_ROLLS, HUNGRY_DROP, STAGE_NAMES, UPKEEP, growNeed, petAttack, petName, rollElement } from "@/lib/pet";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
 
@@ -70,7 +70,7 @@ export function PetScreen({
             </div>
             <p className={cn("text-sm font-bold", pet.hungry > 0 ? "text-[#E52521]" : "text-[#16A34A]")} data-testid="pet-mood">
               {pet.stage === 0
-                ? t("龍蛋唔使食嘢，餵夠就孵出嚟。")
+                ? t("龍蛋唔使食嘢。")
                 : pet.hungry > 0
                   ? t("肚餓！（{n}／{m}）再餓落去會跌階段", { n: pet.hungry, m: HUNGRY_DROP })
                   : t("飽飽，精神好")}
@@ -80,7 +80,21 @@ export function PetScreen({
                 {t("每日食 {m} 🍖 同 {j} 🧪（自動由倉庫扣）", { m: UPKEEP[pet.stage][0], j: UPKEEP[pet.stage][1] })}
               </p>
             ) : null}
-            {need ? (
+            {pet.stage === 0 ? (
+              <div className="space-y-1.5" data-testid="hatch-progress">
+                <p className="text-sm font-black">{t("喺棋盤擲夠 {n} 次骰就會自己孵出嚟：", { n: HATCH_ROLLS })}</p>
+                <div className="flex items-center gap-2 text-sm font-black tabular-nums">
+                  <span className="w-6">🥚</span>
+                  <span className="h-3 flex-1 overflow-hidden rounded-full bg-[#E3E9F3]">
+                    <span className="block h-full rounded-full bg-[#F59E0B]" style={{ width: `${Math.min(100, (pet.rolls / HATCH_ROLLS) * 100)}%` }} />
+                  </span>
+                  <span className="w-16 text-right">
+                    {pet.rolls}／{HATCH_ROLLS}
+                  </span>
+                </div>
+                <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("公開桌擲骰唔計。")}</p>
+              </div>
+            ) : need ? (
               <>
                 <p className="text-sm font-black">{t("長大做「{s}」要：", { s: t(STAGE_NAMES[pet.stage + 1]) })}</p>
                 {[
@@ -110,7 +124,7 @@ export function PetScreen({
                   )}
                   data-testid="grow-pet"
                 >
-                  {pet.stage === 0 ? t("🥚 孵佢出嚟！") : t("🍖 餵大佢！")}
+                  {t("🍖 餵大佢！")}
                 </button>
                 <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("🍖 喺棋盤肉格攞；🧪 營養液要去偷嘢格偷返嚟。")}</p>
               </>
@@ -137,7 +151,7 @@ export function PetScreen({
               ))}
             </div>
             <p className="text-center text-xs font-bold text-[#3B5BA9]">
-              {legend ? t("你有 NFT：孵出嚟係傳說系列，攻擊力多一成。") : t("屬性隨機，孵出嚟先知。由龍蛋養到 SSR，一出世就識飛。")}
+              {legend ? t("你有 NFT：孵出嚟係傳說系列，攻擊力多一成。") : t("屬性隨機，孵出嚟先知。領咗之後喺棋盤擲 60 次骰就孵化，一出世就識飛。")}
             </p>
             <button
               type="button"
