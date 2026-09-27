@@ -239,7 +239,7 @@ describe("public table on the 八字 board", () => {
   });
 
   it("a power card waits on the board: land on it to take it; a new round puts one somewhere else", () => {
-    let state = { ...quiet(start(), 0, "o1"), pickup: { key: "o2", power: "wreck" as Power } };
+    let state: TableState = { ...quiet(start(), 0, "o1"), pickup: { key: "o2", power: "wreck" as Power } };
     state = reduceTable(state, { type: "roll", dice: [1, 1] });
     assert.deepEqual(state.seats[0].powers, ["wreck"]);
     assert.equal(state.pickup, null);
