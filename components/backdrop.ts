@@ -633,3 +633,345 @@ function beamTex(T: any) {
     g.fillRect(0, 0, 64, 512);
   });
 }
+
+/**
+ * The volcano world: the board floats over a crater of glowing lava (a painted top-down picture).
+ * The lava shimmers, flows and breathes in a shader; embers drift up, smoke rises, bubbles pop,
+ * fire birds circle, ash clouds drift, and every so often the crater erupts — a flash and a
+ * few burning rocks thrown up. The lava lights the undersides of the islands orange.
+ */
+export function createVolcano(T: any, scene: any, camera: any, opts: Options): Backdrop {
+  const S = opts.size;
+  const k = opts.scale ?? 1;
+  const still = !!opts.reduceMotion;
+  const FOG = 0x2e1a16;
+  const tex = (c: HTMLCanvasElement) => {
+    const t = new T.CanvasTexture(c);
+    t.encoding = T.sRGBEncoding;
+    return t;
+  };
+  const sprite = (map: any, extra: Record<string, unknown> = {}) =>
+    new T.Sprite(new T.SpriteMaterial(Object.assign({ map, transparent: true, depthWrite: false }, extra)));
+
+  // ---------- Sky and haze: a smoky orange-red ----------
+  {
+    const { c, g } = canvas(4, 512);
+    const grad = g.createLinearGradient(0, 0, 0, 512);
+    grad.addColorStop(0, "#2a1414");
+    grad.addColorStop(0.5, "#5a2418");
+    grad.addColorStop(0.85, "#a8421c");
+    grad.addColorStop(1, "#d8682a");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 4, 512);
+    scene.background = tex(c);
+    scene.fog = new T.Fog(FOG, opts.fogNear, opts.fogFar);
+  }
+
+  // ---------- The crater (painted picture), with living lava ----------
+  const fogShown = new T.Color(FOG).convertLinearToSRGB();
+  const uniforms = {
+    map: { value: null as any },
+    time: { value: 0 },
+    flash: { value: 0 },
+    fogColor: { value: new T.Vector3(fogShown.r, fogShown.g, fogShown.b) },
+    fogNear: { value: opts.fogNear },
+    fogFar: { value: opts.fogFar },
+  };
+  const lavaSpots: [number, number][] = [];
+  new T.TextureLoader().load("/art/volcano.webp", (t: any) => {
+    t.anisotropy = 4;
+    uniforms.map.value = t;
+    ground.visible = true;
+    // Find where the lava is, for the bubbles, embers and smoke.
+    const img = t.image as HTMLImageElement;
+    const n = 256;
+    const { c, g } = canvas(n, n);
+    g.drawImage(img, 0, 0, n, n);
+    const px = g.getImageData(0, 0, n, n).data;
+    for (let tries = 0; tries < 6000 && lavaSpots.length < 400; tries++) {
+      const x = Math.floor(Math.random() * n), y = Math.floor(Math.random() * n), i = (y * n + x) * 4;
+      if (px[i] > 200 && px[i + 1] > 70 && px[i + 2] < 90) lavaSpots.push([x / n - 0.5, y / n - 0.5]);
+    }
+    void c;
+  });
+  const ground = new T.Mesh(
+    new T.PlaneGeometry(S, S),
+    new T.ShaderMaterial({
+      uniforms,
+      vertexShader: `
+        varying vec2 vUv; varying float vDist;
+        void main() { vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.0); vDist = length(mv.xyz); gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `
+        uniform sampler2D map; uniform float time; uniform float flash;
+        uniform vec3 fogColor; uniform float fogNear; uniform float fogFar;
+        varying vec2 vUv; varying float vDist;
+        float lava(vec3 c) { return smoothstep(0.15, 0.45, c.r - c.b) * smoothstep(0.5, 0.85, c.r); }
+        void main() {
+          vec3 base = texture2D(map, vUv).rgb;
+          float m = lava(base);
+          // The lava creeps and ripples; the rock stays still.
+          vec2 w = vec2(sin(vUv.y * 60.0 + time * 1.3) + sin(vUv.x * 37.0 - time * 0.9),
+                        cos(vUv.x * 55.0 + time * 1.1) + sin(vUv.y * 41.0 + time * 0.7)) * 0.0022 * m;
+          vec3 c = texture2D(map, vUv + w).rgb;
+          float m2 = lava(c);
+          float pulse = 0.5 + 0.5 * sin(time * 1.6 + vUv.x * 9.0 + vUv.y * 7.0);
+          c += c * m2 * (0.28 * pulse + flash * 0.7);
+          c += vec3(1.0, 0.55, 0.15) * m2 * 0.1 * sin(time * 2.0 + (vUv.x + vUv.y) * 80.0);
+          c = mix(c, fogColor, smoothstep(fogNear, fogFar, vDist));
+          gl_FragColor = vec4(c, 1.0);
+        }`,
+    }),
+  );
+  ground.visible = false;
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = opts.groundY;
+  scene.add(ground);
+  // Dark rock beyond the picture, so its edge never shows.
+  const beyond = new T.Mesh(new T.RingGeometry(S * 0.49, S * 8, 48), new T.MeshBasicMaterial({ color: new T.Color(0x231e1d).convertSRGBToLinear() }));
+  beyond.rotation.x = -Math.PI / 2;
+  beyond.position.y = opts.groundY - 0.05;
+  scene.add(beyond);
+  const world = (u: number, v: number, y = opts.groundY) => new T.Vector3(u * S, y, v * S);
+  const lavaAt = () => lavaSpots[Math.floor(Math.random() * lavaSpots.length)] ?? [(Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4];
+
+  // The lava's glow on the islands above.
+  const glow = new T.PointLight(0xff6a30, 1.5, Math.abs(opts.groundY) * 1.6, 1);
+  glow.position.set(0, opts.groundY * 0.55, 0);
+  scene.add(glow);
+
+  const movers: ((t: number, dt: number) => void)[] = [];
+  movers.push((t) => {
+    uniforms.time.value = t;
+    glow.intensity = 1.3 + Math.sin(t * 1.6) * 0.25 + uniforms.flash.value * 1.5;
+  });
+
+  // Embers drifting up.
+  {
+    const n = 260, pos = new Float32Array(n * 3), life: number[] = [], speed: number[] = [], drift: number[] = [];
+    const geo = new T.BufferGeometry();
+    geo.setAttribute("position", new T.BufferAttribute(pos, 3));
+    const reset = (i: number, anywhere: boolean) => {
+      const [u, v] = lavaAt();
+      const p = world(u, v);
+      const y = anywhere ? opts.groundY + Math.random() * Math.abs(opts.groundY) * 1.1 : opts.groundY;
+      pos.set([p.x, y, p.z], i * 3);
+      life[i] = 0;
+      speed[i] = (4 + Math.random() * 5) * k;
+      drift[i] = Math.random() * 6;
+    };
+    for (let i = 0; i < n; i++) reset(i, true);
+    const embers = new T.Points(geo, new T.PointsMaterial({ size: 0.35 * k, map: dotTex(T), color: 0xffa040, transparent: true, depthWrite: false, blending: T.AdditiveBlending, fog: false }));
+    scene.add(embers);
+    movers.push((t, dt) => {
+      if (!lavaSpots.length) return;
+      for (let i = 0; i < n; i++) {
+        pos[i * 3 + 1] += speed[i] * dt;
+        pos[i * 3] += Math.sin(t * 0.8 + drift[i]) * dt * 1.5 * k;
+        pos[i * 3 + 2] += Math.cos(t * 0.6 + drift[i]) * dt * 1.5 * k;
+        if (pos[i * 3 + 1] > 8 * k) reset(i, false);
+      }
+      geo.attributes.position.needsUpdate = true;
+      embers.material.opacity = 0.75 + Math.sin(t * 7) * 0.15;
+    });
+  }
+  // Smoke rising from the crater.
+  {
+    const puff = softTex(T, "rgba(70,60,60,0.75)", "rgba(70,60,60,0)");
+    for (let i = 0; i < 26; i++) {
+      const s = sprite(puff, { opacity: 0.5 });
+      scene.add(s);
+      let at = world(0, 0), born = -Math.random() * 12;
+      const life = 10 + Math.random() * 6;
+      movers.push((t) => {
+        let f = (t - born) / life;
+        if (f > 1 || f < 0) {
+          const [u, v] = lavaAt();
+          at = world(u, v);
+          born = t;
+          f = 0;
+        }
+        s.position.set(at.x + f * 10 * k, at.y + f * Math.abs(opts.groundY) * 0.7, at.z + f * 4 * k);
+        const sz = (6 + f * 26) * k;
+        s.scale.set(sz, sz, 1);
+        s.material.opacity = 0.5 * Math.sin(Math.PI * f);
+      });
+    }
+  }
+  // Bubbles popping on the lava.
+  {
+    const bubble = mk(T, 64, 64, (g) => {
+      const r = g.createRadialGradient(28, 26, 2, 32, 32, 30);
+      r.addColorStop(0, "#fff2a0");
+      r.addColorStop(0.45, "#ff9a2a");
+      r.addColorStop(0.85, "#d8401a");
+      r.addColorStop(1, "rgba(160,30,10,0)");
+      g.fillStyle = r;
+      g.beginPath();
+      g.arc(32, 32, 30, 0, Math.PI * 2);
+      g.fill();
+    });
+    for (let i = 0; i < 14; i++) {
+      const s = sprite(bubble, { blending: T.AdditiveBlending, fog: false });
+      scene.add(s);
+      let at = world(0, 0), born = -Math.random() * 3;
+      const life = 1.4 + Math.random();
+      movers.push((t) => {
+        let f = (t - born) / life;
+        if (f > 1 || f < 0) {
+          const [u, v] = lavaAt();
+          at = world(u, v, opts.groundY + 0.5);
+          born = t + Math.random() * 1.5;
+          f = -1;
+        }
+        s.visible = f >= 0;
+        if (f < 0) return;
+        s.position.copy(at);
+        const sz = (f < 0.8 ? f / 0.8 : 1 + (f - 0.8) * 3) * 3 * k;
+        s.scale.set(sz, sz, 1);
+        s.material.opacity = f < 0.8 ? 0.9 : 0.9 * (1 - (f - 0.8) / 0.2);
+      });
+    }
+  }
+  // Fire birds circling below the board.
+  {
+    const bird = (up: boolean) =>
+      mk(T, 96, 64, (g) => {
+        const grad = g.createLinearGradient(0, 0, 96, 64);
+        grad.addColorStop(0, "#ffd24a");
+        grad.addColorStop(0.5, "#ff7a1a");
+        grad.addColorStop(1, "#e0301a");
+        g.fillStyle = grad;
+        g.beginPath();
+        g.ellipse(48, 36, 16, 9, 0, 0, Math.PI * 2);
+        g.fill();
+        g.beginPath();
+        g.arc(66, 30, 7, 0, Math.PI * 2);
+        g.fill();
+        g.beginPath();
+        g.moveTo(72, 30);
+        g.lineTo(82, 32);
+        g.lineTo(72, 34);
+        g.fill();
+        // Wings and a flame tail.
+        g.beginPath();
+        if (up) {
+          g.moveTo(40, 32);
+          g.quadraticCurveTo(30, 2, 60, 6);
+          g.quadraticCurveTo(52, 22, 56, 32);
+        } else {
+          g.moveTo(40, 38);
+          g.quadraticCurveTo(30, 62, 60, 60);
+          g.quadraticCurveTo(52, 46, 56, 38);
+        }
+        g.fill();
+        g.beginPath();
+        g.moveTo(34, 34);
+        g.quadraticCurveTo(14, 26, 4, 36);
+        g.quadraticCurveTo(16, 38, 6, 48);
+        g.quadraticCurveTo(22, 44, 34, 40);
+        g.fill();
+      });
+    const up = bird(true), down = bird(false);
+    for (let i = 0; i < 3; i++) {
+      const s = sprite(up, { fog: false });
+      s.scale.set(4 * k, 2.7 * k, 1);
+      scene.add(s);
+      const r = (22 + i * 9) * k, y = opts.groundY * (0.25 + i * 0.12), a0 = i * 2.1, dir = i % 2 ? 1 : -1, spd = 0.12 - i * 0.02;
+      const prev = new T.Vector3();
+      movers.push((t) => {
+        const a = a0 + dir * t * spd;
+        prev.copy(s.position);
+        s.position.set(Math.cos(a) * r, y + Math.sin(t * 1.3 + i) * 2 * k, Math.sin(a) * r);
+        const now = s.position.clone().project(camera), before = prev.project(camera);
+        s.scale.x = Math.abs(s.scale.x) * (now.x >= before.x ? 1 : -1);
+        s.material.map = Math.sin(t * 10 + i) > 0 ? up : down;
+      });
+    }
+  }
+  // Ash clouds drifting.
+  {
+    const cloud = cloudTex(T);
+    for (let i = 0; i < 12; i++) {
+      const c = sprite(cloud, { opacity: 0.35, color: 0x6a5550 });
+      const sz = (14 + Math.random() * 14) * k;
+      c.scale.set(sz, sz * 0.5, 1);
+      const y = opts.groundY * (0.2 + Math.random() * 0.5);
+      const z = (Math.random() - 0.5) * 140 * k, x0 = (Math.random() - 0.5) * 160 * k, speed = (0.8 + Math.random() * 0.8) * k;
+      scene.add(c);
+      movers.push((t) => {
+        const span = 160 * k;
+        c.position.set(((((x0 + t * speed) % span) + span * 1.5) % span) - span / 2, y, z);
+      });
+    }
+  }
+  // Now and then the crater erupts: a flash and burning rocks thrown up.
+  {
+    const rockTex = mk(T, 64, 64, (g) => {
+      g.fillStyle = "#3a3230";
+      g.beginPath();
+      g.moveTo(10, 30);
+      g.lineTo(26, 8);
+      g.lineTo(50, 12);
+      g.lineTo(58, 36);
+      g.lineTo(40, 56);
+      g.lineTo(16, 50);
+      g.closePath();
+      g.fill();
+      g.strokeStyle = "#ff8a2a";
+      g.lineWidth = 3;
+      g.beginPath();
+      g.moveTo(22, 20);
+      g.lineTo(32, 32);
+      g.lineTo(46, 28);
+      g.moveTo(32, 32);
+      g.lineTo(28, 48);
+      g.stroke();
+    });
+    const rocks: { s: any; v: any; on: boolean }[] = [];
+    for (let i = 0; i < 10; i++) {
+      const s = sprite(rockTex, { fog: false });
+      s.visible = false;
+      scene.add(s);
+      rocks.push({ s, v: new T.Vector3(), on: false });
+    }
+    let next = 8;
+    movers.push((t, dt) => {
+      uniforms.flash.value = Math.max(0, uniforms.flash.value - dt * 0.8);
+      if (t > next) {
+        next = t + 14 + Math.random() * 10;
+        uniforms.flash.value = 1;
+        const [u, v] = lavaAt();
+        const from = world(u * 0.6, v * 0.6, opts.groundY + 1);
+        for (const r of rocks) {
+          r.on = true;
+          r.s.visible = true;
+          r.s.position.copy(from);
+          const a = Math.random() * Math.PI * 2, out = (4 + Math.random() * 10) * k;
+          r.v.set(Math.cos(a) * out, (30 + Math.random() * 18) * k, Math.sin(a) * out);
+          const sz = (1.2 + Math.random() * 1.6) * k;
+          r.s.scale.set(sz, sz, 1);
+        }
+      }
+      for (const r of rocks) {
+        if (!r.on) continue;
+        r.v.y -= 25 * k * dt;
+        r.s.position.addScaledVector(r.v, dt);
+        r.s.material.rotation += dt * 3;
+        if (r.s.position.y < opts.groundY) {
+          r.on = false;
+          r.s.visible = false;
+        }
+      }
+    });
+  }
+
+  let clock = 0;
+  movers.forEach((m) => m(0, 0));
+  return {
+    update(_now, dt) {
+      if (still) return;
+      clock += dt;
+      for (const m of movers) m(clock, dt);
+    },
+  };
+}
