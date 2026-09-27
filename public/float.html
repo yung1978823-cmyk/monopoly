@@ -49,15 +49,15 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
   // Forest-green sky: lighter up high, deep green below, with fog so far things fade into it.
   const sky = document.createElement("canvas"); sky.width = 4; sky.height = 256;
   const sg = sky.getContext("2d"), grd = sg.createLinearGradient(0, 0, 0, 256);
-  grd.addColorStop(0, "#4E7A3A"); grd.addColorStop(0.45, "#27472B"); grd.addColorStop(1, "#0C1A12");
+  grd.addColorStop(0, "#3F6B34"); grd.addColorStop(0.5, "#1E3822"); grd.addColorStop(1, "#08130C");
   sg.fillStyle = grd; sg.fillRect(0, 0, 4, 256);
   const skyTex = new T.CanvasTexture(sky); skyTex.encoding = T.sRGBEncoding;
   scene.background = skyTex;
-  scene.fog = new T.Fog(0x1d3522, 30, 120);
+  scene.fog = new T.Fog(0x14261a, 35, 130);
 
   const camera = new T.PerspectiveCamera(40, 1, 0.1, 300);
-  scene.add(new T.HemisphereLight(0xdff5c8, 0x1a2a1c, 0.75));
-  const sun = new T.DirectionalLight(0xfff0c8, 1.0);
+  scene.add(new T.HemisphereLight(0xcfe8b8, 0x10200f, 0.55));
+  const sun = new T.DirectionalLight(0xffe7b0, 1.25);
   sun.position.set(-6, 14, 8);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -96,7 +96,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
   const glows = [];
   function island(size, seed, bigTop) {
     const g = new T.Group();
-    const grass = new T.Mesh(rough(new T.CylinderGeometry(0.52 * size, 0.55 * size, 0.14, 8), 0.05, seed), mat(bigTop || 0x7cc653));
+    const grass = new T.Mesh(rough(new T.CylinderGeometry(0.52 * size, 0.55 * size, 0.14, 8), 0.05, seed), mat(bigTop || 0x58b03a));
     grass.position.y = 0.07; grass.castShadow = grass.receiveShadow = true; g.add(grass);
     const dirt = new T.Mesh(rough(new T.CylinderGeometry(0.55 * size, 0.46 * size, 0.2, 8), 0.06, seed + 3), mat(0x7a5230));
     dirt.position.y = -0.1; dirt.castShadow = true; g.add(dirt);
@@ -140,7 +140,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
   TILES.forEach((t, i) => {
     const big = ["start", "jail", "chest", "fly", "cross"].includes(t.kind);
     const g = new T.Group();
-    const isl = island(big ? 1.3 : 1, 100 + i * 17, t.gold ? 0xb7d84a : null);
+    const isl = island(big ? 1.3 : 1, 100 + i * 17, t.gold ? 0xd6c24a : null);
     g.add(isl);
     decorate(t.kind, g, t.gold, t.group);
     g.position.set(t.x, 0, t.z);
@@ -157,7 +157,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
   // Two big grass islands inside the diamonds, with trees, and the castle over the crossing.
   const D = 3.394;
   [[-D, 0], [D, 0]].forEach(([x, z], n) => {
-    const g = island(3.2, 900 + n, 0x6fb84a); g.position.set(x, -0.35, z); board.add(g);
+    const g = island(3.2, 900 + n, 0x4f9e34); g.position.set(x, -0.35, z); board.add(g);
     for (let k = 0; k < 5; k++) {
       const a = k * 1.3 + n, r = 0.4 + (k % 3) * 0.35;
       const trunk = new T.Mesh(new T.CylinderGeometry(0.06, 0.09, 0.5, 6), mat(0x6b4423)); trunk.position.set(x + Math.cos(a) * r, -0.05, z + Math.sin(a) * r);
@@ -168,7 +168,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
   });
 
   // Mist floor far below to catch the shadows.
-  const mist = new T.Mesh(new T.PlaneGeometry(400, 400), new T.MeshStandardMaterial({ color: 0x1a3020, roughness: 1 }));
+  const mist = new T.Mesh(new T.PlaneGeometry(400, 400), new T.MeshStandardMaterial({ color: 0x122418, roughness: 1 }));
   mist.rotation.x = -Math.PI / 2; mist.position.y = -2.5; scene.add(mist);
 
   // ---------- Far layer: big rock pillars and islands in the haze ----------
@@ -185,8 +185,8 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
   // Shafts of light slanting down through the canopy.
   const rays = [];
   for (let i = 0; i < 5; i++) {
-    const ray = new T.Mesh(new T.CylinderGeometry(0.6, 1.8, 26, 12, 1, true), new T.MeshBasicMaterial({ color: 0xfff3b0, transparent: true, opacity: 0.06, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide }));
-    ray.position.set(-9 + i * 4.5, 8, -4 + (i % 2) * 3); ray.rotation.z = 0.35; scene.add(ray); rays.push(ray);
+    const ray = new T.Mesh(new T.CylinderGeometry(0.6, 1.8, 26, 12, 1, true), new T.MeshBasicMaterial({ color: 0xfff3b0, transparent: true, opacity: 0.025, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide }));
+    ray.position.set(-12 + i * 6, 10, -10 - (i % 2) * 4); ray.rotation.z = 0.35; scene.add(ray); rays.push(ray);
   }
 
   // Drifting motes of light.
