@@ -1,3 +1,5 @@
+import { loadGltfLoader } from "@/components/eight-scene";
+
 /**
  * The dragons, built in code (no model files yet): chubby, big-eyed baby dragons with wings from
  * the moment they hatch, since they fly out to attack other players' land. Three attributes, each
@@ -29,9 +31,124 @@ const PALETTE = [
   { body: 0x4f8f80, belly: 0xc2d6b0, wing: 0x7a58a8, wingEdge: 0x2f5b52, horn: 0x9e7cc8, accent: 0xa8f06a, glow: 0x9dff6b, horn2: 0x6fcf8c, wing2: 0x4fae8f },
 ];
 const SIZE = [0.7, 0.62, 0.8, 0.98, 1.15];
+
+/**
+ * Dragons made as 3D models (from the approved three-view art). Each file has three parts —
+ * "body", "wingL" and "wingR" — with each wing's pivot at its shoulder, so the wings flap in code.
+ * The model stands 1 unit tall, facing +z. Attributes without a model yet use the code-built dragon.
+ */
+const MODELS: Record<number, string> = { 0: "/models/dragon-light.glb" };
+/** How tall the model dragon stands at each grade (N → SSR). */
+const MODEL_HEIGHT = [0, 1.0, 1.2, 1.42, 1.7];
+const modelCache: Record<number, Promise<any>> = {};
+
+function loadModel(T: any, element: number): Promise<any> {
+  if (!modelCache[element]) {
+    modelCache[element] = loadGltfLoader(T).then(
+      (Loader) =>
+        new Promise((resolve, reject) => {
+          new Loader().load(MODELS[element], (gltf: any) => resolve(gltf.scene), undefined, reject);
+        }),
+    );
+    modelCache[element].catch(() => delete modelCache[element]);
+  }
+  return modelCache[element];
+}
+
+function modelDragon(T: any, element: number, stage: number, legend: boolean, root: any, body: any): Monster {
+  const pal = PALETTE[element] ?? PALETTE[0];
+  const h = MODEL_HEIGHT[stage];
+  body.scale.setScalar(h);
+  let wingL: any = null;
+  let wingR: any = null;
+  let fallback: Monster | null = null;
+  loadModel(T, element)
+    .then((scene) => {
+      const model = scene.clone(true);
+      model.traverse((o: any) => {
+        if (o.isMesh) {
+          o.castShadow = true;
+          o.receiveShadow = false;
+        }
+      });
+      wingL = model.getObjectByName("wingL");
+      wingR = model.getObjectByName("wingR");
+      body.add(model);
+    })
+    .catch(() => {
+      // No model (offline?): fall back to the code-built dragon.
+      fallback = buildMonster(T, element, stage, legend, false);
+      fallback.setMood(mood);
+      root.remove(body);
+      if (aura) root.remove(aura);
+      root.add(fallback.group);
+    });
+
+  let aura: any = null;
+  if (stage >= 4) {
+    aura = new T.Mesh(
+      new T.RingGeometry(0.75, 0.9, 48),
+      new T.MeshBasicMaterial({ color: pal.glow, transparent: true, opacity: 0.5, side: T.DoubleSide, blending: T.AdditiveBlending, depthWrite: false }),
+    );
+    aura.rotation.x = -Math.PI / 2;
+    aura.position.y = 0.03;
+    root.add(aura);
+  }
+
+  let mood: Mood = "rest";
+  return {
+    group: root,
+    height: h,
+    setMood(next) {
+      mood = next;
+      fallback?.setMood(next);
+    },
+    update(now) {
+      if (fallback) return fallback.update(now);
+      const k = now / 1000;
+      const asleep = mood === "sleep";
+      let y = 0, roll = 0, pitch = 0;
+      if (mood === "walk") {
+        // A waddle: rock side to side with a little hop each step.
+        y = Math.abs(Math.sin(k * 8)) * 0.06;
+        roll = Math.sin(k * 8) * 0.12;
+      } else if (mood === "happy") {
+        y = Math.abs(Math.sin(k * 8)) * 0.2;
+      } else if (mood === "fly") {
+        y = Math.sin(k * 8) * 0.04;
+        pitch = 0.25;
+      } else if (asleep) {
+        pitch = 0.12;
+      } else {
+        y = Math.abs(Math.sin(k * 2.2)) * 0.03;
+      }
+      body.position.y = y;
+      body.rotation.z = roll;
+      body.rotation.x = pitch;
+      const breathe = asleep ? Math.sin(k * 1.6) * 0.03 : Math.sin(k * 4.4) * 0.012;
+      body.scale.set(h * (1 + breathe), h * (1 - breathe * 0.6), h);
+      // Wing angle: positive lifts them. Fast beats in flight, up and fluttering when happy,
+      // folded down asleep, otherwise a lazy flap now and then.
+      const beat =
+        mood === "fly"
+          ? Math.sin(k * 16) * 0.6
+          : mood === "happy"
+            ? 0.25 + Math.sin(k * 12) * 0.3
+            : asleep
+              ? -0.45
+              : Math.sin(k * 7) * 0.35 * Math.max(0, Math.sin(k * 0.8)) ** 2;
+      if (wingL) wingL.rotation.z = -beat;
+      if (wingR) wingR.rotation.z = beat;
+      if (aura) {
+        aura.rotation.z = k * 0.8;
+        aura.material.opacity = 0.35 + Math.sin(k * 3) * 0.15;
+      }
+    },
+  };
+}
 const HEAD = [0, 0.48, 0.45, 0.42, 0.4];
 
-export function buildMonster(T: any, element: number, stage: number, legend = false): Monster {
+export function buildMonster(T: any, element: number, stage: number, legend = false, useModel = true): Monster {
   stage = Math.max(0, Math.min(4, stage));
   const pal = PALETTE[element] ?? PALETTE[0];
   const lin = (hex: number) => new T.Color(hex).convertSRGBToLinear();
@@ -91,6 +208,8 @@ export function buildMonster(T: any, element: number, stage: number, legend = fa
       },
     };
   }
+
+  if (useModel && MODELS[element]) return modelDragon(T, element, stage, legend, root, body);
 
   const headR = HEAD[stage];
   const bodyMat = mat(pal.body, 0.45);
