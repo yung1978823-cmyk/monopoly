@@ -96,7 +96,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     x.fillRect(0, 0, 128, 128);
     return new T.CanvasTexture(c);
   };
-  const shadowTex = soft("rgba(0,0,0,0.55)", "rgba(0,0,0,0)");
+  const shadowTex = soft("rgba(0,0,0,0.3)", "rgba(0,0,0,0)");
   const glowTex = soft("rgba(170,210,255,0.9)", "rgba(170,210,255,0)");
   const FLOOR = -4.4;
 
@@ -188,8 +188,8 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   });
   // A big floating rock in the middle of the ring, with open air between it and the squares.
   {
-    const big = islandMesh(5.2, 977, 0x4f9a3a);
-    big.group.position.set(0, -0.35, 0);
+    const big = islandMesh(4.6, 977, 0x4f9a3a);
+    big.group.position.set(0, -0.7, 0);
     scene.add(big.group);
     const bits: any[] = [];
     [[3.3, -2.3, 0.45], [-3.2, -2.7, 0.35], [0.4, -3.0, 0.3]].forEach(([x, y, k], n) => {
@@ -211,13 +211,13 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     glow.scale.set(5, 2.4, 1);
     glow.position.y = TOP - 2.2;
     scene.add(glow);
-    breathers.push({ obj: big.group, phase: 0, period: 6, shadow, glow, base: -0.35, glowY: TOP - 2.2 });
+    breathers.push({ obj: big.group, phase: 0, period: 6, shadow, glow, base: -0.7, glowY: TOP - 2.2 });
     bits.forEach((b, n) => breathers.push({ obj: b, phase: n * 2, period: 4.5 + n, shadow: null, glow: null, base: b.position.y, glowY: 0 }));
   }
   const floor = new T.Mesh(new T.PlaneGeometry(400, 400), new T.MeshStandardMaterial({ color: 0x0f1a30, roughness: 1 }));
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = FLOOR;
-  floor.receiveShadow = true;
+  floor.receiveShadow = false;
   scene.add(floor);
 
   // Drifting motes of light.
@@ -390,7 +390,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     view.yaw += (view.goalYaw - view.yaw) * Math.min(1, dt * 8);
     view.elev += (view.goalElev - view.elev) * Math.min(1, dt * 8);
     view.dist += (view.goalDist - view.dist) * Math.min(1, dt * 6);
-    target.lerp(new T.Vector3(ship.position.x * 0.2, 0, ship.position.z * 0.2), Math.min(1, dt * 2));
+    target.lerp(new T.Vector3(0, 0, 0), Math.min(1, dt * 2));
     const sway = reduceMotion ? 0 : Math.sin(now / 7000) * 0.12 * Math.min(1, Math.max(0, view.idle - 2) / 3);
     const yaw = view.yaw + sway, flat = Math.cos(view.elev) * view.dist;
     camera.position.set(target.x + Math.sin(yaw) * flat, Math.sin(view.elev) * view.dist, target.z + Math.cos(yaw) * flat);
