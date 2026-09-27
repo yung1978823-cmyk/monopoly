@@ -430,7 +430,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   let burnAt = -1e9;
 
   // ---------- Your character (replaces the balloon once its model has loaded) ----------
-  const HERO_HEIGHT = 0.95;
+  const HERO_HEIGHT = 1.35;
   const hero = new T.Group();
   scene.add(hero);
   const heroState = { ready: false, mixer: null as any, walk: null as any, cheer: null as any, pace: 2, still: 0, cheering: false };
