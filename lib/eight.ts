@@ -25,6 +25,8 @@ export const CHEST_PAY = 3;
 export const CROSS_PAY = 1;
 export const TAX = 2;
 export const UPGRADE_PRICE = 2;
+/** Buying or building only happens if at least this much cash is left afterwards (keeps players out of easy bankruptcy). */
+export const BUY_RESERVE = 2;
 export const MAX_LEVEL = 4;
 /** Rent by level (1 house … 4 landmark); gold inner-road lots charge double. */
 // 2026-09-27: every die walks on its own now (two stops a turn), so rent starts at 0.2, not 1.
@@ -218,6 +220,8 @@ export type TableEvent =
   | { kind: "jailed"; seat: number }
   | { kind: "bankrupt"; seat: number; to: number | null; lost: string[] }
   | { kind: "house"; seat: number; key: string; amount: number }
+  /** Could have bought or built here, but it would have left less than BUY_RESERVE. */
+  | { kind: "saved"; seat: number; key: string }
   /** The first die's walk is done; the second die is thrown now. */
   | { kind: "second"; seat: number; die: number };
 
@@ -401,12 +405,19 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
       }
       const deed = state.deeds[key];
       if (!deed) {
-        if (player.cash < square.price) return state;
+        if (player.cash - square.price < BUY_RESERVE) {
+          events.push({ kind: "saved", seat, key });
+          return state;
+        }
         events.push({ kind: "bought", seat, key, price: square.price });
         return { ...withSeat(state, seat, { cash: player.cash - square.price }), deeds: { ...state.deeds, [key]: { owner: seat, level: 1 } } };
       }
       if (deed.owner === seat) {
-        if (deed.level >= MAX_LEVEL || player.cash < UPGRADE_PRICE) return state;
+        if (deed.level >= MAX_LEVEL) return state;
+        if (player.cash - UPGRADE_PRICE < BUY_RESERVE) {
+          events.push({ kind: "saved", seat, key });
+          return state;
+        }
         const level = deed.level + 1;
         events.push({ kind: "upgraded", seat, key, level });
         return { ...withSeat(state, seat, { cash: player.cash - UPGRADE_PRICE }), deeds: { ...state.deeds, [key]: { owner: seat, level } } };

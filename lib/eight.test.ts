@@ -80,6 +80,15 @@ describe("public table on the 八字 board", () => {
     assert.equal(state.seats[0].cash, STAKE - SQUARES.o2.price - UPGRADE_PRICE);
   });
 
+  it("won't buy or build unless 2 is left afterwards", () => {
+    const poor = (cash: number) => ({ ...start(), seats: start().seats.map((seat, i) => (i === 0 ? { ...seat, cash } : seat)) });
+    const skip = reduceTable(quiet(poor(SQUARES.o2.price + 1), 0, "o1"), { type: "roll", dice: [1, 1] });
+    assert.equal(skip.deeds.o2, undefined, "would leave only 1");
+    const buy = reduceTable(quiet(poor(SQUARES.o2.price + 2), 0, "o1"), { type: "roll", dice: [1, 1] });
+    assert.equal(buy.deeds.o2?.owner, 0);
+    assert.equal(buy.seats[0].cash, 2);
+  });
+
   it("rent starts at 0.2 and money stays at one decimal place", () => {
     assert.deepEqual([...RENTS], [0, 0.2, 0.5, 1, 1.5]);
     let state = quiet({ ...start(), deeds: { o2: { owner: 1, level: 1 } } }, 0, "o1");

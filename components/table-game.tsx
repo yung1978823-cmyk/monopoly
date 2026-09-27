@@ -3,6 +3,7 @@
 import { ACTORS, createBoardScene, loadThree, type BoardScene, type Decor } from "@/components/eight-scene";
 import { TILE_INFO } from "@/lib/board";
 import {
+  BUY_RESERVE,
   BAIL,
   ENTRY_FEE,
   HOUSE_CUT,
@@ -307,6 +308,10 @@ export function EightBoard({
             await (doubles ? scene.sparkle("dice") : scene.wait(350));
             break;
           }
+          case "saved":
+            say("{name} 要留返 {n}，今次唔買", { name: who(event.seat), n: BUY_RESERVE });
+            await scene.wait(500);
+            break;
           case "fork":
             say(state.seats[event.seat]?.bot ? "{name} 喺分岔路口" : "揀路", { name: who(event.seat) });
             break;

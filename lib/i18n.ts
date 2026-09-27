@@ -109,6 +109,7 @@ const DICT: Record<string, { hans: string; en: string }> = {
   "{name} 入獄！": { hans: "{name} 入狱！", en: "{name} goes to jail!" },
   "{name} 破產！": { hans: "{name} 破产！", en: "{name} is bankrupt!" },
   "擲出 {n}，孖寶！": { hans: "掷出 {n}，双数！", en: "Rolled {n}, doubles!" },
+  "{name} 要留返 {n}，今次唔買": { hans: "{name} 要留下 {n}，这次不买", en: "{name} keeps {n} in hand, no buying this time" },
   "第一粒 {n}": { hans: "第一颗 {n}", en: "First die: {n}" },
   "第二粒 {n}": { hans: "第二颗 {n}", en: "Second die: {n}" },
   "第二粒 {n}，孖寶！": { hans: "第二颗 {n}，双数！", en: "Second die: {n}, doubles!" },
