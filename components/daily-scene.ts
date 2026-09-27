@@ -165,22 +165,11 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     return { group: g, top: grass };
   }
 
-  /** The picture for each kind of square (the meat one is drawn from its emoji until its picture comes). */
+  /** The picture for each kind of square. */
   const iconCache: Record<string, any> = {};
   function iconTex(kind: string) {
     if (!iconCache[kind]) {
-      if (kind === "meat") {
-        const c = document.createElement("canvas");
-        c.width = c.height = 128;
-        const g = c.getContext("2d")!;
-        g.font = "96px serif";
-        g.textAlign = "center";
-        g.textBaseline = "middle";
-        g.fillText("🍖", 64, 70);
-        iconCache[kind] = new T.CanvasTexture(c);
-      } else {
-        iconCache[kind] = new T.TextureLoader().load(`/art/icons/${kind}.webp`);
-      }
+      iconCache[kind] = new T.TextureLoader().load(`/art/icons/${kind}.webp`);
       iconCache[kind].encoding = T.sRGBEncoding;
     }
     return iconCache[kind];
@@ -266,11 +255,9 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   let stone: any = null;
   let runeLight: any, runeRing: any;
   {
-    // A lawn on top (Sky 2026-09-27: green grass shows the dragon off better than the carved stone).
-    const big = islandMesh(6, 977, 0x5fae4a);
-    big.top.material.roughness = 0.9;
-    // A real grass green (the other islands are pastel; this one should read as a lawn).
-    big.top.material.color = new T.Color(0x4f9e3a).convertSRGBToLinear();
+    // A stone top (Sky 2026-09-28: stone like the squares round it, instead of the lawn).
+    const big = islandMesh(6, 977, 0x9a958c);
+    big.top.material = new T.MeshStandardMaterial({ color: new T.Color(0x96918a).convertSRGBToLinear(), roughness: 0.95, flatShading: true });
     big.group.position.set(0, 0.1, 0);
     bigRock.add(big.group);
     stone = big.group;
