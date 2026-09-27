@@ -44,7 +44,7 @@ const MODELS: Record<number, string> = { 0: "/models/dragon-light.glb" };
 /** How tall the model dragon stands at each grade (N → SSR): on the board about the size of a die.
  * Close-up screens (the pet screen, a town) scale it up by MODEL_CLOSE_UP. The current models are
  * the N-grade look; higher grades reuse them, a little bigger, until their own models are made. */
-const MODEL_HEIGHT = [0, 0.4, 0.46, 0.52, 0.58];
+const MODEL_HEIGHT = [0, 0.44, 0.506, 0.572, 0.638];
 /** How much bigger model dragons are drawn in close-up screens than on the board. */
 export const MODEL_CLOSE_UP = 2.4;
 const modelCache: Record<number, Promise<any>> = {};
