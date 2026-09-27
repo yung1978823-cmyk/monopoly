@@ -517,6 +517,17 @@ export function EightBoard({
           case "unlocked":
             scene.lockTile(event.key, false);
             break;
+          case "spawn":
+            say("新一圈！功能卡出現咗");
+            await scene.showPickup(event.key);
+            break;
+          case "pickup":
+            play("lucky");
+            say("{name} 執到功能卡：{card}", { name: who(event.seat), card: tRef.current(POWER_INFO[event.power].name) });
+            await scene.takePickup(event.seat);
+            void scene.floatText(event.seat, POWER_INFO[event.power].icon, "#7C3AED");
+            await scene.sparkle(event.seat);
+            break;
         }
       }
     },
@@ -575,6 +586,7 @@ export function EightBoard({
           stateRef.current.seats.map((seat) => actorOf(seat.avatar)),
         );
         sceneRef.current = scene;
+        void scene.showPickup(stateRef.current.pickup?.key ?? null);
         setLoaded("ready");
         aim(scene, stateRef.current.current);
         say("輪到 {name}", { name: tRef.current(stateRef.current.seats[stateRef.current.current].name) });

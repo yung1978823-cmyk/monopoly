@@ -24,7 +24,8 @@ export const BAIL = 1;
 export const CHEST_PAY = 3;
 export const CROSS_PAY = 1;
 export const TAX = 2;
-export const UPGRADE_PRICE = 2;
+// 2026-09-27: building up is cheaper (was 2) so more lots grow into bigger buildings.
+export const UPGRADE_PRICE = 1;
 /** Buying or building only happens if at least this much cash is left afterwards (keeps players out of easy bankruptcy). */
 export const BUY_RESERVE = 2;
 export const MAX_LEVEL = 4;
@@ -266,7 +267,11 @@ export type TableEvent =
   /** Landed on a 封地-locked lot: no rent. */
   | { kind: "lockedLot"; seat: number; key: string }
   /** A lock ran out. */
-  | { kind: "unlocked"; key: string };
+  | { kind: "unlocked"; key: string }
+  /** A new round: a power card appears on a square (replacing any left over). */
+  | { kind: "spawn"; key: string; power: Power }
+  /** Landed on the square with the power card and took it. */
+  | { kind: "pickup"; seat: number; key: string; power: Power };
 
 /**
  * House rules for this table. The public table uses the defaults; a hosted game on someone's
@@ -301,6 +306,8 @@ export type TableState = {
   board: BoardId;
   /** Rent paid to the host's rent houses this game. */
   hostIncome: number;
+  /** A glowing power card waiting on a square; whoever lands there first takes it. A new one each round. */
+  pickup: { key: string; power: Power } | null;
 };
 
 export type TableAction =
@@ -324,6 +331,7 @@ export function newTable(
     rules: { turnsEach: rules.turnsEach ?? TURNS_EACH, houses, cards: rules.cards?.length ? rules.cards : CARDS },
     board,
     hostIncome: 0,
+    pickup: firstPickup(board, players.length),
     seats: players.slice(0, MAX_SEATS).map((player) => ({
       ...player,
       cash: STAKE,
@@ -438,6 +446,13 @@ function walk(state: TableState, seat: number, events: TableEvent[]): TableState
 
 /** What the square under the seat does. */
 function land(state: TableState, seat: number, events: TableEvent[], depth: number): TableState {
+  // The round's power card lies here: take it (if there's room in the hand), then the square as usual.
+  const at = BOARDS[state.board].keyOf(state.seats[seat].spot);
+  if (depth === 0 && state.pickup?.key === at && state.seats[seat].powers.length < MAX_POWERS) {
+    const { power } = state.pickup;
+    events.push({ kind: "pickup", seat, key: at, power });
+    state = { ...withSeat(state, seat, { powers: [...state.seats[seat].powers, power] }), pickup: null };
+  }
   const player = state.seats[seat];
   const B = BOARDS[state.board];
   const key = B.keyOf(player.spot);
@@ -545,7 +560,14 @@ function finishTurn(state: TableState, events: TableEvent[]): TableState {
     deeds[key] = locked > 0 ? { ...deed, locked } : { owner: deed.owner, level: deed.level };
     if (locked <= 0) events.push({ kind: "unlocked", key });
   }
-  const done = withSeat({ ...state, deeds }, state.current, { turnsTaken: state.seats[state.current].turnsTaken + 1 });
+  let done = withSeat({ ...state, deeds }, state.current, { turnsTaken: state.seats[state.current].turnsTaken + 1 });
+  // Everyone still playing has had another turn: a new round, and a new power card somewhere else.
+  const round = (s: TableState) => Math.min(...alive(s).map((i) => s.seats[i].turnsTaken));
+  if (alive(done).length > 0 && round(done) > round(state) && round(done) < done.rules.turnsEach) {
+    const pickup = nextPickup(done, round(done));
+    events.push({ kind: "spawn", ...pickup });
+    done = { ...done, pickup };
+  }
   if (isOver(done)) return { ...done, phase: "over", stepsLeft: 0 };
   let seat = done.current;
   for (let i = 0; i < done.seats.length; i += 1) {
@@ -591,6 +613,25 @@ export function reduceTable(state: TableState, action: TableAction): TableState 
   }
 
   return state;
+}
+
+/** Squares a power card can appear on: anything but start and jail, and not the host's rent houses. */
+function pickupSquares(board: BoardId, houses: Record<string, number> = {}): string[] {
+  return Object.values(BOARDS[board].squares)
+    .filter((s) => s.kind !== "start" && s.kind !== "jail" && houses[s.key] === undefined)
+    .map((s) => s.key);
+}
+
+function firstPickup(board: BoardId, players: number): { key: string; power: Power } {
+  const squares = pickupSquares(board);
+  return { key: squares[(players * 7 + 5) % squares.length], power: POWERS[players % POWERS.length] };
+}
+
+/** The new round's card: a different square from last time, picked from the last roll's draw. */
+function nextPickup(state: TableState, round: number): { key: string; power: Power } {
+  const squares = pickupSquares(state.board, state.rules.houses).filter((key) => key !== state.pickup?.key);
+  const seed = Math.abs(Math.floor(state.draw.power ?? state.draw.card)) + round * 131 + state.tick * 17;
+  return { key: squares[seed % squares.length], power: POWERS[Math.floor(seed / 7) % POWERS.length] };
 }
 
 /** Seats still playing, other than `seat`. */

@@ -238,6 +238,25 @@ describe("public table on the 八字 board", () => {
     assert.equal(reduceTable(forked, { type: "power", index: 0 }), forked);
   });
 
+  it("a power card waits on the board: land on it to take it; a new round puts one somewhere else", () => {
+    let state = { ...quiet(start(), 0, "o1"), pickup: { key: "o2", power: "wreck" as Power } };
+    state = reduceTable(state, { type: "roll", dice: [1, 1] });
+    assert.deepEqual(state.seats[0].powers, ["wreck"]);
+    assert.equal(state.pickup, null);
+    assert.ok(state.events.some((e) => e.kind === "pickup"));
+    // Seat 1 finishes the round: a new card appears, not on start or jail.
+    state = reduceTable(state, { type: "roll", dice: [3, 4] });
+    const spawn = state.events.find((e) => e.kind === "spawn");
+    assert.ok(spawn && spawn.kind === "spawn");
+    assert.deepEqual(state.pickup, { key: spawn.key, power: spawn.power });
+    assert.notEqual(SQUARES[spawn.key].kind, "start");
+    assert.notEqual(SQUARES[spawn.key].kind, "jail");
+    // A full hand leaves it where it is.
+    const full = { ...start(), pickup: { key: "o2", power: "swap" as Power }, seats: start().seats.map((s, i) => (i === 0 ? { ...s, powers: ["boost", "lock"] as Power[] } : s)) };
+    const left = reduceTable(quiet(full, 0, "o1"), { type: "roll", dice: [1, 1] });
+    assert.deepEqual(left.pickup, { key: "o2", power: "swap" });
+  });
+
   it("ends after 12 turns each and ranks by net worth", () => {
     let state = start(3);
     let guard = 0;

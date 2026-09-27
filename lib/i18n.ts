@@ -132,6 +132,8 @@ const DICT: Record<string, { hans: string; en: string }> = {
   "⏳ 最後一轉！": { hans: "⏳ 最后一轮！", en: "⏳ Last round!" },
   "同邊個換位？": { hans: "和谁换位？", en: "Swap with whom?" },
   "唔換住": { hans: "先不换", en: "Not now" },
+  "新一圈！功能卡出現咗": { hans: "新一轮！功能卡出现了", en: "New round! A power card appears" },
+  "{name} 執到功能卡：{card}": { hans: "{name} 捡到功能卡：{card}", en: "{name} picks up a power card: {card}" },
   "第一粒 {n}": { hans: "第一颗 {n}", en: "First die: {n}" },
   "第二粒 {n}": { hans: "第二颗 {n}", en: "Second die: {n}" },
   "第二粒 {n}，孖寶！": { hans: "第二颗 {n}，双数！", en: "Second die: {n}, doubles!" },

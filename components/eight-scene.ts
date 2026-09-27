@@ -109,6 +109,10 @@ export type BoardScene = {
   rainbow(seat: number): Promise<void>;
   /** A seat goes to pieces (bankrupt) and leaves the board. */
   shatter(seat: number): Promise<void>;
+  /** The round's glowing power card hovering over a square (null: none). */
+  showPickup(key: string | null, icon?: string): Promise<void>;
+  /** The hovering card flies into a seat's hands. */
+  takePickup(seat: number): Promise<void>;
   removeToken(seat: number): void;
   wait(ms: number): Promise<void>;
   /** 領地 buildings on show: rent houses on their squares, a gold facade, train stations. */
@@ -320,6 +324,8 @@ export function createBoardScene(
   type Tile = { group: any; body: any; base: number; inward: any; house: any; yaw: number };
   const tiles: Record<string, Tile> = {};
   const floaters: { obj: any; base?: number; spin?: boolean; bat?: number }[] = [];
+  /** The round's power card, hovering over its square. */
+  let pickup: any = null;
 
   function decorate(kind: string, group: any, yaw: number) {
     if (kind === "start") {
@@ -1349,6 +1355,65 @@ export function createBoardScene(
       tokens[seat].visible = false;
       gone.add(seat);
       settle(squareOf(spots[seat]), seat);
+    },
+    async showPickup(key, icon = "🃏") {
+      if (pickup) {
+        const old = pickup;
+        pickup = null;
+        const i = floaters.findIndex((f) => f.obj === old);
+        if (i >= 0) floaters.splice(i, 1);
+        await tween(250, (k) => {
+          old.scale.setScalar(1 - k);
+          if (k === 1) scene.remove(old);
+        });
+      }
+      const tile = key ? tiles[key] : null;
+      if (!tile) return;
+      const card = new T.Group();
+      // A purple card with the icon on both faces, and a soft glow round it.
+      const c = document.createElement("canvas");
+      c.width = 128;
+      c.height = 176;
+      const x = c.getContext("2d")!;
+      const grad = x.createLinearGradient(0, 0, 0, 176);
+      grad.addColorStop(0, "#A78BFA");
+      grad.addColorStop(1, "#6D28D9");
+      x.fillStyle = grad;
+      x.fillRect(0, 0, 128, 176);
+      x.strokeStyle = "#FBD000";
+      x.lineWidth = 10;
+      x.strokeRect(5, 5, 118, 166);
+      x.font = "72px system-ui, sans-serif";
+      x.textAlign = "center";
+      x.textBaseline = "middle";
+      x.fillText(icon, 64, 92);
+      const face = new T.CanvasTexture(c);
+      face.encoding = T.sRGBEncoding;
+      const body = new T.Mesh(new T.PlaneGeometry(0.46, 0.63), new T.MeshBasicMaterial({ map: face, side: T.DoubleSide }));
+      card.add(body);
+      const glow = new T.Mesh(new T.PlaneGeometry(0.8, 0.98), new T.MeshBasicMaterial({ color: 0xfbd000, transparent: true, opacity: 0.35, side: T.DoubleSide, depthWrite: false }));
+      glow.position.z = -0.01;
+      card.add(glow);
+      card.position.set(tile.group.position.x, TOP + 0.9, tile.group.position.z);
+      scene.add(card);
+      pickup = card;
+      floaters.push({ obj: card, base: TOP + 0.9, spin: true });
+      await tween(400, (k) => card.scale.setScalar(k < 0.7 ? (k / 0.7) * 1.2 : 1.2 - (k - 0.7) * 0.66));
+    },
+    async takePickup(seat) {
+      const card = pickup;
+      if (!card) return;
+      pickup = null;
+      const i = floaters.findIndex((f) => f.obj === card);
+      if (i >= 0) floaters.splice(i, 1);
+      const from = card.position.clone(), to = tokens[seat].position.clone().setY(TOP + 0.6);
+      await tween(500, (k) => {
+        card.position.lerpVectors(from, to, k);
+        card.position.y += Math.sin(k * Math.PI) * 0.6;
+        card.rotation.y += 0.4;
+        card.scale.setScalar(1 - k * 0.8);
+        if (k === 1) scene.remove(card);
+      });
     },
     async floatText(seat, text, colour = "#E52521") {
       const c = document.createElement("canvas");
