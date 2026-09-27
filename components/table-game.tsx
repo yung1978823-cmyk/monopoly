@@ -43,6 +43,34 @@ const CAST = [
 ];
 const EMOJI: Record<string, string> = { 阿狼: "🐺", 阿鬼: "👻", 阿蝠: "🦇" };
 
+/**
+ * The four 3D characters a player can be. First come, first served: once you take one, the computer
+ * players get the others (with real players later, a character someone has taken is greyed out).
+ */
+const CHARACTERS = [
+  { name: "伯爵", avatar: "/art/avatars/vampire.jpg", colour: "#7C3AED" },
+  { name: "阿殭", avatar: "/art/avatars/jiangshi.jpg", colour: "#2563EB" },
+  { name: "阿木", avatar: "/art/avatars/mummy.jpg", colour: "#D97706" },
+  { name: "阿強", avatar: "/art/avatars/zombie.jpg", colour: "#16A34A" },
+];
+const PICK_KEY = "boolionaire-character";
+
+/** You as the character you picked, then the computer players as the characters left over. */
+function seatsFor(pick: number, opponents: number): Player[] {
+  const mine = CHARACTERS[pick] ?? CHARACTERS[0];
+  const rest = CHARACTERS.filter((_, i) => i !== pick).map((c) => ({ ...c, bot: true }));
+  return [{ name: "你", avatar: mine.avatar, colour: mine.colour, bot: false }, ...rest].slice(0, opponents + 1);
+}
+
+function savedPick(): number {
+  try {
+    const n = Number(window.localStorage.getItem(PICK_KEY));
+    return Number.isInteger(n) && n >= 0 && n < CHARACTERS.length ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** The 3D character for a seat, from its avatar picture (vampire, jiangshi, mummy, zombie), or null. */
 function actorOf(avatar: string): string | null {
   const key = /avatars\/(\w+)\./.exec(avatar)?.[1];
@@ -97,9 +125,20 @@ function Coin({ className }: { className?: string }) {
   return <img src={TILE_INFO.coin.art} alt="" className={cn("inline-block size-[1.1em] align-[-0.15em]", className)} />;
 }
 
-function Lobby({ onStart, onExit }: { onStart: (opponents: number) => void; onExit: () => void }) {
+function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onExit: () => void }) {
   const { t } = useLang();
   const [opponents, setOpponents] = useState(3);
+  const [pick, setPick] = useState(0);
+  useEffect(() => setPick(savedPick()), []);
+  const choose = (i: number) => {
+    setPick(i);
+    try {
+      window.localStorage.setItem(PICK_KEY, String(i));
+    } catch {
+      // Remembering the pick is only a convenience.
+    }
+  };
+  const seats = seatsFor(pick, opponents);
   return (
     <main
       className="relative mx-auto flex h-dvh w-full max-w-md flex-col items-center gap-5 overflow-hidden bg-gradient-to-b from-[#4AA8F5] via-[#8CC63F] to-[#5E9E2B] px-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-[max(env(safe-area-inset-top),0.75rem)] text-[#1E3A8A]"
@@ -139,6 +178,30 @@ function Lobby({ onStart, onExit }: { onStart: (opponents: number) => void; onEx
         <p className="mt-2 text-center text-xs font-bold text-[#3B5BA9]">{t("練習局：用分數代替 DST，打完清零")}</p>
       </section>
 
+      {/* Your character: first come, first served; the computer players get the rest. */}
+      <section className="w-full rounded-3xl bg-white/90 p-3 shadow-lg" data-testid="character-pick">
+        <h2 className="mb-2 text-center text-sm font-black">{t("揀你嘅角色")}</h2>
+        <div className="grid grid-cols-4 gap-2">
+          {CHARACTERS.map((c, i) => (
+            <button
+              key={c.name}
+              type="button"
+              onClick={() => choose(i)}
+              aria-pressed={pick === i}
+              className={cn(
+                "flex cursor-pointer flex-col items-center rounded-2xl border-[3px] p-1.5 transition",
+                pick === i ? "scale-105 border-[#FBD000] bg-[#FFF8D6] shadow-md" : "border-transparent opacity-70",
+              )}
+              data-testid={`character-${i}`}
+            >
+              <Face seat={c} className="size-12 border-[3px]" />
+              <span className="mt-1 text-xs font-black">{t(c.name)}</span>
+              {pick === i ? <span className="text-[10px] font-black text-[#E52521]">{t("你揀咗")}</span> : null}
+            </button>
+          ))}
+        </div>
+      </section>
+
       {/* Opponents: pick 1–3 computer players. */}
       <section className="flex w-full flex-col items-center gap-3">
         <div className="flex gap-2">
@@ -154,14 +217,14 @@ function Lobby({ onStart, onExit }: { onStart: (opponents: number) => void; onEx
               aria-label={t("{n} 人枱", { n: count + 1 })}
               data-testid={`opponents-${count}`}
             >
-              {CAST.slice(1, count + 1).map((seat) => (
+              {seatsFor(pick, count).slice(1).map((seat) => (
                 <Face key={seat.name} seat={seat} className="size-8 border-2 border-white" />
               ))}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-2">
-          {CAST.slice(0, opponents + 1).map((seat) => (
+          {seats.map((seat) => (
             <div key={seat.name} className="flex flex-col items-center">
               <Face seat={seat} className="size-14 border-[3px] text-3xl shadow-md" />
               <span className="-mt-2 rounded-full px-2 text-xs font-black text-white" style={{ background: seat.colour }}>
@@ -174,7 +237,7 @@ function Lobby({ onStart, onExit }: { onStart: (opponents: number) => void; onEx
 
       <button
         type="button"
-        onClick={() => onStart(opponents)}
+        onClick={() => onStart(seats)}
         className="mt-auto h-16 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-3xl font-black tracking-[0.2em] text-white shadow-[0_6px_0_#8E1210] active:translate-y-1 active:shadow-[0_2px_0_#8E1210]"
         data-testid="table-start"
       >
@@ -189,7 +252,7 @@ function Lobby({ onStart, onExit }: { onStart: (opponents: number) => void; onEx
 export function TableGame({ onExit }: { onExit: () => void }) {
   const [game, setGame] = useState<{ id: number; players: Player[] } | null>(null);
   if (!game) {
-    return <Lobby onExit={onExit} onStart={(opponents) => setGame({ id: Date.now(), players: CAST.slice(0, opponents + 1) })} />;
+    return <Lobby onExit={onExit} onStart={(players) => setGame({ id: Date.now(), players })} />;
   }
   return <EightBoard key={game.id} players={game.players} onExit={onExit} onAgain={() => setGame(null)} />;
 }

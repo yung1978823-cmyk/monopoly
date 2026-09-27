@@ -61,11 +61,10 @@ function loadGltfLoader(T: any): Promise<any> {
  * The 3D characters. Each file carries a rigged body and three clips — "walk" (their own way of
  * walking), "cheer" and "special" — so no two players move alike.
  */
-export const ACTORS: Record<string, { url: string; walkPace: number; shield?: boolean }> = {
+export const ACTORS: Record<string, { url: string; walkPace: number }> = {
   vampire: { url: "/models/vampire.glb", walkPace: 2.4 },
   jiangshi: { url: "/models/jiangshi.glb", walkPace: 1.5 },
-  // 阿木's shield melted into his arm when the model was stood in a T-pose, so a real one is strapped on.
-  mummy: { url: "/models/mummy.glb", walkPace: 2.2, shield: true },
+  mummy: { url: "/models/mummy.glb", walkPace: 2.2 },
   zombie: { url: "/models/zombie.glb", walkPace: 2.2 },
 };
 const CHARACTER_HEIGHT = 0.8;
@@ -452,7 +451,13 @@ export function createBoardScene(
       gem.position.set(0.3, TOP + 0.12, 0.3);
       group.add(gem);
     }
-    decorate(square.kind, group, yaw);
+    // Big square decorations (chest, jail, plane …) sit smaller at the back of the square too, so the
+    // players standing at the front are never hidden behind them.
+    const holder = new T.Group();
+    holder.position.copy(toLocal(new T.Vector3(0, 0, -0.3), yaw)).setY(TOP * 0.3); // keeps its base on the tile top
+    holder.scale.setScalar(0.7);
+    group.add(holder);
+    decorate(square.kind, holder, yaw);
   }
   for (const plan of layout.tiles) {
     makeTile(plan.key, plan.x, plan.z, plan.outward ? new T.Vector3(plan.outward[0], 0, plan.outward[1]) : null, plan.yaw);
@@ -715,7 +720,6 @@ export function createBoardScene(
         const g = tokens[seat];
         g.children.forEach((c: any) => (c.visible = false));
         g.add(model);
-        if (actor.shield) strapShield(model);
         const mixer = new T.AnimationMixer(model);
         const clip = (name: string) => gltf.animations.find((a: any) => a.name === name);
         const walk = mixer.clipAction(clip("walk") ?? gltf.animations[0]);
@@ -746,67 +750,14 @@ export function createBoardScene(
         // Keep the pawn.
       });
   });
-  /**
-   * 阿木's round shield: bandage-wrapped with a red star, on the outside of his right forearm.
-   * Bone units carry the armature's 0.01 scale, so sizes here are in centimetres.
-   */
-  function strapShield(model: any) {
-    const bone = model.getObjectByName("RightForeArm");
-    const hand = model.getObjectByName("RightHand");
-    if (!bone || !hand) return;
-    const size = 256;
-    const c = document.createElement("canvas");
-    c.width = c.height = size;
-    const x = c.getContext("2d")!;
-    x.fillStyle = "#EFE6D2";
-    x.fillRect(0, 0, size, size);
-    // Wrapped bandage strips across the face.
-    for (let i = -size; i < size * 2; i += 26) {
-      x.strokeStyle = i % 52 ? "#D9CCB0" : "#E4D8BE";
-      x.lineWidth = 14;
-      x.beginPath();
-      x.moveTo(i, 0);
-      x.lineTo(i - size * 0.45, size);
-      x.stroke();
-    }
-    x.strokeStyle = "#CDBF9F";
-    x.lineWidth = 10;
-    x.beginPath();
-    x.arc(size / 2, size / 2, size / 2 - 6, 0, Math.PI * 2);
-    x.stroke();
-    // The red star.
-    x.fillStyle = "#E52521";
-    x.beginPath();
-    for (let k = 0; k < 10; k += 1) {
-      const r = k % 2 ? size * 0.13 : size * 0.3;
-      const a = -Math.PI / 2 + (k * Math.PI) / 5;
-      x.lineTo(size / 2 + Math.cos(a) * r, size / 2 + Math.sin(a) * r);
-    }
-    x.closePath();
-    x.fill();
-    const face = new T.CanvasTexture(c);
-    face.encoding = T.sRGBEncoding;
-    const rim = new T.MeshStandardMaterial({ color: 0xd9ccb0, roughness: 0.85, metalness: 0 });
-    const front = new T.MeshStandardMaterial({ map: face, roughness: 0.85, metalness: 0 });
-    const shield = new T.Mesh(new T.CylinderGeometry(0.17, 0.17, 0.03, 40), [rim, front, rim]);
-    // Held at his right forearm but always facing the way he faces, so the star shows whatever his
-    // arm is doing (fixed to the arm bone it ends up edge-on or hidden behind the arm).
-    // The cylinder's top is its face; turn it from +y to the body's front (+z).
-    const faceFront = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), new T.Vector3(0, 0, 1));
-    const at = new T.Vector3(), handAt = new T.Vector3(), turn = new T.Quaternion(), grown = new T.Vector3();
-    const offset = new T.Vector3(), facing = new T.Quaternion();
-    shield.frustumCulled = false;
-    shield.onBeforeRender = () => {
-      bone.getWorldPosition(at);
-      hand.getWorldPosition(handAt);
-      at.add(handAt).multiplyScalar(0.5);
-      model.getWorldQuaternion(turn);
-      model.getWorldScale(grown);
-      // A little to his right (−x) and in front (+z) of the forearm.
-      at.add(offset.set(-0.06, 0, 0.05).multiplyScalar(grown.x).applyQuaternion(turn));
-      shield.matrixWorld.compose(at, facing.copy(turn).multiply(faceFront), grown);
-    };
-    model.add(shield);
+  /** Turn to face the player's camera, so a cheer or special move is seen from the front, not the back. */
+  function turnToCamera(seat: number) {
+    const token = tokens[seat];
+    const from = token.rotation.y;
+    const want = Math.atan2(camera.position.x - token.position.x, camera.position.z - token.position.z);
+    // The short way round.
+    const delta = ((want - from + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    void tween(250, (k) => (token.rotation.y = from + delta * k));
   }
 
   /** Walk while stepping; stand still (first frame of the walk) a moment after the last step. */
@@ -836,6 +787,7 @@ export function createBoardScene(
     const move = rig?.[which];
     if (!rig || !move) return;
     window.clearTimeout(rig.idle);
+    turnToCamera(seat);
     for (const other of [rig.cheer, rig.special]) if (other && other !== move) other.stop();
     move.reset();
     move.play();

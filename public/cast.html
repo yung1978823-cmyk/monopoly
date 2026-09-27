@@ -36,10 +36,10 @@ button.alt { background: var(--card); color: var(--ink); border-color: #d6deea; 
   const T = window.THREE;
   if (!T || !T.GLTFLoader) { note.textContent = "載入唔到三維工具"; return; }
   const CAST = [
-    { key: "vampire", name: "你（吸血殭屍）", walk: "驕傲咁行", cheer: "勝利歡呼", special: "紳士鞠躬（有人交租俾你）", pace: 2.4 },
+    { key: "vampire", name: "伯爵", walk: "驕傲咁行", cheer: "勝利歡呼", special: "紳士鞠躬（有人交租俾你）", pace: 2.4 },
     { key: "jiangshi", name: "阿殭", walk: "伸直雙手細步行", cheer: "開心跳", special: "施法術（抽機會卡）", pace: 1.5 },
-    { key: "mummy", name: "阿木", walk: "蹣跚咁行", cheer: "搞笑跳舞", special: "舉盾擋（要交錢）", pace: 2.2 },
-    { key: "zombie", name: "阿強", walk: "怪物咁行", cheer: "江南舞", special: "揮大鎚（買地起樓）", pace: 2.2 },
+    { key: "mummy", name: "阿木", walk: "蹣跚咁行", cheer: "搞笑跳舞", special: "舉手擋（要交錢）", pace: 2.2 },
+    { key: "zombie", name: "阿強", walk: "怪物咁行", cheer: "江南舞", special: "大力揮手（買地起樓）", pace: 2.2 },
   ];
   const stage = document.getElementById("stage");
   const renderer = new T.WebGLRenderer({ antialias: true, alpha: true });
@@ -78,30 +78,7 @@ button.alt { background: var(--card); color: var(--ink); border-color: #d6deea; 
   }
   window.addEventListener("resize", layout); layout();
 
-  function strapShield(model) {
-    const bone = model.getObjectByName("RightForeArm"), hand = model.getObjectByName("RightHand"); if (!bone || !hand) return;
-    const size = 256, c = document.createElement("canvas"); c.width = c.height = size;
-    const x = c.getContext("2d");
-    x.fillStyle = "#EFE6D2"; x.fillRect(0, 0, size, size);
-    for (let i = -size; i < size * 2; i += 26) { x.strokeStyle = i % 52 ? "#D9CCB0" : "#E4D8BE"; x.lineWidth = 14; x.beginPath(); x.moveTo(i, 0); x.lineTo(i - size * 0.45, size); x.stroke(); }
-    x.strokeStyle = "#CDBF9F"; x.lineWidth = 10; x.beginPath(); x.arc(size / 2, size / 2, size / 2 - 6, 0, Math.PI * 2); x.stroke();
-    x.fillStyle = "#E52521"; x.beginPath();
-    for (let k = 0; k < 10; k++) { const r = k % 2 ? size * 0.13 : size * 0.3, a = -Math.PI / 2 + (k * Math.PI) / 5; x.lineTo(size / 2 + Math.cos(a) * r, size / 2 + Math.sin(a) * r); }
-    x.closePath(); x.fill();
-    const face = new T.CanvasTexture(c); face.encoding = T.sRGBEncoding;
-    const rim = new T.MeshStandardMaterial({ color: 0xd9ccb0, roughness: 0.85, metalness: 0 });
-    const shield = new T.Mesh(new T.CylinderGeometry(0.17, 0.17, 0.03, 40), [rim, new T.MeshStandardMaterial({ map: face, roughness: 0.85, metalness: 0 }), rim]);
-    const faceFront = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), new T.Vector3(0, 0, 1));
-    const at = new T.Vector3(), h = new T.Vector3(), turn = new T.Quaternion(), sz = new T.Vector3(), off = new T.Vector3(), f = new T.Quaternion();
-    shield.frustumCulled = false;
-    shield.onBeforeRender = () => {
-      bone.getWorldPosition(at); hand.getWorldPosition(h); at.add(h).multiplyScalar(0.5);
-      model.getWorldQuaternion(turn); model.getWorldScale(sz);
-      at.add(off.set(-0.06, 0, 0.05).multiplyScalar(sz.x).applyQuaternion(turn));
-      shield.matrixWorld.compose(at, f.copy(turn).multiply(faceFront), sz);
-    };
-    model.add(shield);
-  }
+
 
   function bytesOf(id) {
     const raw = atob(document.getElementById(id).textContent.trim());
@@ -117,7 +94,6 @@ button.alt { background: var(--card); color: var(--ink); border-color: #d6deea; 
       model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.material.metalness = 0; o.material.roughness = 0.75; } });
       model.scale.setScalar(0.85);
       s.g.add(model);
-      if (s.c.key === "mummy") strapShield(model);
       const mixer = new T.AnimationMixer(model);
       const clip = (n) => gltf.animations.find((a) => a.name === n);
       const walk = mixer.clipAction(clip("walk")); walk.timeScale = s.c.pace;
