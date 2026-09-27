@@ -198,7 +198,7 @@ describe("public table on the 八字 board", () => {
     const got = onChance(start(), 10); // 10 % 10 = 0 → a card; 10 / 10 = 1 → POWERS[1]
     assert.deepEqual(got.seats[0].powers, ["lock"]);
     assert.ok(got.events.some((e) => e.kind === "power"));
-    assert.deepEqual(onChance(start(), 7).seats[0].powers, [], "7 in 10 is an ordinary card");
+    assert.deepEqual(onChance(start(), 9).seats[0].powers, [], "9 in 10 is an ordinary card");
     const full = { ...start(), seats: start().seats.map((s, i) => (i === 0 ? { ...s, powers: ["boost", "swap"] as Power[] } : s)) };
     assert.equal(onChance(full, 0).seats[0].powers.length, 2, "no room for a third");
 

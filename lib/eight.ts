@@ -215,14 +215,19 @@ export type Power = "boost" | "lock" | "wreck" | "swap" | "shield";
 export const POWERS: readonly Power[] = ["boost", "lock", "wreck", "swap", "shield"];
 export const MAX_POWERS = 2;
 /** Out of 10 chance draws, how many give a power card instead; and out of 10 chests. */
-export const POWER_ODDS = 5;
-export const CHEST_POWER_ODDS = 4;
+export const POWER_ODDS = 8;
+export const CHEST_POWER_ODDS = 6;
+/** Out of 10 crossroads (on top of the +1) and passes of start (on top of the pay). */
+export const CROSS_POWER_ODDS = 5;
+export const START_POWER_ODDS = 3;
 
 /** A power card from this landing's draw, if the odds (out of 10) say so and there's room in the hand. */
-function drawPower(state: TableState, seat: number, odds: number, events: TableEvent[]): TableState | null {
+function drawPower(state: TableState, seat: number, odds: number, events: TableEvent[], salt = 0): TableState | null {
   const player = state.seats[seat];
   if (state.draw.power === undefined || player.powers.length >= MAX_POWERS) return null;
-  const roll = Math.abs(Math.floor(state.draw.power));
+  // Different places (salt) read the one random draw differently, so they don't all agree.
+  const base = Math.abs(Math.floor(state.draw.power));
+  const roll = salt ? (base * 31 + salt * 97) % 1000 : base;
   if (roll % 10 >= odds) return null;
   const power = POWERS[Math.floor(roll / 10) % POWERS.length];
   events.push({ kind: "power", seat, power });
@@ -405,7 +410,8 @@ function step(state: TableState, seat: number, takeRoad: boolean, events: TableE
   const to = BOARDS[state.board].nextSpot(player.spot, takeRoad);
   const passedStart = to.on === "loop" && to.i === 0;
   events.push({ kind: "step", seat, to, passedStart });
-  return withSeat(state, seat, { spot: to, cash: player.cash + (passedStart ? START_PAY : 0) });
+  const moved = withSeat(state, seat, { spot: to, cash: player.cash + (passedStart ? START_PAY : 0) });
+  return passedStart ? (drawPower(moved, seat, START_POWER_ODDS, events, 2) ?? moved) : moved;
 }
 
 /** Walk the steps left, stopping at a fork to ask. */
@@ -484,9 +490,11 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
       events.push({ kind: "bonus", seat, amount: CHEST_PAY, reason: "chest" });
       return withSeat(state, seat, { cash: player.cash + CHEST_PAY });
     }
-    case "cross":
+    case "cross": {
       events.push({ kind: "bonus", seat, amount: CROSS_PAY, reason: "cross" });
-      return withSeat(state, seat, { cash: player.cash + CROSS_PAY });
+      const paid = withSeat(state, seat, { cash: player.cash + CROSS_PAY });
+      return drawPower(paid, seat, CROSS_POWER_ODDS, events, 1) ?? paid;
+    }
     case "tax":
       events.push({ kind: "tax", seat, amount: Math.min(TAX, player.cash) });
       return pay(state, seat, TAX, null, events);
