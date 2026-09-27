@@ -16,6 +16,7 @@ export function DailyBoard({
   recentreKey,
   ready,
   onGo,
+  dice,
 }: {
   position: number;
   stopIndex: number | null;
@@ -24,6 +25,8 @@ export function DailyBoard({
   /** Your go and dice left: the GO rune glows and a tap on the stone rolls. */
   ready: boolean;
   onGo: () => void;
+  /** The roll to throw onto the middle stone (a new key throws again); null clears the dice. */
+  dice: { key: number; faces: [number, number] } | null;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<DailyScene | null>(null);
@@ -61,6 +64,14 @@ export function DailyBoard({
   useEffect(() => {
     sceneRef.current?.setReady(ready);
   }, [ready]);
+  const diceKey = dice?.key ?? null;
+  const diceRef = useRef(dice);
+  diceRef.current = dice;
+  useEffect(() => {
+    const roll = diceRef.current;
+    if (roll) sceneRef.current?.throwDice(roll.faces);
+    else sceneRef.current?.clearDice();
+  }, [diceKey]);
   useEffect(() => {
     if (float) sceneRef.current?.floatText(float.text, float.colour);
     // Only a new key floats new words.

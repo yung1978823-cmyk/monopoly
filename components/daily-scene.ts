@@ -15,6 +15,10 @@ export type DailyScene = {
   floatText(text: string, colour?: string): void;
   /** Light the GO rune on the middle rock (your turn, dice left) or let it go dim. */
   setReady(ready: boolean): void;
+  /** Throw two small dice onto the middle stone; they tumble and settle showing these faces. */
+  throwDice(faces: [number, number]): void;
+  /** Fade the dice away (the walk is over). */
+  clearDice(): void;
   /** Put the camera back over the whole board. */
   recentre(): void;
   dispose(): void;
@@ -26,6 +30,8 @@ const R = (SIDE * PITCH) / Math.SQRT2;
 const TOP = 0.34;
 /** Looking at the diamond from a corner turns it into a square on screen, which fills a phone better. */
 const HOME_YAW = Math.PI / 4;
+/** How much closer than the whole-board view the camera sits (the edges run off a phone; the camera follows the balloon). */
+const ZOOM = 1.15;
 /** Island top colour for each kind of square. */
 const TOPS: Record<TileKind, number> = {
   start: 0xfbd000,
@@ -193,6 +199,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   // The main island in the middle: a big stone with GO carved in as a rune. Tap it to roll;
   // the rune glows when it's your go. Open air between it and the ring of squares.
   const bigRock = new T.Group();
+  const dice: { mesh: any; rest: any; from: any; q: any; spin: any; born: number; fade: number }[] = [];
   const rune = { ready: false, level: 0, pressAt: -1e9 };
   let runeGlow: any, runeLight: any, runeRing: any;
   {
@@ -265,11 +272,49 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     big.group.add(runeLight);
     // A few crystals round the rim.
     for (let k = 0; k < 5; k++) {
-      const a = (k / 5) * Math.PI * 2 + 0.4, h = 0.35 + (k % 2) * 0.2;
+      const a = (k / 5) * Math.PI * 2 + 1.41, h = 0.35 + (k % 2) * 0.2;
       const gem = shadowy(new T.Mesh(new T.OctahedronGeometry(0.18, 0), mat(0x7dd3fc, 0.2, { emissive: 0x1e6fa8, emissiveIntensity: 0.6 })));
       gem.scale.y = h / 0.18;
       gem.position.set(Math.cos(a) * 2.75, TOP + h * 0.8, Math.sin(a) * 2.75);
       big.group.add(gem);
+    }
+    // Two small dice that land on the front edge of the stone, clear of the rune.
+    const pipTex = (v: number) => {
+      const c = document.createElement("canvas");
+      c.width = c.height = 128;
+      const x = c.getContext("2d")!;
+      x.fillStyle = "#fffdf5";
+      x.fillRect(0, 0, 128, 128);
+      x.strokeStyle = "#e7dcc0";
+      x.lineWidth = 8;
+      x.strokeRect(4, 4, 120, 120);
+      const at: Record<number, [number, number][]> = {
+        1: [[64, 64]],
+        2: [[36, 36], [92, 92]],
+        3: [[34, 34], [64, 64], [94, 94]],
+        4: [[36, 36], [92, 36], [36, 92], [92, 92]],
+        5: [[34, 34], [94, 34], [64, 64], [34, 94], [94, 94]],
+        6: [[36, 30], [92, 30], [36, 64], [92, 64], [36, 98], [92, 98]],
+      };
+      x.fillStyle = v === 1 ? "#e52521" : "#1f2937";
+      for (const [px, py] of at[v]) {
+        x.beginPath();
+        x.arc(px, py, v === 1 ? 16 : 11, 0, Math.PI * 2);
+        x.fill();
+      }
+      const tex = new T.CanvasTexture(c);
+      tex.encoding = T.sRGBEncoding;
+      return tex;
+    };
+    // Box faces: +x, -x, +y, -y, +z, -z.
+    const faceValues = [3, 4, 1, 6, 2, 5];
+    const dieMats = faceValues.map((v) => new T.MeshStandardMaterial({ map: pipTex(v), roughness: 0.4 }));
+    for (let k = 0; k < 2; k++) {
+      const die = shadowy(new T.Mesh(new T.BoxGeometry(0.5, 0.5, 0.5), dieMats));
+      die.visible = false;
+      big.group.add(die);
+      const a = Math.PI / 4 + (k ? 0.24 : -0.24);
+      dice.push({ mesh: die, rest: new T.Vector3(Math.cos(a) * 2.35, TOP + 0.25, Math.sin(a) * 2.35), from: new T.Vector3(), q: new T.Quaternion(), spin: new T.Vector3(), born: -1e9, fade: -1e9 });
     }
     const bits: any[] = [];
     [[3.6, -2.0, 0.45], [-3.5, -2.4, 0.35], [0.4, -2.8, 0.3]].forEach(([x, y, k], n) => {
@@ -447,7 +492,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     camera.updateProjectionMatrix();
     // Far enough back that the whole ring (about 2R across) fits the narrower side.
     const half = Math.atan(Math.tan((38 * Math.PI) / 360) * Math.min(1, camera.aspect));
-    fitDist = Math.max(10, ((R / Math.SQRT2) * 1.45) / Math.tan(half));
+    fitDist = Math.max(9, ((R / Math.SQRT2) * 1.45) / Math.tan(half) / ZOOM);
     view.goalDist = view.dist = fitDist;
   }
   const watch = new ResizeObserver(resize);
@@ -510,7 +555,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     view.yaw += (view.goalYaw - view.yaw) * Math.min(1, dt * 8);
     view.elev += (view.goalElev - view.elev) * Math.min(1, dt * 8);
     view.dist += (view.goalDist - view.dist) * Math.min(1, dt * 6);
-    target.lerp(new T.Vector3(0, 0, 0), Math.min(1, dt * 2));
+    target.lerp(new T.Vector3(ship.position.x * 0.3, 0, ship.position.z * 0.3), Math.min(1, dt * 1.5));
     const sway = reduceMotion ? 0 : Math.sin(now / 7000) * 0.12 * Math.min(1, Math.max(0, view.idle - 2) / 3);
     const yaw = view.yaw + sway, flat = Math.cos(view.elev) * view.dist;
     camera.position.set(target.x + Math.sin(yaw) * flat, Math.sin(view.elev) * view.dist, target.z + Math.cos(yaw) * flat);
@@ -526,6 +571,21 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     runeLight.intensity = pulse * 1.6;
     const press = Math.max(0, 1 - (now - rune.pressAt) / 260);
     bigRock.position.y = -Math.sin(press * Math.PI) * 0.18;
+    // Dice: drop from above the rune, bounce twice while spinning down to their faces, then sit.
+    for (const d of dice) {
+      if (!d.mesh.visible) continue;
+      const t = Math.max(0, Math.min(1, (now - d.born) / 900));
+      const k = 1 - Math.pow(1 - t, 2);
+      d.mesh.position.lerpVectors(d.from, d.rest, k);
+      const hop = t < 0.45 ? 2.6 * (1 - t / 0.45) * (1 - t / 0.45) : t < 0.75 ? 0.45 * Math.sin(((t - 0.45) / 0.3) * Math.PI) : 0.12 * Math.sin(((t - 0.75) / 0.25) * Math.PI);
+      d.mesh.position.y = d.rest.y + hop;
+      const left = Math.pow(1 - t, 2) * 9;
+      d.mesh.quaternion.copy(d.q);
+      if (left > 0) d.mesh.quaternion.premultiply(new T.Quaternion().setFromAxisAngle(d.spin, left));
+      const out = d.fade > 0 ? Math.min(1, (now - d.fade) / 400) : 0;
+      d.mesh.scale.setScalar(1 - out);
+      if (out >= 1) d.mesh.visible = false;
+    }
     renderer.render(scene, camera);
     frameId = requestAnimationFrame(frame);
   }
@@ -539,6 +599,31 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       shipAt.to.copy(spotOf(index));
       shipAt.t = 0;
       burnAt = performance.now();
+    },
+    throwDice(faces) {
+      const now = performance.now();
+      const up = new T.Vector3(0, 1, 0);
+      dice.forEach((d, k) => {
+        const v = faces[k];
+        // Turn the face showing v to the top, then a random turn about the up axis.
+        const base = new T.Quaternion();
+        if (v === 6) base.setFromAxisAngle(new T.Vector3(1, 0, 0), Math.PI);
+        else if (v === 2) base.setFromAxisAngle(new T.Vector3(1, 0, 0), -Math.PI / 2);
+        else if (v === 5) base.setFromAxisAngle(new T.Vector3(1, 0, 0), Math.PI / 2);
+        else if (v === 3) base.setFromAxisAngle(new T.Vector3(0, 0, 1), Math.PI / 2);
+        else if (v === 4) base.setFromAxisAngle(new T.Vector3(0, 0, 1), -Math.PI / 2);
+        d.q.copy(base).premultiply(new T.Quaternion().setFromAxisAngle(up, (Math.random() - 0.5) * 0.8));
+        d.spin.set(Math.random() - 0.5, Math.random() * 0.3, Math.random() - 0.5).normalize();
+        d.from.set(k ? 0.35 : -0.35, TOP + 0.25, k ? -0.2 : 0.2);
+        d.born = now + k * 90;
+        d.fade = -1e9;
+        d.mesh.scale.setScalar(1);
+        d.mesh.visible = true;
+      });
+    },
+    clearDice() {
+      const now = performance.now();
+      for (const d of dice) if (d.mesh.visible && d.fade < 0) d.fade = now;
     },
     setReady(ready) {
       rune.ready = ready;

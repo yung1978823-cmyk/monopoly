@@ -6,7 +6,6 @@ import { RealmScreen } from "@/components/realm-screen";
 import { TableGame } from "@/components/table-game";
 import { type Burst } from "@/components/board-ring";
 import { DailyBoard, type DailyFloat } from "@/components/daily-board";
-import { DieFace } from "@/components/die-face";
 import { LangPicker } from "@/components/lang-picker";
 import { TipHand } from "@/components/tip-hand";
 import { Button } from "@/components/ui/button";
@@ -389,15 +388,10 @@ export function DailyGame() {
         recentreKey={goPresses}
         ready={state.dice > 0 && !pending?.running}
         onGo={onWalk}
+        dice={pending ? { key: goPresses, faces: [pending.faces[0], pending.faces[1]] } : null}
       />
       {/* First time: point at the GO stone in the middle. */}
       {state.rollCount === 0 && !pending ? <TipHand className="left-1/2 top-[42%] z-20 -translate-x-1/2" /> : null}
-      {pending ? (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-2">
-          <DieFace value={pending.faces[0]} />
-          <DieFace value={pending.faces[1]} />
-        </div>
-      ) : null}
       {/* Top bar: dice and points only; everything else lives behind the menu. */}
       <header className="relative z-30 flex items-center justify-between gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
         <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-[#1E3A8A] py-1 pl-2 pr-3 text-lg font-black tabular-nums text-white shadow-md" data-testid="dice-count">
