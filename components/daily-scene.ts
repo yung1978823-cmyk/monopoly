@@ -311,30 +311,6 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     runeLight = new T.PointLight(0xffc060, 0, 7, 2);
     runeLight.position.y = TOP + 1;
     big.group.add(runeLight);
-    // Five old stone pillars round the rim, like ruins (some shorter, their tops broken).
-    const pillarMat = new T.MeshStandardMaterial({ color: new T.Color(0xb9b3a6).convertSRGBToLinear(), roughness: 0.95, flatShading: true });
-    for (let k = 0; k < 5; k++) {
-      const a = (k / 5) * Math.PI * 2 + 1.41, h = [0.95, 0.6, 1.1, 0.75, 0.5][k];
-      const pillar = new T.Group();
-      pillar.position.set(Math.cos(a) * 2.75, TOP, Math.sin(a) * 2.75);
-      big.group.add(pillar);
-      const base = shadowy(new T.Mesh(new T.BoxGeometry(0.34, 0.1, 0.34), pillarMat));
-      base.position.y = 0.05;
-      pillar.add(base);
-      const shaft = shadowy(new T.Mesh(new T.CylinderGeometry(0.11, 0.13, h, 8), pillarMat));
-      shaft.position.y = 0.1 + h / 2;
-      pillar.add(shaft);
-      if (k % 2 === 0) {
-        const cap = shadowy(new T.Mesh(new T.BoxGeometry(0.3, 0.08, 0.3), pillarMat));
-        cap.position.y = 0.1 + h + 0.04;
-        pillar.add(cap);
-      } else {
-        const chip = shadowy(new T.Mesh(new T.ConeGeometry(0.12, 0.14, 6), pillarMat));
-        chip.position.set(0.02, 0.1 + h + 0.05, 0);
-        chip.rotation.z = 0.5;
-        pillar.add(chip);
-      }
-    }
     // Two small dice that land on the front edge of the stone, clear of the rune.
     const pipTex = (v: number) => {
       const c = document.createElement("canvas");
