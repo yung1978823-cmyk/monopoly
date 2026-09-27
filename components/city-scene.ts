@@ -42,7 +42,7 @@ export function createCityScene(
   renderer.shadowMap.type = T.PCFSoftShadowMap;
   renderer.outputEncoding = T.sRGBEncoding;
   renderer.toneMapping = T.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.95;
+  renderer.toneMappingExposure = 1.0;
   renderer.domElement.style.display = "block";
   renderer.domElement.style.touchAction = "none";
   container.appendChild(renderer.domElement);
@@ -65,7 +65,7 @@ export function createCityScene(
   }
   scene.fog = new T.Fog(0x12203d, 30, 90);
   const camera = new T.PerspectiveCamera(38, 1, 0.1, 300);
-  scene.add(new T.HemisphereLight(0xe6eeff, 0x1a2238, 0.8));
+  scene.add(new T.HemisphereLight(0xe6eeff, 0x1a2238, 0.9));
   const sun = new T.DirectionalLight(0xfff0d0, 1.25);
   sun.position.set(-6, 14, 9);
   sun.castShadow = true;
@@ -73,8 +73,15 @@ export function createCityScene(
   Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 1, far: 40 });
   scene.add(sun);
 
-  const mat = (color: number, rough = 0.7, extra: object = {}) => new T.MeshStandardMaterial(Object.assign({ color, roughness: rough }, extra));
-  const flat = (color: number) => new T.MeshStandardMaterial({ color, roughness: 0.9, flatShading: true });
+  // Colours are written as sRGB; the renderer outputs sRGB, so convert them or everything looks washed out.
+  const lin = (hex: number) => new T.Color(hex).convertSRGBToLinear();
+  const mat = (color: number, rough = 0.7, extra: object = {}) => {
+    const m = new T.MeshStandardMaterial(Object.assign({ roughness: rough }, extra));
+    m.color = lin(color);
+    if ((extra as any).emissive !== undefined) m.emissive = lin((extra as any).emissive);
+    return m;
+  };
+  const flat = (color: number) => new T.MeshStandardMaterial({ color: lin(color), roughness: 0.9, flatShading: true });
   const shadowy = (m: any) => {
     m.castShadow = true;
     m.receiveShadow = true;
@@ -385,6 +392,7 @@ export function createCityScene(
     holder.position.set(x, TOP, z);
     // Face out from the centre, toward the path.
     holder.rotation.y = Math.atan2(x, z);
+    holder.scale.setScalar(1.35);
     island.add(holder);
     const hit = new T.Mesh(new T.CylinderGeometry(0.8, 0.8, 2.6, 10), new T.MeshBasicMaterial({ visible: false }));
     hit.position.y = 1.2;
