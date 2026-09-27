@@ -787,10 +787,12 @@ export function createBoardScene(
     face.encoding = T.sRGBEncoding;
     const rim = new T.MeshStandardMaterial({ color: 0xd9ccb0, roughness: 0.85, metalness: 0 });
     const front = new T.MeshStandardMaterial({ map: face, roughness: 0.85, metalness: 0 });
-    const shield = new T.Mesh(new T.CylinderGeometry(15, 15, 3, 40), [rim, front, rim]);
-    // The cylinder's top (its face) points along the bone's local +x, which faces forward in the T-pose.
-    shield.rotation.z = -Math.PI / 2;
-    shield.position.set(6.5, 6.5, 0);
+    const shield = new T.Mesh(new T.CylinderGeometry(17, 17, 3, 40), [rim, front, rim]);
+    // Face outwards, away from his body, in the arms-forward way he stands and walks (measured on the
+    // board: the forearm's local −x, tipped a little along z). The cylinder's top is its face.
+    const out = new T.Vector3(-0.976, 0, 0.219);
+    shield.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), out);
+    shield.position.copy(out.clone().multiplyScalar(5)).setY(6.5);
     shield.castShadow = true;
     bone.add(shield);
   }

@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>四個角色動作</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root { --bg: #bfe3ff; --ink: #1e3a8a; --card: #ffffff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #10224d; --ink: #ffffff; --card: #1e3a8a; } }
+:root[data-theme="dark"] { --bg: #10224d; --ink: #ffffff; --card: #1e3a8a; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: system-ui, "PingFang HK", sans-serif; overflow: hidden; }
+#stage { position: fixed; inset: 0; }
+#bar { position: fixed; left: 0; right: 0; bottom: 16px; display: flex; gap: 8px; justify-content: center; padding: 0 16px; flex-wrap: wrap; }
+button { font: inherit; font-weight: 900; font-size: 17px; border-radius: 999px; border: 4px solid #fbd000; background: #e52521; color: #fff; padding: 9px 18px; cursor: pointer; }
+button.alt { background: var(--card); color: var(--ink); border-color: #d6deea; }
+#note { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(30,58,138,.92); color: #fff; border: 2px solid #fbd000; border-radius: 999px; padding: 6px 16px; font-weight: 800; font-size: 14px; white-space: nowrap; }
+#who { position: fixed; top: 54px; left: 0; right: 0; text-align: center; font-weight: 800; font-size: 14px; padding: 0 16px; }
+.tag { position: fixed; transform: translateX(-50%); background: var(--card); color: var(--ink); border-radius: 999px; padding: 3px 10px; font-weight: 900; font-size: 13px; white-space: nowrap; pointer-events: none; box-shadow: 0 2px 6px rgba(0,0,0,.2); }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="note">角色載入中⋯</div>
+<div id="who">撳一個角色，只睇佢一個做動作</div>
+<div id="bar">
+  <button id="walk" type="button">🚶 行路</button>
+  <button id="cheer" type="button">🎉 歡呼</button>
+  <button id="special" type="button">✨ 特別動作</button>
+  <button id="stand" type="button" class="alt">🧍 企定</button>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+(function () {
+  const note = document.getElementById("note"), whoEl = document.getElementById("who");
+  const T = window.THREE;
+  if (!T || !T.GLTFLoader) { note.textContent = "載入唔到三維工具"; return; }
+  const CAST = [
+    { key: "vampire", name: "你（吸血殭屍）", walk: "驕傲咁行", cheer: "勝利歡呼", special: "紳士鞠躬（有人交租俾你）", pace: 2.4 },
+    { key: "jiangshi", name: "阿殭", walk: "伸直雙手細步行", cheer: "開心跳", special: "施法術（抽機會卡）", pace: 1.5 },
+    { key: "mummy", name: "阿木", walk: "蹣跚咁行", cheer: "搞笑跳舞", special: "舉盾擋（要交錢）", pace: 2.2 },
+    { key: "zombie", name: "阿強", walk: "怪物咁行", cheer: "江南舞", special: "揮大鎚（買地起樓）", pace: 2.2 },
+  ];
+  const stage = document.getElementById("stage");
+  const renderer = new T.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.outputEncoding = T.sRGBEncoding;
+  renderer.shadowMap.enabled = true;
+  stage.appendChild(renderer.domElement);
+  const scene = new T.Scene();
+  const camera = new T.PerspectiveCamera(35, 1, 0.05, 80);
+  scene.add(new T.HemisphereLight(0xffffff, 0x8899bb, 0.9));
+  const sun = new T.DirectionalLight(0xffffff, 0.9);
+  sun.position.set(2, 5, 4); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.camera.left = -4; sun.shadow.camera.right = 4; sun.shadow.camera.top = 4; sun.shadow.camera.bottom = -4;
+  scene.add(sun);
+  const COLOURS = [0x7c3aed, 0x2563eb, 0xd97706, 0x16a34a];
+  let portrait = false;
+  const slots = [];
+  CAST.forEach((c, i) => {
+    const g = new T.Group(); scene.add(g);
+    const podium = new T.Mesh(new T.CylinderGeometry(0.62, 0.66, 0.14, 40), new T.MeshStandardMaterial({ color: COLOURS[i], roughness: 0.5 }));
+    podium.position.y = -0.07; podium.receiveShadow = true; g.add(podium);
+    const tag = document.createElement("div"); tag.className = "tag"; tag.textContent = c.name; document.body.appendChild(tag);
+    slots.push({ c, g, tag, rig: null, podium });
+  });
+  function layout() {
+    const w = stage.clientWidth, h = stage.clientHeight;
+    renderer.setSize(w, h); camera.aspect = w / h;
+    portrait = w < h;
+    slots.forEach((s, i) => {
+      if (portrait) s.g.position.set(i % 2 ? 0.8 : -0.8, 0, i < 2 ? -0.9 : 0.9);
+      else s.g.position.set((i - 1.5) * 1.6, 0, 0);
+    });
+    if (portrait) { camera.position.set(0, 2.6, 5.6); camera.lookAt(0, 0.35, 0); }
+    else { camera.position.set(0, 1.4, 5.8); camera.lookAt(0, 0.5, 0); }
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener("resize", layout); layout();
+
+  function strapShield(model) {
+    const bone = model.getObjectByName("RightForeArm"); if (!bone) return;
+    const size = 256, c = document.createElement("canvas"); c.width = c.height = size;
+    const x = c.getContext("2d");
+    x.fillStyle = "#EFE6D2"; x.fillRect(0, 0, size, size);
+    for (let i = -size; i < size * 2; i += 26) { x.strokeStyle = i % 52 ? "#D9CCB0" : "#E4D8BE"; x.lineWidth = 14; x.beginPath(); x.moveTo(i, 0); x.lineTo(i - size * 0.45, size); x.stroke(); }
+    x.strokeStyle = "#CDBF9F"; x.lineWidth = 10; x.beginPath(); x.arc(size / 2, size / 2, size / 2 - 6, 0, Math.PI * 2); x.stroke();
+    x.fillStyle = "#E52521"; x.beginPath();
+    for (let k = 0; k < 10; k++) { const r = k % 2 ? size * 0.13 : size * 0.3, a = -Math.PI / 2 + (k * Math.PI) / 5; x.lineTo(size / 2 + Math.cos(a) * r, size / 2 + Math.sin(a) * r); }
+    x.closePath(); x.fill();
+    const face = new T.CanvasTexture(c); face.encoding = T.sRGBEncoding;
+    const rim = new T.MeshStandardMaterial({ color: 0xd9ccb0, roughness: 0.85, metalness: 0 });
+    const shield = new T.Mesh(new T.CylinderGeometry(17, 17, 3, 40), [rim, new T.MeshStandardMaterial({ map: face, roughness: 0.85, metalness: 0 }), rim]);
+    const out = new T.Vector3(-0.976, 0, 0.219); shield.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), out); shield.position.copy(out.clone().multiplyScalar(5)).setY(6.5); shield.castShadow = true; bone.add(shield);
+  }
+  function bytesOf(id) {
+    const raw = atob(document.getElementById(id).textContent.trim());
+    const out = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out.buffer;
+  }
+  window.__cast = { slots, camera, T, scene };
+  let loaded = 0;
+  slots.forEach((s) => {
+    setTimeout(() => new T.GLTFLoader().load("/models/" + s.c.key + ".glb", (gltf) => {
+      const model = gltf.scene;
+      model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.material.metalness = 0; o.material.roughness = 0.75; } });
+      model.scale.setScalar(0.85);
+      s.g.add(model);
+      if (s.c.key === "mummy") strapShield(model);
+      const mixer = new T.AnimationMixer(model);
+      const clip = (n) => gltf.animations.find((a) => a.name === n);
+      const walk = mixer.clipAction(clip("walk")); walk.timeScale = s.c.pace;
+      const once = (n) => { const a = mixer.clipAction(clip(n)); a.setLoop(T.LoopOnce, 1); a.clampWhenFinished = true; return a; };
+      const rig = { mixer, walk, cheer: once("cheer"), special: once("special"), current: null };
+      mixer.addEventListener("finished", () => play(s, "stand"));
+      s.rig = rig; play(s, "stand");
+      loaded++;
+      note.textContent = loaded < slots.length ? "角色載入中⋯ " + loaded + "/" + slots.length : "每個角色行路、歡呼、特別動作都唔同";
+    }, undefined, (e) => { note.textContent = s.c.name + " 載入唔到：" + ((e && e.message) || e); }), 30);
+  });
+  function play(s, name) {
+    const r = s.rig; if (!r) return;
+    const prev = r.current;
+    if (name === "stand") {
+      r.walk.reset(); r.walk.timeScale = s.c.pace; r.walk.play(); r.walk.paused = true; r.walk.time = 0;
+      if (prev && prev !== r.walk) prev.crossFadeTo(r.walk, 0.3, false);
+      r.current = r.walk; return;
+    }
+    const next = r[name];
+    next.reset(); next.paused = false; if (name === "walk") next.timeScale = s.c.pace; next.play();
+    if (prev && prev !== next) prev.crossFadeTo(next, 0.25, false);
+    r.current = next;
+  }
+  let only = null;
+  function doAll(name) {
+    const list = only ? [only] : slots;
+    list.forEach((s) => play(s, name));
+    if (name !== "stand") whoEl.textContent = list.map((s) => s.c.name + "：" + s.c[name]).join("　");
+  }
+  ["walk", "cheer", "special", "stand"].forEach((n) => (document.getElementById(n).onclick = () => doAll(n)));
+  // Tap a character to watch just that one; tap again for everyone.
+  const ray = new T.Raycaster(), p = new T.Vector2();
+  renderer.domElement.addEventListener("click", (e) => {
+    p.set((e.clientX / stage.clientWidth) * 2 - 1, -(e.clientY / stage.clientHeight) * 2 + 1);
+    ray.setFromCamera(p, camera);
+    const hit = slots.find((s) => ray.intersectObject(s.g, true).length);
+    only = hit && hit !== only ? hit : null;
+    slots.forEach((s) => (s.tag.style.outline = only === s ? "3px solid #fbd000" : ""));
+    whoEl.textContent = only ? "而家只睇 " + only.c.name + "，再撳一下睇返全部" : "撳一個角色，只睇佢一個做動作";
+  });
+  const clock = new T.Clock(), v = new T.Vector3();
+  (function frame() {
+    requestAnimationFrame(frame);
+    const dt = Math.min(clock.getDelta(), 0.05);
+    slots.forEach((s) => {
+      if (s.rig) s.rig.mixer.update(dt);
+      v.copy(s.g.position); v.y = -0.25; v.project(camera);
+      s.tag.style.left = ((v.x + 1) / 2) * stage.clientWidth + "px";
+      s.tag.style.top = ((1 - v.y) / 2) * stage.clientHeight + "px";
+    });
+    renderer.render(scene, camera);
+  })();
+})();
+</script>
+</body>
+</html>
