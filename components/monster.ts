@@ -33,13 +33,14 @@ const PALETTE = [
 const SIZE = [0.7, 0.62, 0.8, 0.98, 1.15];
 
 /**
- * Dragons made as 3D models (from the approved three-view art). Each file has three parts —
- * "body", "wingL" and "wingR" — with each wing's pivot at its shoulder, so the wings flap in code.
- * The model stands 1 unit tall, facing +z. Attributes without a model yet use the code-built dragon.
+ * Dragons made as 3D models (from the approved three-view art): four-legged pet dragons. Each file
+ * is split into parts that move in code — "body", "wingL"/"wingR" (pivot at the shoulder),
+ * "legFL"/"legFR"/"legBL"/"legBR" (pivot at the hip) and "tail" (pivot at its root). The model
+ * stands 1 unit tall, facing +z. Attributes without a model yet use the code-built dragon.
  */
 const MODELS: Record<number, string> = { 0: "/models/dragon-light.glb" };
 /** How tall the model dragon stands at each grade (N → SSR). */
-const MODEL_HEIGHT = [0, 1.0, 1.2, 1.42, 1.7];
+const MODEL_HEIGHT = [0, 0.85, 1.0, 1.15, 1.35];
 const modelCache: Record<number, Promise<any>> = {};
 
 function loadModel(T: any, element: number): Promise<any> {
@@ -61,6 +62,9 @@ function modelDragon(T: any, element: number, stage: number, legend: boolean, ro
   body.scale.setScalar(h);
   let wingL: any = null;
   let wingR: any = null;
+  let tail: any = null;
+  /** Legs in walking order: front-left and back-right step together, then the other pair. */
+  let legs: { part: any; phase: number; front: boolean }[] = [];
   let fallback: Monster | null = null;
   loadModel(T, element)
     .then((scene) => {
@@ -73,6 +77,15 @@ function modelDragon(T: any, element: number, stage: number, legend: boolean, ro
       });
       wingL = model.getObjectByName("wingL");
       wingR = model.getObjectByName("wingR");
+      tail = model.getObjectByName("tail");
+      legs = [
+        { name: "legFL", phase: 0, front: true },
+        { name: "legBR", phase: 0, front: false },
+        { name: "legFR", phase: Math.PI, front: true },
+        { name: "legBL", phase: Math.PI, front: false },
+      ]
+        .map((leg) => ({ part: model.getObjectByName(leg.name), phase: leg.phase, front: leg.front }))
+        .filter((leg) => leg.part);
       body.add(model);
     })
     .catch(() => {
@@ -92,6 +105,7 @@ function modelDragon(T: any, element: number, stage: number, legend: boolean, ro
     );
     aura.rotation.x = -Math.PI / 2;
     aura.position.y = 0.03;
+    aura.scale.setScalar(h);
     root.add(aura);
   }
 
@@ -107,26 +121,44 @@ function modelDragon(T: any, element: number, stage: number, legend: boolean, ro
       if (fallback) return fallback.update(now);
       const k = now / 1000;
       const asleep = mood === "sleep";
-      let y = 0, roll = 0, pitch = 0;
+      let y = 0, pitch = 0;
+      // Legs swing forward and back (positive swings the foot backward).
+      let stride = 0, pace = 0, tuck = 0, fold = 0;
       if (mood === "walk") {
-        // A waddle: rock side to side with a little hop each step.
-        y = Math.abs(Math.sin(k * 8)) * 0.06;
-        roll = Math.sin(k * 8) * 0.12;
+        // Trotting like a puppy: diagonal legs step together, a small bob each step.
+        pace = 9;
+        stride = 0.28;
+        y = Math.abs(Math.cos(k * pace)) * 0.02;
       } else if (mood === "happy") {
-        y = Math.abs(Math.sin(k * 8)) * 0.2;
+        // Bouncing on the spot, tail going like mad.
+        y = Math.abs(Math.sin(k * 8)) * 0.15;
+        tuck = Math.abs(Math.sin(k * 8)) * 0.25;
       } else if (mood === "fly") {
-        y = Math.sin(k * 8) * 0.04;
-        pitch = 0.25;
+        // Legs tucked back, nose up a little.
+        y = Math.sin(k * 8) * 0.03;
+        pitch = -0.12;
+        tuck = 0.7;
       } else if (asleep) {
-        pitch = 0.12;
+        // Lying down: legs folded out front and back, body on the ground.
+        fold = 1.25;
+        y = -0.15;
       } else {
-        y = Math.abs(Math.sin(k * 2.2)) * 0.03;
+        y = Math.abs(Math.sin(k * 2.2)) * 0.01;
       }
-      body.position.y = y;
-      body.rotation.z = roll;
+      body.position.y = y * h;
+      body.rotation.z = 0;
       body.rotation.x = pitch;
-      const breathe = asleep ? Math.sin(k * 1.6) * 0.03 : Math.sin(k * 4.4) * 0.012;
+      const breathe = asleep ? Math.sin(k * 1.6) * 0.025 : Math.sin(k * 4.4) * 0.01;
       body.scale.set(h * (1 + breathe), h * (1 - breathe * 0.6), h);
+      for (const leg of legs) {
+        const swing = stride * Math.sin(k * pace + leg.phase);
+        leg.part.rotation.x = swing + tuck * (leg.front ? -1 : 1) + fold * (leg.front ? -1 : 1);
+      }
+      if (tail) {
+        const wag = mood === "happy" ? 14 : mood === "walk" ? 6 : asleep ? 0.8 : 2.5;
+        tail.rotation.y = Math.sin(k * wag) * (mood === "happy" ? 0.45 : asleep ? 0.08 : 0.2);
+        tail.rotation.x = mood === "fly" ? -0.2 : 0;
+      }
       // Wing angle: positive lifts them. Fast beats in flight, up and fluttering when happy,
       // folded down asleep, otherwise a lazy flap now and then.
       const beat =
