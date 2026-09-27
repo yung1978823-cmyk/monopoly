@@ -223,6 +223,9 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const isle = islandMesh(big ? 1.3 : 1.1, 200 + i * 23, TOPS[tile.kind]);
     isle.group.position.set(x, 0, z);
     scene.add(isle.group);
+    // A bare stone top (Sky): the picture above says what the square is. Each stone a slightly different grey.
+    const grey = [0x9a958c, 0xa39e94, 0x8f8a82, 0xaaa59a][i % 4];
+    isle.top.material = new T.MeshStandardMaterial({ color: new T.Color(grey).convertSRGBToLinear(), roughness: 0.95, flatShading: true });
     // No words over the squares (Sky): a picture of what the square does instead, floating above it.
     void label;
     void labels;
