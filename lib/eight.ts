@@ -328,7 +328,9 @@ export function standings(state: TableState): number[] {
 // ---------- Rules ----------
 
 function withSeat(state: TableState, seat: number, change: Partial<Seat>): TableState {
-  return { ...state, seats: state.seats.map((player, index) => (index === seat ? { ...player, ...change } : player)) };
+  // Every change of cash goes through here, so this is where it's kept to one decimal place.
+  const tidy = change.cash === undefined ? change : { ...change, cash: money(change.cash) };
+  return { ...state, seats: state.seats.map((player, index) => (index === seat ? { ...player, ...tidy } : player)) };
 }
 
 function alive(state: TableState): number[] {

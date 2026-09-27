@@ -220,6 +220,8 @@ export function createBoardScene(
   container.appendChild(renderer.domElement);
 
   const scene = new T.Scene();
+  // Add ?debug to the address to poke at the 3D scene from the browser console.
+  if (/[?&]debug\b/.test(window.location.search)) (window as any).__board = { scene, T };
   const sky = document.createElement("canvas");
   sky.width = 4;
   sky.height = 256;

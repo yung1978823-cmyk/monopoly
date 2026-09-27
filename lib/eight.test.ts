@@ -94,6 +94,17 @@ describe("public table on the 八字 board", () => {
     let state = quiet({ ...start(), deeds: { o2: { owner: 1, level: 1 } } }, 0, "o1");
     for (let i = 0; i < 3; i += 1) state = reduceTable(at({ ...state, current: 0 }, 0, { on: "loop", i: 0 }), { type: "roll", dice: [1, 1] });
     assert.equal(state.seats[0].cash, 17.4, "three 0.2 rents, no floating-point crumbs");
+    // Whole-number costs and prizes on top of a decimal balance stay tidy too (17.6 − 3 is not 14.600000000000001).
+    let odd = { ...start(), seats: start().seats.map((seat, i) => (i === 0 ? { ...seat, cash: 17.6 } : seat)) };
+    odd = reduceTable(quiet(odd, 0, "o1"), { type: "roll", dice: [1, 1] }); // buys o2 for 2
+    assert.equal(odd.seats[0].cash, 15.6);
+    let seed = 3;
+    const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    let game = start(4);
+    for (let i = 0; i < 400 && game.phase !== "over"; i += 1) {
+      game = reduceTable(game, botMove(game, random));
+      for (const seat of game.seats) assert.equal(seat.cash, Math.round(seat.cash * 10) / 10);
+    }
   });
 
   it("charges rent by level, double on the gold roads", () => {
