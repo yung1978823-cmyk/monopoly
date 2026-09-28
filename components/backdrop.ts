@@ -890,7 +890,7 @@ export function createSea(
   const gulls = [0, 1, 2].map((i) => {
     const s = flat(gullPic ?? up, { color: 0xffffff });
     sky.add(s);
-    return { s, u: -0.7 - i * 0.12, v: -0.28 + i * 0.035, speed: 0.045 + i * 0.008, phase: i * 1.3 };
+    return { s, u: -0.7 - i * 0.12, v: -0.33 + i * 0.03, speed: 0.045 + i * 0.008, phase: i * 1.3 };
   });
   const cloud = cloudTex(T);
   const clouds = [0, 1].map((i) => {
@@ -926,11 +926,13 @@ export function createSea(
       g.s.scale.setScalar(g.size * pw * (0.4 + tw * 0.8));
       g.s.material.opacity = tw * 0.85;
     }
-    // The boat crosses the bay left to right every ~50 seconds, rocking on the swell.
-    const bu = (((t * 0.022) % 1.4) + 1.4) % 1.4 - 0.7;
-    const [bx, by] = at(bu, 0.02 + Math.sin(t * 1.4) * 0.002, 1.1);
+    // The boat sails the open water above the island, over and back (turning round at each end),
+    // rocking on the swell.
+    const leg = (t * 0.012) % 2, going = leg < 1, k = going ? leg : 2 - leg;
+    const ease = k * k * (3 - 2 * k);
+    const [bx, by] = at(-0.6 + ease * 0.75, -0.19 + Math.sin(t * 1.4) * 0.002, 1.1);
     boat.position.set(bx, by, -D + 3);
-    boat.scale.set(pw * 0.08, (pw * 0.08) / boatAspect, 1);
+    boat.scale.set(pw * 0.075 * (going ? 1 : -1), (pw * 0.075) / boatAspect, 1);
     boat.material.rotation = Math.sin(t * 1.4) * 0.06;
     for (const g of gulls) {
       const u = ((((g.u + t * g.speed) % 1.6) + 1.6) % 1.6) - 0.8;
