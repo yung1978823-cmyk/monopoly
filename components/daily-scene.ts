@@ -42,6 +42,8 @@ const SIDE = BOARD_SIZE / 4; // 7 steps between corners
 const PITCH = 1.45;
 const R = (SIDE * PITCH) / Math.SQRT2;
 const TOP = 0.34;
+/** Words floating up over the hero are switched off (Sky). */
+const NO_FLOATS = true;
 /** Looking at the diamond from a corner turns it into a square on screen, which fills a phone better. */
 const HOME_YAW = Math.PI / 4;
 /** How much closer than the whole-board view the camera sits (the edges run off a phone; the camera follows the balloon). */
@@ -990,6 +992,8 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       lit = index;
     },
     floatText(text, colour = "#16A34A") {
+      // Sky: no numbers over the hero at all — the big picture in the middle of the screen shows what you got.
+      if (NO_FLOATS) return;
       const c = document.createElement("canvas");
       c.width = 320;
       c.height = 96;
