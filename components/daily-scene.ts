@@ -331,11 +331,15 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       const c = document.createElement("canvas");
       c.width = c.height = 128;
       const x = c.getContext("2d")!;
-      x.fillStyle = "#fffdf5";
+      // A warm cream face with a dark bronze rim, so the dice stand out on the grey stone.
+      const face = x.createRadialGradient(54, 50, 10, 64, 64, 90);
+      face.addColorStop(0, "#f7ecd2");
+      face.addColorStop(1, "#dcc79c");
+      x.fillStyle = face;
       x.fillRect(0, 0, 128, 128);
-      x.strokeStyle = "#e7dcc0";
-      x.lineWidth = 8;
-      x.strokeRect(4, 4, 120, 120);
+      x.strokeStyle = "#7a5a2e";
+      x.lineWidth = 12;
+      x.strokeRect(6, 6, 116, 116);
       const at: Record<number, [number, number][]> = {
         1: [[64, 64]],
         2: [[36, 36], [92, 92]],
@@ -344,7 +348,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
         5: [[34, 34], [94, 34], [64, 64], [34, 94], [94, 94]],
         6: [[36, 30], [92, 30], [36, 64], [92, 64], [36, 98], [92, 98]],
       };
-      x.fillStyle = v === 1 ? "#e52521" : "#1f2937";
+      x.fillStyle = v === 1 ? "#c81e1e" : "#111318";
       for (const [px, py] of at[v]) {
         x.beginPath();
         x.arc(px, py, v === 1 ? 16 : 11, 0, Math.PI * 2);
