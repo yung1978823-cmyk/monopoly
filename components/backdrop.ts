@@ -848,7 +848,12 @@ export function createSpace(
  * wallpaper (sliding a touch as you turn, as in createSpace), and on it the water glints, a small
  * sailboat crosses the bay, gulls fly over and soft clouds drift along the top.
  */
-export function createSea(T: any, scene: any, camera: any, opts: { url: string; w: number; h: number; reduceMotion?: boolean; far?: number }): Backdrop {
+export function createSea(
+  T: any,
+  scene: any,
+  camera: any,
+  opts: { url: string; w: number; h: number; reduceMotion?: boolean; far?: number; boat?: { url: string; aspect: number }; gull?: { url: string; aspect: number } },
+): Backdrop {
   const still = !!opts.reduceMotion;
   const D = opts.far ?? 200;
   const tex = new T.TextureLoader().load(opts.url);
@@ -871,11 +876,19 @@ export function createSea(T: any, scene: any, camera: any, opts: { url: string; 
     sky.add(s);
     return { s, u: -0.45 + Math.random() * 0.9, v: -0.18 + Math.random() * 0.46, size: 0.006 + Math.random() * 0.007, phase: Math.random() * 6, speed: 1 + Math.random() * 2 };
   });
-  const boat = flat(boatTex(T));
+  const pic = (url: string) => {
+    const t = new T.TextureLoader().load(url);
+    t.encoding = T.sRGBEncoding;
+    return t;
+  };
+  const boat = flat(opts.boat ? pic(opts.boat.url) : boatTex(T));
+  const boatAspect = opts.boat?.aspect ?? 1;
   sky.add(boat);
   const up = birdTex(T, true), down = birdTex(T, false);
+  const gullPic = opts.gull ? pic(opts.gull.url) : null;
+  const gullAspect = opts.gull?.aspect ?? 2;
   const gulls = [0, 1, 2].map((i) => {
-    const s = flat(up, { color: 0xffffff });
+    const s = flat(gullPic ?? up, { color: 0xffffff });
     sky.add(s);
     return { s, u: -0.7 - i * 0.12, v: -0.28 + i * 0.035, speed: 0.045 + i * 0.008, phase: i * 1.3 };
   });
@@ -917,14 +930,20 @@ export function createSea(T: any, scene: any, camera: any, opts: { url: string; 
     const bu = (((t * 0.022) % 1.4) + 1.4) % 1.4 - 0.7;
     const [bx, by] = at(bu, 0.02 + Math.sin(t * 1.4) * 0.002, 1.1);
     boat.position.set(bx, by, -D + 3);
-    boat.scale.setScalar(pw * 0.07);
+    boat.scale.set(pw * 0.08, (pw * 0.08) / boatAspect, 1);
     boat.material.rotation = Math.sin(t * 1.4) * 0.06;
     for (const g of gulls) {
       const u = ((((g.u + t * g.speed) % 1.6) + 1.6) % 1.6) - 0.8;
       const [x, y] = at(u, g.v + Math.sin(t * 0.8 + g.phase) * 0.008, 1.3);
       g.s.position.set(x, y, -D + 4);
-      g.s.scale.set(pw * 0.045, pw * 0.0225, 1);
-      g.s.material.map = Math.sin(t * 9 + g.phase * 3) > 0 ? up : down;
+      if (gullPic) {
+        // One picture: the wings beat by squashing it up and down.
+        const beat = 0.7 + 0.3 * Math.abs(Math.sin(t * 5 + g.phase * 3));
+        g.s.scale.set(pw * 0.06, ((pw * 0.06) / gullAspect) * beat, 1);
+      } else {
+        g.s.scale.set(pw * 0.045, pw * 0.0225, 1);
+        g.s.material.map = Math.sin(t * 9 + g.phase * 3) > 0 ? up : down;
+      }
     }
     for (const c of clouds) {
       const u = ((((c.u + t * c.speed) % 1.8) + 1.8) % 1.8) - 0.9;

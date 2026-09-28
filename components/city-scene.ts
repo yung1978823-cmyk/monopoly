@@ -397,7 +397,14 @@ export function createCityScene(
   // The busy world far below (the old dark floor's shadow and glow are hidden).
   floorShadow.visible = false;
   const backdrop = theme.art
-    ? createSea(T, scene, camera, { url: `${theme.art.dir}/sea.webp`, w: 941, h: 1672, reduceMotion })
+    ? createSea(T, scene, camera, {
+        url: `${theme.art.dir}/sea.webp`,
+        w: 941,
+        h: 1672,
+        reduceMotion,
+        boat: { url: `${theme.art.dir}/boat.webp`, aspect: 256 / 250 },
+        gull: { url: `${theme.art.dir}/gull.webp`, aspect: 256 / 192 },
+      })
     : createBackdrop(T, scene, camera, { groundY: -80, size: 520, fogNear: 45, fogFar: 230, scale: 0.8, reduceMotion });
   // A few far rocks, turning at half the camera's speed for depth.
   const far = new T.Group();
@@ -465,7 +472,7 @@ export function createCityScene(
     }
     return new T.CanvasTexture(c);
   })();
-  type Plot = { holder: any; body: any; pips: any; plus: any; ring: any; hit: any; level: number; popAt: number; shakeAt: number };
+  type Plot = { holder: any; body: any; pips: any; plus: any; ring: any; hit: any; level: number; popAt: number; shakeAt: number; cloudAt: number; pending: number | null; puffs: any[] };
   const plots: Plot[] = PLOT_AT.map(([x, z], i) => {
     const holder = new T.Group();
     holder.position.set(x, TOP, z);
@@ -489,7 +496,7 @@ export function createCityScene(
     ring.scale.set(1.1, 1.1, 1);
     ring.renderOrder = 6;
     holder.add(ring);
-    return { holder, body: null, pips, plus, ring, hit, level: -1, popAt: -1e9, shakeAt: -1e9 };
+    return { holder, body: null, pips, plus, ring, hit, level: -1, popAt: -1e9, shakeAt: -1e9, cloudAt: -1e9, pending: null, puffs: [] };
   });
   const heightOf = (level: number, i = 0) =>
     level <= 0 ? 0.3 : theme.art ? theme.art.sizes[theme.art.names[i]][level - 1][1] * ART_UNIT * ART_GROW[level - 1] * 0.96 : ({ site: [0, 1.0, 0.95, 1.3, 1.9, 2.6], oriental: [0, 0.9, 1.25, 1.6, 1.9, 2.2], desert: [0, 0.8, 0.8, 1.0, 1.6, 1.7] } as Record<string, number[]>)[theme.style][level];
@@ -597,6 +604,66 @@ export function createCityScene(
   canvas.addEventListener("wheel", onWheel, { passive: false });
 
   let frameId = 0;
+  // ---------- 雲遮換樓: a cloud covers a building, and when it clears the new level stands there ----------
+  const puffTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const x = c.getContext("2d")!, g = x.createRadialGradient(56, 52, 8, 64, 64, 62);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.55, "rgba(246,250,255,0.98)");
+    g.addColorStop(0.8, "rgba(222,234,250,0.75)");
+    g.addColorStop(1, "rgba(210,226,248,0)");
+    x.fillStyle = g;
+    x.fillRect(0, 0, 128, 128);
+    const tex = new T.CanvasTexture(c);
+    tex.encoding = T.sRGBEncoding;
+    return tex;
+  })();
+  const CLOUD_SWAP = 420, CLOUD_END = 1400;
+  function cloudOver(i: number, next: number) {
+    const p = plots[i];
+    for (const puff of p.puffs) p.holder.remove(puff.s);
+    const h = Math.max(heightOf(Math.max(p.level, 0), i), heightOf(next, i), 0.9);
+    p.puffs = Array.from({ length: 9 }, (_, k) => {
+      const a = (k / 9) * Math.PI * 2 + Math.random() * 0.4;
+      const s = new T.Sprite(new T.SpriteMaterial({ map: puffTex, transparent: true, depthWrite: false, depthTest: false, opacity: 0 }));
+      s.renderOrder = 8;
+      p.holder.add(s);
+      return { s, x: Math.cos(a) * 0.45, y: h * (0.2 + (k % 3) * 0.3), z: Math.sin(a) * 0.3, size: 0.9 + Math.random() * 0.5, dir: a };
+    });
+    p.pending = next;
+    p.cloudAt = performance.now();
+  }
+  function cloudStep(i: number, now: number) {
+    const p = plots[i];
+    const age = now - p.cloudAt;
+    if (p.pending !== null && age >= CLOUD_SWAP) {
+      draw(i, p.pending);
+      p.pending = null;
+      p.popAt = now;
+      burst(worldOf(i, heightOf(p.level, i) * 0.6), 26, [0xffd34d, 0xffffff, 0x7dd3fc], 3.2, 0.9, 0.07, false);
+    }
+    if (!p.puffs.length) return;
+    if (age > CLOUD_END) {
+      for (const puff of p.puffs) {
+        p.holder.remove(puff.s);
+        puff.s.material.dispose();
+      }
+      p.puffs = [];
+      return;
+    }
+    const f = age / CLOUD_END;
+    const cover = age < CLOUD_SWAP ? age / CLOUD_SWAP : 1;
+    const open = age < CLOUD_SWAP + 120 ? 0 : (age - CLOUD_SWAP - 120) / (CLOUD_END - CLOUD_SWAP - 120);
+    for (const puff of p.puffs) {
+      const out = 1 + open * 1.6;
+      puff.s.position.set(puff.x * out, puff.y + open * 0.4, puff.z * out);
+      puff.s.scale.setScalar(puff.size * (0.4 + cover * 0.6) * (1 + open * 0.3));
+      puff.s.material.opacity = Math.min(cover * 1.2, 1) * (1 - open);
+      puff.s.material.rotation = f * (puff.dir > Math.PI ? 1 : -1) * 0.6;
+    }
+  }
+
   let last = performance.now();
   let shakeAll = -1e9;
   function frame(now: number) {
@@ -608,6 +675,7 @@ export function createCityScene(
     island.position.y = bob;
     const quake = Math.max(0, 1 - (now - shakeAll) / 500);
     island.position.x = quake ? Math.sin(now / 18) * 0.08 * quake : 0;
+    plots.forEach((_, i) => cloudStep(i, now));
     for (const p of plots) {
       const k = Math.min(1, (now - p.popAt) / 450);
       const s = k < 1 ? 0.5 + 0.5 * k + Math.sin(k * Math.PI) * 0.25 : 1;
@@ -663,11 +731,10 @@ export function createCityScene(
 
   return {
     setLevels(next, pop = null) {
-      next.forEach((level, i) => draw(i, level));
-      if (pop !== null && pop !== undefined && plots[pop]) {
-        plots[pop].popAt = performance.now();
-        burst(worldOf(pop, heightOf(plots[pop].level, pop) * 0.6), 26, [0xffd34d, 0xffffff, 0x7dd3fc], 3.2, 0.9, 0.07, false);
-      }
+      next.forEach((level, i) => {
+        if (i === pop && plots[i]) cloudOver(i, level);
+        else if (plots[i]?.pending === null) draw(i, level);
+      });
     },
     setTargets(on) {
       targets = on;

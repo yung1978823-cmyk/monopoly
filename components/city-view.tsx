@@ -68,10 +68,15 @@ export function CityView({
   }, []);
 
   const levelsKey = levels.join(",");
+  /** The last pop handled: a new pop brings its own levels (under a cloud), so the plain redraw waits. */
+  const seenPop = useRef(0);
   useEffect(() => {
+    if (popKey > 0 && popKey !== seenPop.current) return;
     sceneRef.current?.setLevels(latest.current.levels);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [levelsKey]);
   useEffect(() => {
+    seenPop.current = popKey;
     if (popKey > 0 && pop !== null) sceneRef.current?.setLevels(latest.current.levels, pop);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [popKey]);
