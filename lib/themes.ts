@@ -149,12 +149,40 @@ export const JIANGNAN: Theme = {
     },
   },
 };
+/** 杜拜海灣: the fifth page, with a dhow (the gull is Greece's). */
+export const DUBAI: Theme = {
+  id: "dubai",
+  name: "杜拜海灣",
+  style: "art",
+  ground: 0xf2e6cf,
+  rock: 0xc3a57a,
+  wall: 0xf5e6c8,
+  roof: 0xd9a441,
+  trim: 0x1fa6c9,
+  sky: "#e9a64a",
+  art: {
+    dir: "/art/city/dubai",
+    names: ["house", "souk", "tower", "yacht", "palace"],
+    boatV: -0.19,
+    boatAspect: 320 / 179,
+    gullAspect: 256 / 192,
+    boatSize: 0.11,
+    sizes: {
+      house: [[155, 99], [152, 160], [157, 227], [190, 261], [300, 350]],
+      souk: [[157, 146], [166, 223], [266, 245], [276, 310], [300, 434]],
+      tower: [[209, 231], [194, 282], [161, 420], [174, 489], [172, 560]],
+      yacht: [[118, 106], [158, 135], [194, 206], [250, 272], [300, 394]],
+      palace: [[199, 149], [200, 179], [205, 208], [218, 269], [300, 403]],
+    },
+  },
+};
 export const THEMES: readonly Theme[] = [
   // Sky (2026-09-28): only the seaside pages — 工地小鎮, 清朝古鎮 and 沙漠綠洲 are gone. More follow.
   GREECE,
   VENICE,
   HAWAII,
   JIANGNAN,
+  DUBAI,
 ];
 
 /** The page asked for in a preview link (?city=greece, ?city=venice …) as a page number, or null. Browser only. */
