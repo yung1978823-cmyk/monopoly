@@ -17,6 +17,8 @@ export type ThemeArt = {
   lamp?: { name: string; at: readonly (readonly [number, number])[] };
   /** Turning sails on one building's level 4 and 5 pictures: [across, down, width in picture pixels]. */
   spin?: { name: string; url: string; at: readonly (readonly [number, number, number])[] };
+  /** How far down the sea picture the boat sails (-0.5 top … 0.5 bottom); open water differs per picture. */
+  boatV?: number;
 };
 
 export type Theme = {
@@ -59,20 +61,43 @@ export const GREECE: Theme = {
     spin: { name: "mill", url: "/art/city/greece/blades.webp", at: [[0.78, 0.49, 250], [0.783, 0.532, 250]] },
   },
 };
+/** 威尼斯水城: the third page (in place of 沙漠綠洲). The boat and gull are Greece's until Sky's gondola and pigeon come. */
+export const VENICE: Theme = {
+  id: "venice",
+  name: "威尼斯水城",
+  style: "art",
+  ground: 0xeadfcf,
+  rock: 0xb39a7c,
+  wall: 0xf2d27a,
+  roof: 0xd8643a,
+  trim: 0x2f6fd0,
+  sky: "#35b3d6",
+  art: {
+    dir: "/art/city/venice",
+    names: ["house", "tower", "palace", "glass", "dock"],
+    boatV: -0.19,
+    sizes: {
+      house: [[140, 146], [178, 184], [197, 289], [212, 380], [265, 560]],
+      tower: [[156, 103], [153, 186], [152, 303], [152, 408], [151, 560]],
+      palace: [[181, 102], [207, 196], [216, 295], [246, 389], [286, 560]],
+      glass: [[118, 128], [183, 135], [213, 299], [229, 332], [300, 397]],
+      dock: [[80, 124], [103, 139], [171, 212], [207, 248], [300, 364]],
+    },
+  },
+};
 export const THEMES: readonly Theme[] = [
   { id: "site", name: "工地小鎮", style: "site", ground: 0x6aa84f, rock: 0x7a6a5a, wall: 0xf2e8d5, roof: 0xe8792b, trim: 0xfbd000, sky: "#4d7fc0" },
-  // The seaside pages (希臘 first) take the places of the old 清朝古鎮 and 沙漠綠洲.
+  // The seaside pages take the places of the old 清朝古鎮 and 沙漠綠洲; more follow.
   GREECE,
-  { id: "desert", name: "沙漠綠洲", style: "desert", ground: 0xe8c77e, rock: 0xb08556, wall: 0xf3dcae, roof: 0xd9a441, trim: 0x2aa6a0, sky: "#c98a58" },
+  VENICE,
 ];
 
-/** The theme number that stands for the preview page. */
-export const PREVIEW_GREECE = 99;
-
-/** The preview page asked for in the link (?city=greece), or null. Call only in the browser. */
+/** The page asked for in a preview link (?city=greece, ?city=venice …) as a page number, or null. Browser only. */
 export function previewTheme(): number | null {
   try {
-    return new URLSearchParams(window.location.search).get("city") === "greece" ? PREVIEW_GREECE : null;
+    const id = new URLSearchParams(window.location.search).get("city");
+    const i = THEMES.findIndex((theme) => theme.id === id);
+    return i >= 0 ? i : null;
   } catch {
     return null;
   }
@@ -85,6 +110,5 @@ export function artPicture(theme: Theme, building: number, level: number): strin
 }
 
 export function themeOf(index: number): Theme {
-  if (index === PREVIEW_GREECE) return GREECE;
   return THEMES[Math.max(0, Math.min(THEMES.length - 1, index))];
 }

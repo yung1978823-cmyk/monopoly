@@ -852,7 +852,7 @@ export function createSea(
   T: any,
   scene: any,
   camera: any,
-  opts: { url: string; w: number; h: number; reduceMotion?: boolean; far?: number; boat?: { url: string; aspect: number }; gull?: { url: string; aspect: number } },
+  opts: { url: string; w: number; h: number; reduceMotion?: boolean; far?: number; boat?: { url: string; aspect: number }; gull?: { url: string; aspect: number }; boatV?: number },
 ): Backdrop {
   const still = !!opts.reduceMotion;
   const D = opts.far ?? 200;
@@ -930,7 +930,7 @@ export function createSea(
     // rocking on the swell.
     const leg = (t * 0.02) % 2, going = leg < 1, k = going ? leg : 2 - leg;
     const ease = k * k * (3 - 2 * k);
-    const [bx, by] = at(-0.4 + ease * 0.52, -0.235 + Math.sin(t * 1.4) * 0.002, 1.1);
+    const [bx, by] = at(-0.4 + ease * 0.52, (opts.boatV ?? -0.235) + Math.sin(t * 1.4) * 0.002, 1.1);
     boat.position.set(bx, by, -D + 3);
     boat.scale.set(pw * 0.075 * (going ? 1 : -1), (pw * 0.075) / boatAspect, 1);
     boat.material.rotation = Math.sin(t * 1.4) * 0.06;

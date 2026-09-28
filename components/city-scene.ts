@@ -421,6 +421,7 @@ export function createCityScene(
         reduceMotion,
         boat: { url: `${theme.art.dir}/boat.webp`, aspect: 256 / 250 },
         gull: { url: `${theme.art.dir}/gull.webp`, aspect: 256 / 192 },
+        boatV: theme.art.boatV,
       })
     : createBackdrop(T, scene, camera, { groundY: -80, size: 520, fogNear: 45, fogFar: 230, scale: 0.8, reduceMotion });
   // A few far rocks, turning at half the camera's speed for depth.
