@@ -101,7 +101,7 @@ export function MyCity({
             ←
           </button>
           <p className="rounded-full border-2 border-[#FBD000] bg-[#1E3A8A] px-3 py-1 text-base font-black text-white shadow-md" data-testid="theme-name">
-            {t(THEMES[page].name)}
+            {t(shown.name)}
           </p>
           <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-white py-1 pl-1.5 pr-3 text-lg font-black tabular-nums text-[#1E3A8A] shadow-md">
             <img src={TILE_INFO.coin.art} alt={t("金幣")} className="size-6" />

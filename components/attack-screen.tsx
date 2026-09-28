@@ -4,7 +4,7 @@ import { TipHand } from "@/components/tip-hand";
 import { LANDMARK_NAMES, TILE_INFO } from "@/lib/board";
 import { CityView } from "@/components/city-view";
 import { CHARACTERS } from "@/lib/characters";
-import { THEMES } from "@/lib/themes";
+import { previewTheme, themeOf, THEMES } from "@/lib/themes";
 import { ShieldFx } from "@/components/shield-fx";
 import { holdsNft, matchUp, standingIndexes, totalLevels, type GameState } from "@/lib/game";
 import { ELEMENTS, TYPE_EDGE } from "@/lib/pet";
@@ -35,6 +35,13 @@ export function AttackScreen({
 }) {
   const rival = CHARACTERS[state.rivalFace] ?? CHARACTERS[1];
   const theme = THEMES[state.rivalCity] ?? THEMES[0];
+  /** The preview link (?city=greece) shows that page's name too, matching the island it draws. */
+  const [preview, setPreview] = useState<number | null>(null);
+  useEffect(() => {
+    const id = window.setTimeout(() => setPreview(previewTheme()), 0);
+    return () => window.clearTimeout(id);
+  }, []);
+  const shownName = preview !== null ? themeOf(preview).name : theme.name;
   const edge = matchUp(state);
   const readout = state.weaponReadout;
   const standing = standingIndexes(state.rivalLevels);
@@ -145,7 +152,7 @@ export function AttackScreen({
           {t(rival.name)}
         </p>
         <p className="mt-1 rounded-full bg-[#1E3A8A]/80 px-2 text-xs font-black text-white" data-testid="rival-theme">
-          {t(theme.name)} · {t("第 {n} 頁", { n: state.rivalCity + 1 })}
+          {t(shownName)} · {t("第 {n} 頁", { n: state.rivalCity + 1 })}
         </p>
         <p
           className={cn(
