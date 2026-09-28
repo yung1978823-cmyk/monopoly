@@ -32,6 +32,10 @@ const PLOT_AT: [number, number][] = Array.from({ length: PLOTS }, (_, i) => {
   return [Math.cos(a) * 2.75, Math.sin(a) * 2.75];
 });
 const HOME_YAW = Math.PI / 4;
+/** Where the camera aims: below the island top, so the island sits high and clear of the cards below. */
+const AIM_Y = -0.7;
+/** Your attacking monster turns its back (a three-quarter view) toward the town it strikes. */
+const ATTACK_YAW = HOME_YAW + Math.PI - 0.55;
 
 export function createCityScene(
   T: any,
@@ -139,9 +143,12 @@ export function createCityScene(
   // ---------- The buildings, by theme and level ----------
   /** A picture building (art themes): stands up facing the camera, feet on the plot. */
   const artTex = new Map<string, any>();
-  const ART_UNIT = 1.5 / 300;
+  const ART_UNIT = 1.7 / 300;
+  /** Higher levels stand taller still, so level 5 looks grand. */
+  const ART_GROW = [1, 1, 1.05, 1.12, 1.3];
   function artBuilding(i: number, level: number): any {
-    const art = theme.art!, name = art.names[i], [w, h] = art.sizes[name][level - 1];
+    const art = theme.art!, name = art.names[i], [pw, ph] = art.sizes[name][level - 1], k = ART_GROW[level - 1];
+    const w = pw * k, h = ph * k;
     const url = `${art.dir}/${name}${level}.webp`;
     let tex = artTex.get(url);
     if (!tex) {
@@ -380,7 +387,7 @@ export function createCityScene(
     attacker = buildMonster(T, who.attacker.element, who.attacker.stage, who.attacker.legend);
     attacker.group.scale.setScalar(attacker.model ? 2.1 : 1.3);
     attacker.group.position.copy(attackerHome);
-    attacker.group.rotation.y = HOME_YAW + Math.PI;
+    attacker.group.rotation.y = ATTACK_YAW;
     scene.add(attacker.group);
     monsters.push(attacker);
   }
@@ -485,7 +492,7 @@ export function createCityScene(
     return { holder, body: null, pips, plus, ring, hit, level: -1, popAt: -1e9, shakeAt: -1e9 };
   });
   const heightOf = (level: number, i = 0) =>
-    level <= 0 ? 0.3 : theme.art ? theme.art.sizes[theme.art.names[i]][level - 1][1] * ART_UNIT * 0.96 : ({ site: [0, 1.0, 0.95, 1.3, 1.9, 2.6], oriental: [0, 0.9, 1.25, 1.6, 1.9, 2.2], desert: [0, 0.8, 0.8, 1.0, 1.6, 1.7] } as Record<string, number[]>)[theme.style][level];
+    level <= 0 ? 0.3 : theme.art ? theme.art.sizes[theme.art.names[i]][level - 1][1] * ART_UNIT * ART_GROW[level - 1] * 0.96 : ({ site: [0, 1.0, 0.95, 1.3, 1.9, 2.6], oriental: [0, 0.9, 1.25, 1.6, 1.9, 2.2], desert: [0, 0.8, 0.8, 1.0, 1.6, 1.7] } as Record<string, number[]>)[theme.style][level];
   function draw(i: number, level: number) {
     const p = plots[i];
     if (p.level === level) return;
@@ -503,7 +510,7 @@ export function createCityScene(
     p.pips.material.map = levelTex(level);
     p.pips.material.needsUpdate = true;
     p.pips.position.y = heightOf(level, i) + 0.35;
-    p.pips.visible = level > 0;
+    p.pips.visible = false;
     p.plus.visible = level <= 0;
     p.ring.position.y = heightOf(level, i) * 0.5;
   }
@@ -637,7 +644,7 @@ export function createCityScene(
         attacker.group.rotation.y = Math.atan2(lungeState.to.x - attackerHome.x, lungeState.to.z - attackerHome.z);
       } else {
         attacker.group.position.set(attackerHome.x, attackerHome.y + Math.sin(now / 600) * 0.15, attackerHome.z);
-        attacker.group.rotation.y = HOME_YAW;
+        attacker.group.rotation.y = ATTACK_YAW;
       }
     }
     view.idle += dt;
@@ -646,8 +653,8 @@ export function createCityScene(
     view.dist += (view.goalDist - view.dist) * Math.min(1, dt * 6);
     const sway = reduceMotion ? 0 : Math.sin(now / 7000) * 0.15 * Math.min(1, Math.max(0, view.idle - 2) / 3);
     const yaw = view.yaw + sway, flatD = Math.cos(view.elev) * view.dist;
-    camera.position.set(Math.sin(yaw) * flatD, 0.8 + Math.sin(view.elev) * view.dist, Math.cos(yaw) * flatD);
-    camera.lookAt(0, 0.8, 0);
+    camera.position.set(Math.sin(yaw) * flatD, AIM_Y + Math.sin(view.elev) * view.dist, Math.cos(yaw) * flatD);
+    camera.lookAt(0, AIM_Y, 0);
     far.rotation.y = yaw * 0.5;
     renderer.render(scene, camera);
     frameId = requestAnimationFrame(frame);
