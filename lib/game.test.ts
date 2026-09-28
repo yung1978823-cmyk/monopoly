@@ -1,3 +1,4 @@
+import { THEMES } from "./themes";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { TILES, TILE_POSITIONS } from "./board";
@@ -316,9 +317,10 @@ describe("daily board", () => {
     assert.equal(upgradeCost(state, 0), 8, "the second page costs 1.5× (5 → 8)");
     assert.equal(defencePower(state), 20, "the finished page still counts for defence: 10 + 10");
     // The last page, once full, stays full and can't be raided.
-    let last = { ...start(), theme: 2, points: 100000, levels: [5, 5, 5, 5, 4], best: [5, 5, 5, 5, 4] };
+    const lastPage = THEMES.length - 1;
+    let last = { ...start(), theme: lastPage, points: 100000, levels: [5, 5, 5, 5, 4], best: [5, 5, 5, 5, 4] };
     last = reduce(last, { type: "upgrade", building: 4 });
-    assert.equal(last.theme, 2);
+    assert.equal(last.theme, lastPage);
     assert.deepEqual(last.levels, [5, 5, 5, 5, 5]);
     assert.equal(reduce(last, { type: "raided", target: 0 }), last);
     assert.equal(parseSave(JSON.stringify({ v: 1, state }), NOW, DAY)?.theme, 1);

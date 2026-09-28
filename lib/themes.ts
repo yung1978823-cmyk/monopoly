@@ -95,11 +95,39 @@ export const VENICE: Theme = {
     },
   },
 };
+/** 夏威夷海灘: the fourth page, with an outrigger canoe (the gull is Greece's). */
+export const HAWAII: Theme = {
+  id: "hawaii",
+  name: "夏威夷海灘",
+  style: "art",
+  ground: 0xf1e2bf,
+  rock: 0xa98c66,
+  wall: 0xf7f1e3,
+  roof: 0xd9a441,
+  trim: 0x1fa6c9,
+  sky: "#2fc0e8",
+  art: {
+    dir: "/art/city/hawaii",
+    names: ["hut", "surf", "tower", "tiki", "resort"],
+    boatV: -0.2,
+    boatAspect: 320 / 175,
+    gullAspect: 256 / 192,
+    boatSize: 0.1,
+    sizes: {
+      hut: [[117, 110], [140, 172], [176, 200], [234, 249], [300, 363]],
+      surf: [[94, 127], [141, 170], [194, 203], [258, 244], [300, 408]],
+      tower: [[169, 223], [219, 257], [237, 331], [244, 414], [300, 487]],
+      tiki: [[172, 130], [172, 204], [173, 222], [180, 223], [300, 359]],
+      resort: [[157, 100], [151, 151], [193, 196], [212, 255], [300, 408]],
+    },
+  },
+};
 export const THEMES: readonly Theme[] = [
   { id: "site", name: "工地小鎮", style: "site", ground: 0x6aa84f, rock: 0x7a6a5a, wall: 0xf2e8d5, roof: 0xe8792b, trim: 0xfbd000, sky: "#4d7fc0" },
   // The seaside pages take the places of the old 清朝古鎮 and 沙漠綠洲; more follow.
   GREECE,
   VENICE,
+  HAWAII,
 ];
 
 /** The page asked for in a preview link (?city=greece, ?city=venice …) as a page number, or null. Browser only. */
