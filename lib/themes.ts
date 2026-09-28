@@ -32,13 +32,7 @@ export type Theme = {
   art?: ThemeArt;
 };
 
-export const THEMES: readonly Theme[] = [
-  { id: "site", name: "工地小鎮", style: "site", ground: 0x6aa84f, rock: 0x7a6a5a, wall: 0xf2e8d5, roof: 0xe8792b, trim: 0xfbd000, sky: "#4d7fc0" },
-  { id: "oriental", name: "清朝古鎮", style: "oriental", ground: 0x5f9e57, rock: 0x6b6f78, wall: 0xf1e3c8, roof: 0x2f5d8a, trim: 0xc0392b, sky: "#5a78b5" },
-  { id: "desert", name: "沙漠綠洲", style: "desert", ground: 0xe8c77e, rock: 0xb08556, wall: 0xf3dcae, roof: 0xd9a441, trim: 0x2aa6a0, sky: "#c98a58" },
-];
-
-/** 希臘藍白海岸: a picture-drawn page, only seen through the preview link for now (?city=greece). */
+/** 希臘藍白海岸: the second page, drawn from pictures (also shown on any page with the preview link ?city=greece). */
 export const GREECE: Theme = {
   id: "greece",
   name: "希臘藍白海岸",
@@ -62,6 +56,13 @@ export const GREECE: Theme = {
     lamp: { name: "light", at: [[0.49, 0.22], [0.54, 0.2]] },
   },
 };
+export const THEMES: readonly Theme[] = [
+  { id: "site", name: "工地小鎮", style: "site", ground: 0x6aa84f, rock: 0x7a6a5a, wall: 0xf2e8d5, roof: 0xe8792b, trim: 0xfbd000, sky: "#4d7fc0" },
+  // The seaside pages (希臘 first) take the places of the old 清朝古鎮 and 沙漠綠洲.
+  GREECE,
+  { id: "desert", name: "沙漠綠洲", style: "desert", ground: 0xe8c77e, rock: 0xb08556, wall: 0xf3dcae, roof: 0xd9a441, trim: 0x2aa6a0, sky: "#c98a58" },
+];
+
 /** The theme number that stands for the preview page. */
 export const PREVIEW_GREECE = 99;
 
