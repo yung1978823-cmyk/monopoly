@@ -2,6 +2,7 @@
 
 import { createCityScene, type CityScene, type MonsterLook } from "@/components/city-scene";
 import { loadThree } from "@/components/eight-scene";
+import { previewTheme } from "@/lib/themes";
 import { useEffect, useRef } from "react";
 
 /**
@@ -51,7 +52,7 @@ export function CityView({
       .then((T) => {
         if (dead || !box.current) return;
         const now = latest.current;
-        const scene = createCityScene(T, box.current, now.theme, now.levels, (i) => latest.current.onPick?.(i), {
+        const scene = createCityScene(T, box.current, previewTheme() ?? now.theme, now.levels, (i) => latest.current.onPick?.(i), {
           resident: now.resident,
           attacker: now.attacker,
         });

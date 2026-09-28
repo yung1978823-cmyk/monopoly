@@ -4,7 +4,7 @@
  * Used for your own town (tap a plot to build) and a rival's town (tap a building to strike).
  * Drag to turn and tilt, pinch to zoom, like the boards.
  */
-import { createBackdrop } from "@/components/backdrop";
+import { createBackdrop, createSea } from "@/components/backdrop";
 import { buildMonster, type Monster } from "@/components/monster";
 import { themeOf, type Theme } from "@/lib/themes";
 
@@ -137,7 +137,42 @@ export function createCityScene(
   };
 
   // ---------- The buildings, by theme and level ----------
-  function building(level: number): any {
+  /** A picture building (art themes): stands up facing the camera, feet on the plot. */
+  const artTex = new Map<string, any>();
+  const ART_UNIT = 1.5 / 300;
+  function artBuilding(i: number, level: number): any {
+    const art = theme.art!, name = art.names[i], [w, h] = art.sizes[name][level - 1];
+    const url = `${art.dir}/${name}${level}.webp`;
+    let tex = artTex.get(url);
+    if (!tex) {
+      tex = new T.TextureLoader().load(url);
+      tex.encoding = T.sRGBEncoding;
+      artTex.set(url, tex);
+    }
+    const g = new T.Group();
+    const s = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.2 }));
+    s.center.set(0.5, 0.04);
+    s.scale.set(w * ART_UNIT, h * ART_UNIT, 1);
+    g.add(s);
+    const blob = new T.Mesh(new T.PlaneGeometry(w * ART_UNIT * 1.05, w * ART_UNIT * 0.8), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0.55 }));
+    blob.rotation.x = -Math.PI / 2;
+    blob.position.y = 0.01;
+    g.add(blob);
+    if (art.lamp?.name === name && level >= 4) {
+      const [lu, lv] = art.lamp.at[level - 4];
+      const glow = new T.Sprite(new T.SpriteMaterial({ map: lampTex, transparent: true, depthWrite: false, blending: T.AdditiveBlending, color: 0xfff0b0 }));
+      glow.position.set((lu - 0.5) * w * ART_UNIT, (1 - lv - 0.04) * h * ART_UNIT, 0.05);
+      glow.userData.lamp = true;
+      g.add(glow);
+      lamps.push(glow);
+    }
+    return g;
+  }
+  const lampTex = soft("rgba(255,255,255,1)", "rgba(255,255,255,0)");
+  const lamps: any[] = [];
+
+  function building(level: number, i = 0): any {
+    if (theme.art && level > 0) return artBuilding(i, level);
     const g = new T.Group();
     if (level <= 0) {
       // An empty plot: a paved pad with a dashed ring.
@@ -272,7 +307,16 @@ export function createCityScene(
       mid.position.z = -Math.cos(HOME_YAW) * 1.05;
     }
     island.add(mid);
-    if (theme.style === "site") {
+    if (theme.art) {
+      // Picture pages keep the middle clear: a white stone disc with a ring of blue.
+      const disc = shadowy(new T.Mesh(new T.CylinderGeometry(1.1, 1.15, 0.08, 28), mat(0xf6f2ea, 0.8)));
+      disc.position.y = 0.04;
+      mid.add(disc);
+      const rim = new T.Mesh(new T.RingGeometry(1.0, 1.1, 40), mat(theme.trim, 0.6));
+      rim.rotation.x = -Math.PI / 2;
+      rim.position.y = 0.085;
+      mid.add(rim);
+    } else if (theme.style === "site") {
       mid.add(box(0.2, 2.4, 0.2, 0xfbd000));
       const jib = box(2.2, 0.14, 0.14, 0xfbd000, 2.4, 0.7, 0);
       mid.add(jib);
@@ -345,10 +389,13 @@ export function createCityScene(
   floorShadow.position.y = -7;
   // The busy world far below (the old dark floor's shadow and glow are hidden).
   floorShadow.visible = false;
-  const backdrop = createBackdrop(T, scene, camera, { groundY: -80, size: 520, fogNear: 45, fogFar: 230, scale: 0.8, reduceMotion });
+  const backdrop = theme.art
+    ? createSea(T, scene, camera, { url: `${theme.art.dir}/sea.webp`, w: 941, h: 1672, reduceMotion })
+    : createBackdrop(T, scene, camera, { groundY: -80, size: 520, fogNear: 45, fogFar: 230, scale: 0.8, reduceMotion });
   // A few far rocks, turning at half the camera's speed for depth.
   const far = new T.Group();
   scene.add(far);
+  far.visible = !theme.art;
   {
     for (let k = 0; k < 9; k++) {
       const a = (k / 9) * Math.PI * 2, d = 20 + Math.random() * 10;
@@ -437,24 +484,28 @@ export function createCityScene(
     holder.add(ring);
     return { holder, body: null, pips, plus, ring, hit, level: -1, popAt: -1e9, shakeAt: -1e9 };
   });
-  const heightOf = (level: number) => (level <= 0 ? 0.3 : { site: [0, 1.0, 0.95, 1.3, 1.9, 2.6], oriental: [0, 0.9, 1.25, 1.6, 1.9, 2.2], desert: [0, 0.8, 0.8, 1.0, 1.6, 1.7] }[theme.style][level]);
+  const heightOf = (level: number, i = 0) =>
+    level <= 0 ? 0.3 : theme.art ? theme.art.sizes[theme.art.names[i]][level - 1][1] * ART_UNIT * 0.96 : ({ site: [0, 1.0, 0.95, 1.3, 1.9, 2.6], oriental: [0, 0.9, 1.25, 1.6, 1.9, 2.2], desert: [0, 0.8, 0.8, 1.0, 1.6, 1.7] } as Record<string, number[]>)[theme.style][level];
   function draw(i: number, level: number) {
     const p = plots[i];
     if (p.level === level) return;
     if (p.body) {
       p.holder.remove(p.body);
-      p.body.traverse((o: any) => o.geometry?.dispose());
+      p.body.traverse((o: any) => {
+        o.geometry?.dispose();
+        if (o.userData.lamp) lamps.splice(lamps.indexOf(o), 1);
+      });
     }
-    p.body = building(level);
+    p.body = building(level, i);
     p.holder.add(p.body);
     p.level = level;
     p.pips.material.map.dispose();
     p.pips.material.map = levelTex(level);
     p.pips.material.needsUpdate = true;
-    p.pips.position.y = heightOf(level) + 0.35;
+    p.pips.position.y = heightOf(level, i) + 0.35;
     p.pips.visible = level > 0;
     p.plus.visible = level <= 0;
-    p.ring.position.y = heightOf(level) * 0.5;
+    p.ring.position.y = heightOf(level, i) * 0.5;
   }
   levels.forEach((level, i) => draw(i, level));
   let targets = false;
@@ -544,6 +595,7 @@ export function createCityScene(
   function frame(now: number) {
     const dt = Math.min(0.05, (now - last) / 1000);
     backdrop.update(now, dt);
+    for (const l of lamps) l.scale.setScalar(0.55 + Math.sin(now / 350) * 0.12);
     last = now;
     const bob = reduceMotion ? 0 : Math.sin(now / 1400) * 0.12;
     island.position.y = bob;
@@ -607,7 +659,7 @@ export function createCityScene(
       next.forEach((level, i) => draw(i, level));
       if (pop !== null && pop !== undefined && plots[pop]) {
         plots[pop].popAt = performance.now();
-        burst(worldOf(pop, heightOf(plots[pop].level) * 0.6), 26, [0xffd34d, 0xffffff, 0x7dd3fc], 3.2, 0.9, 0.07, false);
+        burst(worldOf(pop, heightOf(plots[pop].level, pop) * 0.6), 26, [0xffd34d, 0xffffff, 0x7dd3fc], 3.2, 0.9, 0.07, false);
       }
     },
     setTargets(on) {
@@ -617,11 +669,11 @@ export function createCityScene(
       if (!plots[index]) return;
       plots[index].shakeAt = performance.now();
       shakeAll = performance.now();
-      burst(worldOf(index, heightOf(plots[index].level) * 0.5), 34, [theme.wall, theme.roof, 0x6b6f78, 0xff7a1a], 4.5, 1.1, 0.11);
+      burst(worldOf(index, heightOf(plots[index].level, index) * 0.5), 34, [theme.wall, theme.roof, 0x6b6f78, 0xff7a1a], 4.5, 1.1, 0.11);
     },
     lunge(index) {
       if (!plots[index]) return;
-      lungeState.to.copy(worldOf(index, heightOf(plots[index].level) * 0.7));
+      lungeState.to.copy(worldOf(index, heightOf(plots[index].level, index) * 0.7));
       lungeState.at = performance.now();
     },
     celebrate() {

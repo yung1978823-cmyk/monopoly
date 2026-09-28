@@ -842,3 +842,102 @@ export function createSpace(
     },
   };
 }
+
+/**
+ * A seaside page's backdrop: the theme's painted sea picture stays behind the island like a phone
+ * wallpaper (sliding a touch as you turn, as in createSpace), and on it the water glints, a small
+ * sailboat crosses the bay, gulls fly over and soft clouds drift along the top.
+ */
+export function createSea(T: any, scene: any, camera: any, opts: { url: string; w: number; h: number; reduceMotion?: boolean; far?: number }): Backdrop {
+  const still = !!opts.reduceMotion;
+  const D = opts.far ?? 200;
+  const tex = new T.TextureLoader().load(opts.url);
+  tex.encoding = T.sRGBEncoding;
+  scene.background = new T.Color(0x1f8fe0).convertSRGBToLinear();
+  scene.fog = new T.Fog(new T.Color(0x9fd6f5).convertSRGBToLinear(), 45, 160);
+  if (!camera.parent) scene.add(camera);
+  const sky = new T.Group();
+  camera.add(sky);
+  const back = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ map: tex, depthWrite: false, fog: false, toneMapped: false }));
+  back.position.z = -D;
+  back.renderOrder = -100;
+  sky.add(back);
+  const flat = (map: any, extra: Record<string, unknown> = {}) =>
+    new T.Sprite(new T.SpriteMaterial(Object.assign({ map, transparent: true, depthWrite: false, fog: false, toneMapped: false }, extra)));
+  // Glints on the open water (picture units: -0.5…0.5 across and down).
+  const dot = dotTex(T);
+  const glints = Array.from({ length: 34 }, () => {
+    const s = flat(dot, { blending: T.AdditiveBlending });
+    sky.add(s);
+    return { s, u: -0.45 + Math.random() * 0.9, v: -0.18 + Math.random() * 0.46, size: 0.006 + Math.random() * 0.007, phase: Math.random() * 6, speed: 1 + Math.random() * 2 };
+  });
+  const boat = flat(boatTex(T));
+  sky.add(boat);
+  const up = birdTex(T, true), down = birdTex(T, false);
+  const gulls = [0, 1, 2].map((i) => {
+    const s = flat(up, { color: 0xffffff });
+    sky.add(s);
+    return { s, u: -0.7 - i * 0.12, v: -0.28 + i * 0.035, speed: 0.045 + i * 0.008, phase: i * 1.3 };
+  });
+  const cloud = cloudTex(T);
+  const clouds = [0, 1].map((i) => {
+    const s = flat(cloud, { opacity: 0.55 });
+    sky.add(s);
+    return { s, u: -0.3 + i * 0.7, v: -0.42 + i * 0.05, speed: 0.006 + i * 0.003 };
+  });
+  let clock = 0;
+  const dir = new T.Vector3();
+  const place = () => {
+    const vh = 2 * D * Math.tan((camera.fov * Math.PI) / 360), vw = vh * camera.aspect;
+    const ia = opts.w / opts.h;
+    let pw: number, ph: number;
+    if (vw / vh > ia) {
+      pw = vw * 1.12;
+      ph = pw / ia;
+    } else {
+      ph = vh * 1.12;
+      pw = ph * ia;
+    }
+    camera.getWorldDirection(dir);
+    const yaw = Math.atan2(dir.x, dir.z), pitch = Math.asin(Math.max(-1, Math.min(1, dir.y)));
+    const spareY = (ph - vh) * 0.45;
+    const sx = Math.sin(yaw) * (pw - vw) * 0.45, sy = Math.max(-spareY, Math.min(spareY, (pitch + 0.9) * (ph - vh) * 0.4));
+    back.scale.set(pw, ph, 1);
+    back.position.set(sx, sy, -D);
+    const at = (u: number, v: number, depth: number) => [sx * depth + u * pw, sy * depth - v * ph] as const;
+    const t = clock;
+    for (const g of glints) {
+      const [x, y] = at(g.u, g.v, 1.05);
+      g.s.position.set(x, y, -D + 2);
+      const tw = Math.max(0, Math.sin(t * g.speed + g.phase));
+      g.s.scale.setScalar(g.size * pw * (0.4 + tw * 0.8));
+      g.s.material.opacity = tw * 0.85;
+    }
+    // The boat crosses the bay left to right every ~50 seconds, rocking on the swell.
+    const bu = (((t * 0.022) % 1.4) + 1.4) % 1.4 - 0.7;
+    const [bx, by] = at(bu, 0.02 + Math.sin(t * 1.4) * 0.002, 1.1);
+    boat.position.set(bx, by, -D + 3);
+    boat.scale.setScalar(pw * 0.07);
+    boat.material.rotation = Math.sin(t * 1.4) * 0.06;
+    for (const g of gulls) {
+      const u = ((((g.u + t * g.speed) % 1.6) + 1.6) % 1.6) - 0.8;
+      const [x, y] = at(u, g.v + Math.sin(t * 0.8 + g.phase) * 0.008, 1.3);
+      g.s.position.set(x, y, -D + 4);
+      g.s.scale.set(pw * 0.045, pw * 0.0225, 1);
+      g.s.material.map = Math.sin(t * 9 + g.phase * 3) > 0 ? up : down;
+    }
+    for (const c of clouds) {
+      const u = ((((c.u + t * c.speed) % 1.8) + 1.8) % 1.8) - 0.9;
+      const [x, y] = at(u, c.v, 1.2);
+      c.s.position.set(x, y, -D + 1.5);
+      c.s.scale.set(pw * 0.42, pw * 0.21, 1);
+    }
+  };
+  place();
+  return {
+    update(_now, dt) {
+      if (!still) clock += dt;
+      place();
+    },
+  };
+}
