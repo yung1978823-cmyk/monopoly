@@ -173,8 +173,25 @@ export function createCityScene(
       g.add(glow);
       lamps.push(glow);
     }
+    if (art.spin?.name === name && level >= 4) {
+      const [su, sv, sd] = art.spin.at[level - 4];
+      let bt = artTex.get(art.spin.url);
+      if (!bt) {
+        bt = new T.TextureLoader().load(art.spin.url);
+        bt.encoding = T.sRGBEncoding;
+        artTex.set(art.spin.url, bt);
+      }
+      const sails = new T.Sprite(new T.SpriteMaterial({ map: bt, transparent: true, alphaTest: 0.2 }));
+      sails.renderOrder = 1;
+      sails.position.set((su - 0.5) * w * ART_UNIT, (1 - sv - 0.04) * h * ART_UNIT, 0.05);
+      sails.scale.setScalar(sd * k * ART_UNIT);
+      sails.userData.spin = true;
+      g.add(sails);
+      spinners.push(sails);
+    }
     return g;
   }
+  const spinners: any[] = [];
   const lampTex = soft("rgba(255,255,255,1)", "rgba(255,255,255,0)");
   const lamps: any[] = [];
 
@@ -508,6 +525,7 @@ export function createCityScene(
       p.body.traverse((o: any) => {
         o.geometry?.dispose();
         if (o.userData.lamp) lamps.splice(lamps.indexOf(o), 1);
+        if (o.userData.spin) spinners.splice(spinners.indexOf(o), 1);
       });
     }
     p.body = building(level, i);
@@ -670,6 +688,7 @@ export function createCityScene(
     const dt = Math.min(0.05, (now - last) / 1000);
     backdrop.update(now, dt);
     for (const l of lamps) l.scale.setScalar(0.55 + Math.sin(now / 350) * 0.12);
+    if (!reduceMotion) for (const sp of spinners) sp.material.rotation -= dt * 1.1;
     last = now;
     const bob = reduceMotion ? 0 : Math.sin(now / 1400) * 0.12;
     island.position.y = bob;

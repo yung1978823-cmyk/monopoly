@@ -15,6 +15,8 @@ export type ThemeArt = {
   sizes: Readonly<Record<string, readonly (readonly [number, number])[]>>;
   /** Where the lighthouse lamp is on its level 4 and 5 pictures (0…1 across, down), if it has one. */
   lamp?: { name: string; at: readonly (readonly [number, number])[] };
+  /** Turning sails on one building's level 4 and 5 pictures: [across, down, width in picture pixels]. */
+  spin?: { name: string; url: string; at: readonly (readonly [number, number, number])[] };
 };
 
 export type Theme = {
@@ -48,12 +50,13 @@ export const GREECE: Theme = {
     names: ["house", "mill", "church", "tavern", "light"],
     sizes: {
       house: [[130, 139], [145, 149], [204, 243], [223, 265], [300, 441]],
-      mill: [[181, 114], [204, 244], [209, 332], [290, 423], [300, 479]],
+      mill: [[213, 166], [214, 274], [226, 368], [227, 370], [230, 560]],
       church: [[199, 155], [212, 213], [220, 273], [254, 308], [300, 401]],
       tavern: [[132, 130], [169, 182], [192, 213], [220, 266], [300, 377]],
       light: [[198, 172], [193, 231], [203, 334], [225, 425], [300, 500]],
     },
     lamp: { name: "light", at: [[0.49, 0.22], [0.54, 0.2]] },
+    spin: { name: "mill", url: "/art/city/greece/blades.webp", at: [[0.78, 0.49, 250], [0.783, 0.532, 250]] },
   },
 };
 export const THEMES: readonly Theme[] = [
