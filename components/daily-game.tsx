@@ -493,7 +493,7 @@ export function DailyGame() {
       {pending?.committed && state.landing && state.landing.kind !== "attack" ? (
         <div
           key={state.rollCount}
-          className="pointer-events-none absolute inset-x-0 top-[26%] z-40 flex flex-col items-center animate-[pop_0.35s_ease-out,fade-out_0.5s_ease-in_1.8s_forwards]"
+          className="pointer-events-none absolute inset-x-0 top-[26%] z-40 flex flex-col items-center animate-[pop_0.35s_ease-out,fade-out_0.6s_ease-in_2.6s_forwards]"
           data-testid="landing-pop"
         >
           <img src={`/art/icons/${state.landing.kind}.webp`} alt="" draggable={false} className="size-[38cqw] max-h-40 max-w-40 object-contain drop-shadow-[0_6px_12px_rgba(0,0,0,0.45)]" />
