@@ -122,11 +122,39 @@ export const HAWAII: Theme = {
     },
   },
 };
+/** 江南水鄉: the fourth page, with a covered wupeng boat and swallows. */
+export const JIANGNAN: Theme = {
+  id: "jiangnan",
+  name: "江南水鄉",
+  style: "art",
+  ground: 0xe9e6de,
+  rock: 0x8f969c,
+  wall: 0xf4f1ea,
+  roof: 0x3b3f46,
+  trim: 0xc0392b,
+  sky: "#3fb8a6",
+  art: {
+    dir: "/art/city/jiangnan",
+    names: ["house", "tea", "pagoda", "garden", "dye"],
+    boatV: -0.19,
+    boatAspect: 320 / 106,
+    gullAspect: 320 / 235,
+    boatSize: 0.12,
+    sizes: {
+      house: [[135, 84], [139, 146], [156, 170], [209, 248], [300, 355]],
+      tea: [[123, 94], [191, 184], [255, 279], [274, 391], [300, 554]],
+      pagoda: [[163, 129], [174, 195], [182, 333], [183, 454], [212, 560]],
+      garden: [[114, 82], [128, 88], [158, 209], [201, 277], [300, 350]],
+      dye: [[130, 106], [137, 179], [214, 227], [264, 278], [300, 349]],
+    },
+  },
+};
 export const THEMES: readonly Theme[] = [
   // Sky (2026-09-28): only the seaside pages — 工地小鎮, 清朝古鎮 and 沙漠綠洲 are gone. More follow.
   GREECE,
   VENICE,
   HAWAII,
+  JIANGNAN,
 ];
 
 /** The page asked for in a preview link (?city=greece, ?city=venice …) as a page number, or null. Browser only. */
