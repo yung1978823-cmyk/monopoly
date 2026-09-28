@@ -135,14 +135,12 @@ function burstOf(state: GameState): Burst | null {
 /** Words to float up from the ship for a stop's burst. */
 function floatOf(burst: Burst | null, t: (text: string) => string): DailyFloat | null {
   if (!burst) return null;
-  const parts: string[] = [];
-  if (burst.money) parts.push(`${burst.money > 0 ? "+" : ""}${burst.money} ${t("金幣")}`);
-  if (burst.dice) parts.push(`+${burst.dice} 🎲`);
-  if (burst.meat) parts.push(`+${burst.meat} 🍖`);
-  if (parts.length === 0) return null;
+  // Only the cheer is used now; the big pop-up shows what was won.
+  if (!burst.money && !burst.dice && !burst.meat) return null;
+  void t;
   return {
     key: burst.key,
-    text: parts.join("  "),
+    text: "",
     colour: burst.bad || burst.money < 0 ? "#DC2626" : "#16A34A",
     cheer: burst.money >= 3 || burst.dice > 0 || (burst.meat ?? 0) >= 3,
   };
@@ -493,7 +491,7 @@ export function DailyGame() {
       {pending?.committed && state.landing && state.landing.kind !== "attack" ? (
         <div
           key={state.rollCount}
-          className="pointer-events-none absolute inset-x-0 top-[26%] z-40 flex flex-col items-center animate-[pop_0.35s_ease-out,fade-out_0.6s_ease-in_2.6s_forwards]"
+          className="pointer-events-none absolute inset-x-0 top-[26%] z-40 flex flex-col items-center opacity-75 animate-[pop_0.35s_ease-out,fade-out_0.6s_ease-in_2.6s_forwards]"
           data-testid="landing-pop"
         >
           <img src={`/art/icons/${state.landing.kind}.webp`} alt="" draggable={false} className="size-[38cqw] max-h-40 max-w-40 object-contain drop-shadow-[0_6px_12px_rgba(0,0,0,0.45)]" />

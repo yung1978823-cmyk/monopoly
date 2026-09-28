@@ -87,7 +87,8 @@ export function DailyBoard({
     else sceneRef.current?.clearDice();
   }, [diceKey]);
   useEffect(() => {
-    if (float) sceneRef.current?.floatText(float.text, float.colour);
+    // No words over the hero any more (Sky): the big picture in the middle of the screen says what you got.
+    if (float?.text) sceneRef.current?.floatText(float.text, float.colour);
     if (float?.cheer) {
       sceneRef.current?.cheer();
       sceneRef.current?.petHappy();
