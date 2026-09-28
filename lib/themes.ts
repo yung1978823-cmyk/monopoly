@@ -74,6 +74,12 @@ export function previewTheme(): number | null {
   }
 }
 
+/** The picture of building `building` at `level` on a picture page (level 0 shows level 1), or null. */
+export function artPicture(theme: Theme, building: number, level: number): string | null {
+  if (!theme.art) return null;
+  return `${theme.art.dir}/${theme.art.names[building]}${Math.max(1, Math.min(5, level))}.webp`;
+}
+
 export function themeOf(index: number): Theme {
   if (index === PREVIEW_GREECE) return GREECE;
   return THEMES[Math.max(0, Math.min(THEMES.length - 1, index))];

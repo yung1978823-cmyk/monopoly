@@ -6,7 +6,7 @@ import { TipHand } from "@/components/tip-hand";
 import { LANDMARK_NAMES, TILE_INFO } from "@/lib/board";
 import { canUpgrade, holdsNft, isRepair, pageDone, upgradeCost, type GameState } from "@/lib/game";
 import { MAX_LEVEL, THEME_REWARD_DICE, themeRewardCoins } from "@/lib/rules";
-import { THEMES } from "@/lib/themes";
+import { artPicture, previewTheme, themeOf, THEMES } from "@/lib/themes";
 import { useLang } from "@/lib/i18n";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
@@ -56,6 +56,14 @@ export function MyCity({
     seenTheme.current = state.theme;
     seenDone.current = done;
   }, [state.theme, state.levels]);
+
+  /** The preview page from the link (?city=greece), found after the page loads. */
+  const [preview, setPreview] = useState<number | null>(null);
+  useEffect(() => {
+    const id = window.setTimeout(() => setPreview(previewTheme()), 0);
+    return () => window.clearTimeout(id);
+  }, []);
+  const shown = themeOf(preview ?? page);
 
   const current = page === state.theme && finished === null;
   const levels = current ? state.levels : FULL;
@@ -181,6 +189,14 @@ export function MyCity({
                   {firstTime && affordable && building === 0 ? <TipHand className="-top-11 left-1/2 -translate-x-1/2" /> : null}
                   <span className="text-[11px] font-black text-[#1E3A8A]">{t(LANDMARK_NAMES[building])}</span>
                   {repair ? <span className="absolute right-0.5 top-0.5 text-sm" aria-hidden>🔧</span> : null}
+                  {artPicture(shown, building, level) ? (
+                    <img
+                      src={artPicture(shown, building, level)!}
+                      alt=""
+                      className={cn("h-12 w-full object-contain drop-shadow", level <= 0 && "opacity-40 grayscale")}
+                      data-testid={`card-art-${building}`}
+                    />
+                  ) : null}
                   <LevelPips level={level} best={state.best[building]} />
                   {maxed ? (
                     <span className="text-base" aria-hidden>👑</span>
