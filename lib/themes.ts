@@ -123,8 +123,7 @@ export const HAWAII: Theme = {
   },
 };
 export const THEMES: readonly Theme[] = [
-  { id: "site", name: "工地小鎮", style: "site", ground: 0x6aa84f, rock: 0x7a6a5a, wall: 0xf2e8d5, roof: 0xe8792b, trim: 0xfbd000, sky: "#4d7fc0" },
-  // The seaside pages take the places of the old 清朝古鎮 and 沙漠綠洲; more follow.
+  // Sky (2026-09-28): only the seaside pages — 工地小鎮, 清朝古鎮 and 沙漠綠洲 are gone. More follow.
   GREECE,
   VENICE,
   HAWAII,

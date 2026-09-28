@@ -27,6 +27,7 @@ import {
   reduce,
   type GameState,
   type StealBox,
+  SAVE_PAGES,
 } from "@/lib/game";
 import { BUILDINGS, DAILY_DST_CAP, DICE_CAP, MAX_LEVEL, REFILL_MS, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
 import { cn } from "cn";
@@ -240,7 +241,7 @@ export function DailyGame() {
   useEffect(() => {
     if (!booted) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: 1, state }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: 1, pages: SAVE_PAGES, state }));
     } catch {
       const id = window.setTimeout(
         () => setSaveNote("這台瀏覽器沒把棋盤存下來。重新整理會回到新棋盤。"),

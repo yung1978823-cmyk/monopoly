@@ -446,10 +446,19 @@ export function sanitizeState(
   };
 }
 
+/** Which page list a save was made with (2 = the seaside pages, 希臘 first). */
+export const SAVE_PAGES = 2;
+
 export function parseSave(raw: string, now: number, dayKey: string): GameState | null {
   try {
-    const parsed = JSON.parse(raw) as { v?: number; state?: unknown };
+    const parsed = JSON.parse(raw) as { v?: number; pages?: number; state?: unknown };
     if (parsed?.v !== 1) return null;
+    // Saves from before the page list lost 工地小鎮 (the old first page): every page moved down one.
+    if (parsed.pages !== SAVE_PAGES && parsed.state && typeof parsed.state === "object") {
+      const old = parsed.state as { theme?: unknown; rivalCity?: unknown };
+      if (typeof old.theme === "number" && old.theme > 0) old.theme -= 1;
+      if (typeof old.rivalCity === "number" && old.rivalCity > 0) old.rivalCity -= 1;
+    }
     return sanitizeState(parsed.state, now, dayKey);
   } catch {
     return null;

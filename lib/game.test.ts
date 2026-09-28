@@ -14,6 +14,7 @@ import {
   upgradeCost,
   nftCount,
   parseSave,
+  SAVE_PAGES,
   reduce,
   type GameState,
 } from "./game";
@@ -125,7 +126,7 @@ describe("daily board", () => {
     assert.equal(reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalFace: 3, now: NOW }).rivalFace, 3);
     const bad = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalCity: 9, now: NOW });
     assert.equal(bad.rivalCity, 0);
-    const loaded = parseSave(JSON.stringify({ v: 1, state: fight }), NOW, DAY);
+    const loaded = parseSave(JSON.stringify({ v: 1, pages: SAVE_PAGES, state: fight }), NOW, DAY);
     assert.equal(loaded?.rivalCity, 2);
   });
 
@@ -313,7 +314,7 @@ describe("daily board", () => {
     assert.deepEqual(state.levels, [0, 0, 0, 0, 0]);
     assert.equal(state.dice, 8, "5 dice for finishing");
     assert.equal(state.points, 100000 - 50 + 20);
-    assert.match(state.log[0]?.text ?? "", /完成咗「工地小鎮」/);
+    assert.match(state.log[0]?.text ?? "", /完成咗「希臘藍白海岸」/);
     assert.equal(upgradeCost(state, 0), 8, "the second page costs 1.5× (5 → 8)");
     assert.equal(defencePower(state), 20, "the finished page still counts for defence: 10 + 10");
     // The last page, once full, stays full and can't be raided.
@@ -323,7 +324,8 @@ describe("daily board", () => {
     assert.equal(last.theme, lastPage);
     assert.deepEqual(last.levels, [5, 5, 5, 5, 5]);
     assert.equal(reduce(last, { type: "raided", target: 0 }), last);
-    assert.equal(parseSave(JSON.stringify({ v: 1, state }), NOW, DAY)?.theme, 1);
+    assert.equal(parseSave(JSON.stringify({ v: 1, pages: SAVE_PAGES, state }), NOW, DAY)?.theme, 1);
+    assert.equal(parseSave(JSON.stringify({ v: 1, state }), NOW, DAY)?.theme, 0, "an old save moves down a page (工地小鎮 is gone)");
   });
 
   it("pays each square its reward and remembers the stop", () => {
