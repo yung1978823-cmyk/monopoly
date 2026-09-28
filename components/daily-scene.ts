@@ -218,11 +218,17 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     // No words over the squares (Sky): a picture of what the square does instead, floating above it.
     void label;
     void labels;
-    const tag = new T.Sprite(new T.SpriteMaterial({ map: iconTex(tile.kind), transparent: true, depthWrite: false }));
-    const iconSize = big ? 0.95 : 0.8;
-    tag.scale.set(iconSize, iconSize, 1);
-    tag.center.set(0.5, 0.15);
-    tag.position.set(0, TOP + 0.55, 0);
+    // The picture is printed flat on the stone (Sky), its top toward the middle of the board.
+    const iconSize = big ? 1.0 : 0.85;
+    const tag = new T.Mesh(
+      new T.PlaneGeometry(iconSize, iconSize),
+      new T.MeshBasicMaterial({ map: iconTex(tile.kind), transparent: true, alphaTest: 0.1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
+    );
+    tag.rotation.order = "YXZ";
+    tag.rotation.y = Math.atan2(-x, -z) + Math.PI;
+    tag.rotation.x = -Math.PI / 2;
+    tag.position.set(0, TOP + 0.03, 0);
+    tag.renderOrder = 2;
     isle.group.add(tag);
     const shadow = new T.Mesh(new T.PlaneGeometry(1.8, 1.8), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
@@ -844,11 +850,6 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
         if (heroState.still > 0.5) hero.rotation.y = turnToward(hero.rotation.y, Math.atan2(camera.position.x - hero.position.x, camera.position.z - hero.position.z), dt * 5);
       }
     }
-    // The label of the square you stand on lifts above your head so it stays readable.
-    islands.forEach((isle, i) => {
-      const want = heroState.ready && i === shipAt.index ? TOP + HERO_HEIGHT + 0.45 : TOP + 0.3 + Math.sin(now / 700 + i * 0.9) * 0.06;
-      isle.tag.position.y += (want - isle.tag.position.y) * Math.min(1, dt * 8);
-    });
     // Floating words.
     for (let i = floats.length - 1; i >= 0; i--) {
       const f = floats[i], k = (now - f.born) / 1400;

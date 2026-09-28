@@ -489,6 +489,37 @@ export function DailyGame() {
         }
         onEggTap={() => !pending?.running && setPetOpen(true)}
       />
+      {/* What you got on the square you stopped on: its picture big in the middle, then what it paid (Sky: the words were too small). */}
+      {pending?.committed && state.landing && state.landing.kind !== "attack" ? (
+        <div
+          key={state.rollCount}
+          className="pointer-events-none absolute inset-x-0 top-[26%] z-40 flex flex-col items-center animate-[pop_0.35s_ease-out,fade-out_0.5s_ease-in_1.8s_forwards]"
+          data-testid="landing-pop"
+        >
+          <img src={`/art/icons/${state.landing.kind}.webp`} alt="" draggable={false} className="size-[38cqw] max-h-40 max-w-40 object-contain drop-shadow-[0_6px_12px_rgba(0,0,0,0.45)]" />
+          <p
+            className={cn(
+              "mt-1 rounded-full border-4 px-5 py-1 text-2xl font-black text-white shadow-xl",
+              state.landing.kind === "jail" || state.landing.kind === "hole" ? "border-white/70 bg-[#46506E]" : "border-[#FBD000] bg-[#1E3A8A]",
+            )}
+          >
+            {t(TILE_INFO[state.landing.kind].name)}
+          </p>
+          {state.landing.points || state.landing.dice || state.landing.meat ? (
+            <p className="mt-2 flex items-center gap-3 rounded-2xl bg-white/95 px-4 py-1.5 text-3xl font-black tabular-nums text-[#1E3A8A] shadow-xl">
+              {state.landing.points ? (
+                <span className={cn("flex items-center gap-1", state.landing.points < 0 && "text-[#E52521]")}>
+                  <img src={TILE_INFO.coin.art} alt={t("金幣")} className="size-8" />
+                  {state.landing.points > 0 ? "+" : "−"}
+                  {Math.abs(state.landing.points)}
+                </span>
+              ) : null}
+              {state.landing.dice ? <span>+{state.landing.dice}🎲</span> : null}
+              {state.landing.meat ? <span>+{state.landing.meat}🍖</span> : null}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {hatchedNow !== null ? (
         <div className="pointer-events-none absolute inset-x-0 top-[22%] z-40 flex flex-col items-center animate-[pop_0.45s_ease-out]" data-testid="hatched">
           <p className="rounded-3xl border-4 border-[#FBD000] bg-[#1E3A8A] px-6 py-2 text-3xl font-black text-white shadow-2xl">{t("🐉 孵化咗！")}</p>
