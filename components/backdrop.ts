@@ -852,7 +852,7 @@ export function createSea(
   T: any,
   scene: any,
   camera: any,
-  opts: { url: string; w: number; h: number; reduceMotion?: boolean; far?: number; boat?: { url: string; aspect: number }; gull?: { url: string; aspect: number }; boatV?: number },
+  opts: { url: string; w: number; h: number; reduceMotion?: boolean; far?: number; boat?: { url: string; aspect: number; size?: number }; gull?: { url: string; aspect: number }; boatV?: number },
 ): Backdrop {
   const still = !!opts.reduceMotion;
   const D = opts.far ?? 200;
@@ -932,7 +932,8 @@ export function createSea(
     const ease = k * k * (3 - 2 * k);
     const [bx, by] = at(-0.4 + ease * 0.52, (opts.boatV ?? -0.235) + Math.sin(t * 1.4) * 0.002, 1.1);
     boat.position.set(bx, by, -D + 3);
-    boat.scale.set(pw * 0.075 * (going ? 1 : -1), (pw * 0.075) / boatAspect, 1);
+    const bw = pw * (opts.boat?.size ?? 0.075);
+    boat.scale.set(bw * (going ? 1 : -1), bw / boatAspect, 1);
     boat.material.rotation = Math.sin(t * 1.4) * 0.06;
     for (const g of gulls) {
       const u = ((((g.u + t * g.speed) % 1.6) + 1.6) % 1.6) - 0.8;

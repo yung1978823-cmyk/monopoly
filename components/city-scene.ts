@@ -419,8 +419,8 @@ export function createCityScene(
         w: 941,
         h: 1672,
         reduceMotion,
-        boat: { url: `${theme.art.dir}/boat.webp`, aspect: 256 / 250 },
-        gull: { url: `${theme.art.dir}/gull.webp`, aspect: 256 / 192 },
+        boat: { url: `${theme.art.dir}/boat.webp`, aspect: theme.art.boatAspect, size: theme.art.boatSize },
+        gull: { url: `${theme.art.dir}/gull.webp`, aspect: theme.art.gullAspect },
         boatV: theme.art.boatV,
       })
     : createBackdrop(T, scene, camera, { groundY: -80, size: 520, fogNear: 45, fogFar: 230, scale: 0.8, reduceMotion });

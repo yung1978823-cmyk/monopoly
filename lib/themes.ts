@@ -19,6 +19,11 @@ export type ThemeArt = {
   spin?: { name: string; url: string; at: readonly (readonly [number, number, number])[] };
   /** How far down the sea picture the boat sails (-0.5 top … 0.5 bottom); open water differs per picture. */
   boatV?: number;
+  /** Width ÷ height of the page's boat.webp and gull.webp (the bird picture). */
+  boatAspect: number;
+  gullAspect: number;
+  /** How wide the boat is, as a share of the sea picture's width. */
+  boatSize?: number;
 };
 
 export type Theme = {
@@ -58,10 +63,12 @@ export const GREECE: Theme = {
       light: [[198, 172], [193, 231], [203, 334], [225, 425], [300, 500]],
     },
     lamp: { name: "light", at: [[0.49, 0.22], [0.54, 0.2]] },
+    boatAspect: 256 / 250,
+    gullAspect: 256 / 192,
     spin: { name: "mill", url: "/art/city/greece/blades.webp", at: [[0.78, 0.49, 250], [0.783, 0.532, 250]] },
   },
 };
-/** 威尼斯水城: the third page (in place of 沙漠綠洲). The boat and gull are Greece's until Sky's gondola and pigeon come. */
+/** 威尼斯水城: the third page (in place of 沙漠綠洲), with a gondola and pigeons. */
 export const VENICE: Theme = {
   id: "venice",
   name: "威尼斯水城",
@@ -76,6 +83,9 @@ export const VENICE: Theme = {
     dir: "/art/city/venice",
     names: ["house", "tower", "palace", "glass", "dock"],
     boatV: -0.19,
+    boatAspect: 320 / 152,
+    gullAspect: 320 / 317,
+    boatSize: 0.11,
     sizes: {
       house: [[140, 146], [178, 184], [197, 289], [212, 380], [265, 560]],
       tower: [[156, 103], [153, 186], [152, 303], [152, 408], [151, 560]],
