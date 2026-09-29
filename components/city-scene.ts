@@ -2,7 +2,7 @@
  * A town page in 3D: one big floating island for the theme, five building plots round a centre
  * piece, and each building drawn in the theme's own style at its level (1 small → 5 landmark).
  * Used for your own town (tap a plot to build) and a rival's town (tap a building to strike).
- * Drag to turn and tilt, pinch to zoom, like the boards.
+ * Drag left and right to turn the island; the tilt and distance stay fixed.
  */
 import { createBackdrop, createSea } from "@/components/backdrop";
 import { buildMonster, type Monster } from "@/components/monster";
@@ -332,14 +332,7 @@ export function createCityScene(
     }
     island.add(mid);
     if (theme.art) {
-      // Picture pages keep the middle clear: a white stone disc with a ring of blue.
-      const disc = shadowy(new T.Mesh(new T.CylinderGeometry(1.1, 1.15, 0.08, 28), mat(0xf6f2ea, 0.8)));
-      disc.position.y = 0.04;
-      mid.add(disc);
-      const rim = new T.Mesh(new T.RingGeometry(1.0, 1.1, 40), mat(theme.trim, 0.6));
-      rim.rotation.x = -Math.PI / 2;
-      rim.position.y = 0.085;
-      mid.add(rim);
+      // Picture pages keep the middle clear (no disc or ring behind the dragon — Sky).
     } else if (theme.style === "site") {
       mid.add(box(0.2, 2.4, 0.2, 0xfbd000));
       const jib = box(2.2, 0.14, 0.14, 0xfbd000, 2.4, 0.7, 0);
@@ -592,13 +585,8 @@ export function createCityScene(
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     view.idle = 0;
     if (pts.length === 1) {
+      // Sky: the island only turns left and right; the tilt and the distance stay fixed.
       view.goalYaw -= (e.clientX - before.x) * 0.006;
-      view.goalElev = Math.max(0.3, Math.min(1.35, view.goalElev + (e.clientY - before.y) * 0.004));
-    } else {
-      const other = pts.find((p) => p !== before)!;
-      const was = Math.hypot(before.x - other.x, before.y - other.y);
-      const is = Math.hypot(e.clientX - other.x, e.clientY - other.y);
-      if (was > 1 && is > 1) view.goalDist = Math.max(6, Math.min(40, view.goalDist * (was / is)));
     }
   };
   const onUp = (e: PointerEvent) => {
@@ -612,8 +600,8 @@ export function createCityScene(
     if (hit) onPick(hit.object.userData.plot);
   };
   const onWheel = (e: WheelEvent) => {
+    // No zooming: the view is fixed apart from turning.
     e.preventDefault();
-    view.goalDist = Math.max(6, Math.min(40, view.goalDist * Math.exp(e.deltaY * 0.0012)));
   };
   canvas.addEventListener("pointerdown", onDown);
   canvas.addEventListener("pointermove", onMove);
