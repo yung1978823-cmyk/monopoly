@@ -318,7 +318,7 @@ export function createCityScene(
     // A path ring joining the plots.
     const path = new T.Mesh(new T.RingGeometry(2.45, 3.05, 40), mat(0xd9c9a3, 0.95));
     path.rotation.x = -Math.PI / 2;
-    path.position.y = TOP + 0.005;
+    path.position.y = TOP + 0.03;
     path.receiveShadow = true;
     island.add(path);
     // The centre piece, by theme.
@@ -374,6 +374,138 @@ export function createCityScene(
           mid.add(leaf);
         }
       }
+    }
+  }
+  // ---------- 島面小擺設 (Sky, option A): paving, lamps, trees, planters and people walking, so the
+  // island reads as a lived-in plaza rather than an empty plate. Picture pages only.
+  const walkers: { g: any; a: number; speed: number; r: number; phase: number }[] = [];
+  if (theme.art) {
+    const id = theme.id;
+    const style = {
+      tree: id === "hawaii" || id === "dubai" ? "palm" : id === "jiangnan" ? "willow" : "cypress",
+      planter: ({ greece: 0xf4f1ea, venice: 0xc0643a, hawaii: 0x8a5a33, jiangnan: 0x9aa0a6, dubai: 0xd9b98a } as Record<string, number>)[id] ?? 0xf4f1ea,
+      flower: ({ greece: 0xe84a9a, venice: 0xd8342c, hawaii: 0xff5a5f, jiangnan: 0xf2a1c0, dubai: 0xf2c14e } as Record<string, number>)[id] ?? 0xe84a9a,
+      post: ({ greece: 0x2f6fd0, venice: 0x2a2a2a, hawaii: 0x7a4a24, jiangnan: 0x6b3a22, dubai: 0xb8872e } as Record<string, number>)[id] ?? 0x2a2a2a,
+      light: id === "jiangnan" ? 0xe53935 : id === "hawaii" ? 0xff8a1a : 0xffe08a,
+    };
+    // Paving stones over the island top.
+    {
+      const c = document.createElement("canvas");
+      c.width = c.height = 256;
+      const x = c.getContext("2d")!;
+      const base = new T.Color(theme.ground);
+      x.fillStyle = `#${base.clone().multiplyScalar(0.78).getHexString()}`;
+      x.fillRect(0, 0, 256, 256);
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 5; col++) {
+          const tone = base.clone().multiplyScalar(0.93 + ((row * 7 + col * 13) % 9) * 0.012);
+          x.fillStyle = `#${tone.getHexString()}`;
+          const off = row % 2 ? 26 : 0;
+          x.fillRect(col * 52 + off - 26 + 2, row * 32 + 2, 48, 28);
+          x.fillRect(col * 52 + off + 234, row * 32 + 2, 48, 28);
+        }
+      }
+      const tex = new T.CanvasTexture(c);
+      tex.encoding = T.sRGBEncoding;
+      tex.wrapS = tex.wrapT = T.RepeatWrapping;
+      tex.repeat.set(5, 5);
+      const pave = new T.Mesh(new T.CircleGeometry(4.05, 40), new T.MeshStandardMaterial({ map: tex, roughness: 0.9 }));
+      pave.rotation.x = -Math.PI / 2;
+      pave.position.y = TOP + 0.02;
+      pave.receiveShadow = true;
+      island.add(pave);
+    }
+    const at = (a: number, r: number) => [Math.cos(a) * r, Math.sin(a) * r] as const;
+    const tree = (x: number, z: number, k = 1) => {
+      const g = new T.Group();
+      g.position.set(x, TOP, z);
+      g.scale.setScalar(k);
+      if (style.tree === "palm") {
+        const trunk = shadowy(new T.Mesh(new T.CylinderGeometry(0.035, 0.06, 0.9, 6), flat(0x8b6b43)));
+        trunk.position.y = 0.45;
+        trunk.rotation.z = 0.12;
+        g.add(trunk);
+        for (let k2 = 0; k2 < 6; k2++) {
+          const leaf = shadowy(new T.Mesh(new T.BoxGeometry(0.5, 0.02, 0.12), mat(0x3f9a3a, 0.7)));
+          const a = (k2 / 6) * Math.PI * 2;
+          leaf.position.set(0.05 + Math.cos(a) * 0.22, 0.9, Math.sin(a) * 0.22);
+          leaf.rotation.y = -a;
+          leaf.rotation.z = -0.4;
+          g.add(leaf);
+        }
+      } else if (style.tree === "willow") {
+        const trunk = shadowy(new T.Mesh(new T.CylinderGeometry(0.04, 0.06, 0.45, 6), flat(0x6b4a2b)));
+        trunk.position.y = 0.22;
+        g.add(trunk);
+        for (const [dx, dy, dz, r] of [[0, 0.62, 0, 0.3], [0.16, 0.5, 0.08, 0.2], [-0.15, 0.5, -0.05, 0.22], [0.02, 0.45, -0.17, 0.18]]) {
+          const blob = shadowy(new T.Mesh(new T.SphereGeometry(r, 10, 8), mat(0x8cc63f, 0.8)));
+          blob.scale.y = 1.25;
+          blob.position.set(dx, dy, dz);
+          g.add(blob);
+        }
+      } else {
+        const trunk = shadowy(new T.Mesh(new T.CylinderGeometry(0.03, 0.04, 0.15, 6), flat(0x6b4a2b)));
+        trunk.position.y = 0.07;
+        g.add(trunk);
+        const cone = shadowy(new T.Mesh(new T.ConeGeometry(0.16, 0.8, 8), mat(0x2f6b35, 0.8)));
+        cone.position.y = 0.52;
+        g.add(cone);
+      }
+      island.add(g);
+    };
+    const lamp = (x: number, z: number) => {
+      const g = new T.Group();
+      g.position.set(x, TOP, z);
+      const post = shadowy(new T.Mesh(new T.CylinderGeometry(0.025, 0.035, 0.7, 6), mat(style.post, 0.5)));
+      post.position.y = 0.35;
+      g.add(post);
+      const bulb = new T.Mesh(
+        id === "jiangnan" ? new T.SphereGeometry(0.08, 10, 8) : new T.BoxGeometry(0.1, 0.12, 0.1),
+        mat(style.light, 0.4, { emissive: style.light, emissiveIntensity: 0.9 }),
+      );
+      bulb.position.y = 0.76;
+      if (id === "jiangnan") bulb.scale.y = 1.3;
+      g.add(bulb);
+      island.add(g);
+    };
+    const planter = (x: number, z: number) => {
+      const g = new T.Group();
+      g.position.set(x, TOP, z);
+      g.add(box(0.34, 0.16, 0.34, style.planter));
+      for (let k2 = 0; k2 < 4; k2++) {
+        const bush = shadowy(new T.Mesh(new T.SphereGeometry(0.09, 8, 6), mat(0x4f9a3f, 0.8)));
+        bush.position.set(((k2 % 2) - 0.5) * 0.14, 0.2, (Math.floor(k2 / 2) - 0.5) * 0.14);
+        g.add(bush);
+        const bloom = new T.Mesh(new T.SphereGeometry(0.035, 6, 5), mat(style.flower, 0.6));
+        bloom.position.set(bush.position.x + 0.04, 0.27, bush.position.z + 0.03);
+        g.add(bloom);
+      }
+      island.add(g);
+    };
+    PLOT_AT.forEach((_, i) => {
+      const a = Math.PI / 2 + (i / PLOTS) * Math.PI * 2 + Math.PI / 4 + Math.PI / PLOTS;
+      const [lx, lz] = at(a - 0.14, 3.55);
+      lamp(lx, lz);
+      const [tx, tz] = at(a + 0.14, 3.55);
+      tree(tx, tz, 0.9);
+      const [px, pz] = at(a, 1.85);
+      planter(px, pz);
+    });
+    // A few people strolling round the edge of the plaza.
+    const shirts = [0xe53935, 0x1e88e5, 0xfbc02d, 0x43a047, 0x8e24aa];
+    for (let k2 = 0; k2 < 5; k2++) {
+      const g = new T.Group();
+      const body = shadowy(new T.Mesh(new T.CylinderGeometry(0.055, 0.07, 0.22, 8), mat(shirts[k2], 0.7)));
+      body.position.y = 0.17;
+      g.add(body);
+      const legs = new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 0.08, 8), mat(0x37474f, 0.8));
+      legs.position.y = 0.04;
+      g.add(legs);
+      const head = shadowy(new T.Mesh(new T.SphereGeometry(0.06, 10, 8), mat(0xf1c7a0, 0.7)));
+      head.position.y = 0.34;
+      g.add(head);
+      island.add(g);
+      walkers.push({ g, a: (k2 / 5) * Math.PI * 2 + 0.3, speed: (k2 % 2 ? 1 : -1) * (0.07 + k2 * 0.012), r: 3.85 + (k2 % 2) * 0.12, phase: k2 * 1.7 });
     }
   }
   // The town's monster, on a round stone in the middle.
@@ -708,6 +840,11 @@ export function createCityScene(
       b.mesh.rotation.x += dt * 6;
       b.mesh.rotation.y += dt * 5;
       b.mesh.material.opacity = Math.max(0, 1 - age / b.life);
+    }
+    for (const w of walkers) {
+      if (!reduceMotion) w.a += w.speed * dt;
+      w.g.position.set(Math.cos(w.a) * w.r, TOP + Math.abs(Math.sin(now / 160 + w.phase)) * 0.03, Math.sin(w.a) * w.r);
+      w.g.rotation.y = -w.a + (w.speed > 0 ? 0 : Math.PI);
     }
     for (const m of monsters) m.update(now);
     if (attacker) {
