@@ -610,12 +610,13 @@ export function DailyGame() {
       <section className="pointer-events-none relative z-20 min-h-0 flex-1" />
 
       {/* Bottom bar: building sits to the side; the dice clock in the middle. */}
-      <footer className="relative z-30 flex items-end justify-center px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-2">
+      {/* The footer lets taps through to the board (the GO stone sits just above it); only its buttons take taps. */}
+      <footer className="pointer-events-none relative z-30 flex items-end justify-center px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-2">
         <button
           type="button"
           onClick={onBuild}
           disabled={pending?.running === true}
-          className="absolute bottom-[max(env(safe-area-inset-bottom),1rem)] left-5 flex cursor-pointer flex-col items-center disabled:cursor-default"
+          className="pointer-events-auto absolute bottom-[max(env(safe-area-inset-bottom),1rem)] left-5 flex cursor-pointer flex-col items-center disabled:cursor-default"
           aria-label={t("你個城")}
           data-testid="raise"
         >

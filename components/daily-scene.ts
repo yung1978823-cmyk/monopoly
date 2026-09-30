@@ -48,6 +48,10 @@ const NO_FLOATS = true;
 const GO_SIZE = 3;
 /** Only left and right: the board keeps this tilt (about 50°). */
 const BOARD_ELEV = 0.9;
+/** How far below the board the camera aims (moves the board up the screen). */
+const AIM_DROP = 1.8;
+/** Pinch zoom goes this much closer at most. */
+const ZOOM_IN = 1.15;
 /** Looking at the diamond from a corner turns it into a square on screen, which fills a phone better. */
 const HOME_YAW = Math.PI / 4;
 /** How much closer than the whole-board view the camera sits (the edges run off a phone; the camera follows the balloon). */
@@ -544,7 +548,8 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
 
   // ---------- Camera: drag to turn and tilt, pinch to zoom, sway when left alone ----------
   const view = { yaw: HOME_YAW, elev: BOARD_ELEV, goalYaw: HOME_YAW, goalElev: BOARD_ELEV, dist: 20, goalDist: 20, idle: 0 };
-  const target = new T.Vector3();
+  // Aim a little below the board so the board sits higher on the screen, leaving room for the GO stone.
+  const target = new T.Vector3(0, -AIM_DROP, 0);
   const canvas = renderer.domElement;
   const pointers = new Map<number, { x: number; y: number }>();
   let tap: { x: number; y: number; at: number } | null = null;
@@ -570,7 +575,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       const other = pts.find((p) => p !== before)!;
       const was = Math.hypot(before.x - other.x, before.y - other.y);
       const is = Math.hypot(e.clientX - other.x, e.clientY - other.y);
-      if (was > 1 && is > 1) view.goalDist = Math.max(fitDist * 0.7, Math.min(fitDist * 1.25, view.goalDist * (was / is)));
+      if (was > 1 && is > 1) view.goalDist = Math.max(fitDist / ZOOM_IN, Math.min(fitDist * 1.25, view.goalDist * (was / is)));
     }
   };
   const onUp = (e: PointerEvent) => {
@@ -593,7 +598,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   };
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
-    view.goalDist = Math.max(fitDist * 0.7, Math.min(fitDist * 1.25, view.goalDist * Math.exp(e.deltaY * 0.0012)));
+    view.goalDist = Math.max(fitDist / ZOOM_IN, Math.min(fitDist * 1.25, view.goalDist * Math.exp(e.deltaY * 0.0012)));
   };
   canvas.addEventListener("pointerdown", onDown);
   canvas.addEventListener("pointermove", onMove);
@@ -617,11 +622,13 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     // Halfway between the board's front corner and the bottom of the screen, worked out for this screen's
     // shape (a wider phone brings the board closer, so its front corner sits lower).
     const tanHalf = Math.tan((38 * Math.PI) / 360), halfH = tanHalf * fitDist;
-    const e = BOARD_ELEV, front = R + 0.8;
-    const frontNdc = (-front * Math.sin(e) + TOP * Math.cos(e)) / ((fitDist - front * Math.cos(e) - TOP * Math.sin(e)) * tanHalf);
-    const bottomNdc = -1 + (2 * 24) / h;
+    // The front reach is the corner at full zoom-in (the closest the board ever comes), plus its breathing.
+    const e = BOARD_ELEV, front = (R + 0.9) * ZOOM_IN, up = (TOP + AIM_DROP + 0.3) * ZOOM_IN;
+    const frontNdc = (-front * Math.sin(e) + up * Math.cos(e)) / ((fitDist - front * Math.cos(e) - up * Math.sin(e)) * tanHalf);
+    // Keep clear of the bottom bar (the building button), about 100 px.
+    const bottomNdc = -1 + (2 * 100) / h;
     const goHalf = (GO_SIZE * 0.5 * Math.sin(e) + 0.5) / halfH;
-    const goNdc = Math.min(frontNdc - goHalf - 0.02, Math.max(bottomNdc + goHalf, (frontNdc + bottomNdc) / 2));
+    const goNdc = Math.max(bottomNdc + goHalf * 0.6, Math.min(frontNdc - goHalf - 0.04, (frontNdc + bottomNdc) / 2));
     goStone.position.set(0, goNdc * halfH - TOP, -fitDist);
     goStone.rotation.set(BOARD_ELEV, 0, 0);
   }
@@ -903,7 +910,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     // The board stays put (no drifting after the ship), so the GO stone below it never gets covered.
     const sway = reduceMotion ? 0 : Math.sin(now / 7000) * 0.12 * Math.min(1, Math.max(0, view.idle - 2) / 3);
     const yaw = view.yaw + sway, flat = Math.cos(view.elev) * view.dist;
-    camera.position.set(target.x + Math.sin(yaw) * flat, Math.sin(view.elev) * view.dist, target.z + Math.cos(yaw) * flat);
+    camera.position.set(target.x + Math.sin(yaw) * flat, target.y + Math.sin(view.elev) * view.dist, target.z + Math.cos(yaw) * flat);
     camera.lookAt(target);
     // The rune: glows and pulses on your go; the stone dips a little when tapped.
     rune.level += ((rune.ready ? 1 : 0) - rune.level) * Math.min(1, dt * 4);
