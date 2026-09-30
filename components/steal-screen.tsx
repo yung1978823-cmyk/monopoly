@@ -8,13 +8,14 @@ import { cn } from "cn";
 import { SmokeCloud } from "@/components/steal-intro";
 import { useEffect, useState } from "react";
 
-/** Pictures for what a crate holds (老鼠夾 waits for Sky's art; a symbol stands in). */
+/** Pictures for what a crate holds (Sky's art). */
 const PIC: Partial<Record<StealKind, string>> = {
   juice: "/art/ui/crystal.webp",
   meat: "/art/icons/meat.webp",
   coins: "/art/ui/coin.webp",
   dice: "/art/ui/dice.webp",
   jackpot: "/art/icons/chest.webp",
+  trap: "/art/ui/trap.webp",
 };
 const SYMBOL: Record<StealKind, string> = { juice: "💎", meat: "🍖", coins: "🪙", dice: "🎲", jackpot: "🎁", trap: "🪤" };
 /** How long after the raid ends before heading back to the board by itself. */
