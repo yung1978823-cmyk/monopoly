@@ -6,6 +6,7 @@ import { CityView } from "@/components/city-view";
 import { CHARACTERS } from "@/lib/characters";
 import { previewTheme, themeOf, THEMES } from "@/lib/themes";
 import { FIRE_MS } from "@/components/city-scene";
+import { CloudWall } from "@/components/attack-intro";
 import { holdsNft, matchUp, standingIndexes, totalLevels, type GameState } from "@/lib/game";
 import { ELEMENTS, TYPE_EDGE } from "@/lib/pet";
 import { useLang } from "@/lib/i18n";
@@ -52,6 +53,12 @@ export function AttackScreen({
   /** The rival's levels from before the strike, shown until the fireball lands (then the building drops). */
   const [held, setHeld] = useState<readonly number[] | null>(null);
   const [quake, setQuake] = useState(false);
+  // Arriving from the 突襲 intro: the cloud wall parts to show the rival's island.
+  const [clouds, setClouds] = useState(true);
+  useEffect(() => {
+    const id = window.setTimeout(() => setClouds(false), 1100);
+    return () => window.clearTimeout(id);
+  }, []);
 
   // No words over the island (Sky 2026-09-30): your dragon breathes a fireball. A hit blows the building up and it
   // drops a level; a miss is stopped by a glowing shield; a shield that breaks shatters first. Then back to the board.
@@ -202,6 +209,12 @@ export function AttackScreen({
         )}
       </footer>
 
+      {clouds ? (
+        <div className="pointer-events-none absolute inset-0 z-50 overflow-hidden">
+          <CloudWall side="left" mode="out" delay={250} />
+          <CloudWall side="right" mode="out" delay={250} />
+        </div>
+      ) : null}
     </main>
   );
 }

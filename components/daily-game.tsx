@@ -3,6 +3,7 @@
 import { AttackScreen } from "@/components/attack-screen";
 import { PetScreen } from "@/components/pet-screen";
 import { StealScreen } from "@/components/steal-screen";
+import { AttackIntro, ATTACK_INTRO_MS } from "@/components/attack-intro";
 import { MyCity } from "@/components/my-city";
 import { RealmScreen } from "@/components/realm-screen";
 import { TableGame } from "@/components/table-game";
@@ -12,7 +13,7 @@ import { CHARACTERS, savePick, savedPick } from "@/lib/characters";
 import { LangPicker } from "@/components/lang-picker";
 import { TipHand } from "@/components/tip-hand";
 import { Button } from "@/components/ui/button";
-import { FX_ART, TILES, TILE_INFO } from "@/lib/board";
+import { TILES, TILE_INFO } from "@/lib/board";
 import { THEMES } from "@/lib/themes";
 import { ELEMENTS, HATCH_ROLLS, growNeed, petName, rollElement } from "@/lib/pet";
 import {
@@ -37,7 +38,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const STEP_MS = 240;
 /** How long the 🔨 swoop plays before the attack screen opens. */
-const INTRO_MS = 1100;
+const INTRO_MS = ATTACK_INTRO_MS;
 
 type PendingWalk = {
   faces: [number, number];
@@ -663,27 +664,7 @@ export function DailyGame() {
         </div>
       </footer>
 
-      {intro ? (
-        <div
-          className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-[radial-gradient(circle,rgba(229,37,33,0.55)_0%,rgba(142,18,16,0.85)_75%)] animate-[pop_0.3s_ease-out]"
-          data-testid="attack-intro"
-        >
-          <span className="relative text-[min(38cqw,11rem)] leading-none drop-shadow-[0_10px_16px_rgba(0,0,0,0.45)]">
-            <img
-              src={TILE_INFO.attack.art}
-              alt=""
-              draggable={false}
-              className="block size-[min(42cqw,12rem)] object-contain animate-[hammer_0.6s_ease-out]"
-            />
-            <img
-              src={FX_ART.smash}
-              alt=""
-              draggable={false}
-              className="absolute -bottom-8 -right-10 size-[min(28cqw,8rem)] object-contain animate-[pop_0.4s_ease-out_0.45s_both]"
-            />
-          </span>
-        </div>
-      ) : null}
+      {intro ? <AttackIntro rivalFace={state.rivalFace} /> : null}
 
       {/* Settings sheet. */}
       {menuOpen ? (

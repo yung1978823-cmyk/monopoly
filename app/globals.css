@@ -235,3 +235,35 @@
   0%, 100% { filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 0 rgba(251, 208, 0, 0)); transform: scale(1); }
   50% { filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 10px rgba(251, 208, 0, 0.95)); transform: scale(1.06); }
 }
+
+/* 突襲 intro (攻擊): timings are shares of 2.3 s. */
+@keyframes intro-dim { 0% { opacity: 0; } 15% { opacity: 0.55; } 100% { opacity: 0.55; } }
+@keyframes siren { 0% { opacity: 0; transform: rotate(0deg); } 10% { opacity: 1; } 65% { opacity: 1; } 75% { opacity: 0; } 100% { opacity: 0; transform: rotate(420deg); } }
+@keyframes edge-pulse { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+@keyframes face-drop {
+  0%, 12% { transform: scale(0) rotate(-30deg); opacity: 0; }
+  24% { transform: scale(1.25) rotate(6deg); opacity: 1; }
+  30% { transform: scale(0.95) rotate(0); }
+  34%, 62% { transform: scale(1); opacity: 1; }
+  66% { transform: scale(1.12); filter: brightness(2); }
+  72%, 100% { transform: scale(0.9); opacity: 0.9; filter: none; }
+}
+@keyframes lock-on {
+  0%, 18% { transform: scale(2.6) rotate(0deg); opacity: 0; }
+  40% { transform: scale(1) rotate(200deg); opacity: 1; }
+  48% { transform: scale(0.9) rotate(230deg); }
+  54%, 70% { transform: scale(1) rotate(250deg); opacity: 1; }
+  78%, 100% { transform: scale(1.3) rotate(280deg); opacity: 0; }
+}
+@keyframes dragon-rocket {
+  0%, 30% { transform: translate(-50%, 60%) scale(0.5); opacity: 0; }
+  40% { transform: translate(-50%, 0%) scale(0.8); opacity: 1; }
+  52% { transform: translate(-50%, -18vh) scale(1); }
+  66% { transform: translate(-50%, -52vh) scale(1.8); opacity: 1; }
+  74%, 100% { transform: translate(-50%, -120vh) scale(3.2); opacity: 0; }
+}
+@keyframes white-flash { 0%, 62% { opacity: 0; } 67% { opacity: 0.9; } 78%, 100% { opacity: 0; } }
+@keyframes cloud-in-left { from { transform: translateX(-105%); } to { transform: translateX(0); } }
+@keyframes cloud-in-right { from { transform: translateX(105%); } to { transform: translateX(0); } }
+@keyframes cloud-out-left { from { transform: translateX(0); } to { transform: translateX(-110%); } }
+@keyframes cloud-out-right { from { transform: translateX(0); } to { transform: translateX(110%); } }
