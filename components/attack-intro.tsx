@@ -32,7 +32,7 @@ export function CloudWall({ side, mode, delay = 0 }: { side: "left" | "right"; m
             top: `${y}%`,
             width: `${s}vmin`,
             height: `${s}vmin`,
-            transform: "translate(-30%, -50%)",
+            transform: side === "left" ? "translate(-30%, -50%)" : "translate(30%, -50%)",
             // Dreamy mist (Sky 2026-09-30: not so solid): see-through, blurred, with pale pink and lilac tints.
             background: `radial-gradient(circle at 45% 40%, ${MIST[i % MIST.length]} 0%, ${MIST[i % MIST.length].replace("0.8)", "0.45)")} 45%, rgba(255,255,255,0) 70%)`,
             filter: "blur(6px)",
