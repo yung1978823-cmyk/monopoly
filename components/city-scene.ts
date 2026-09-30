@@ -854,6 +854,14 @@ export function createCityScene(
     return t;
   })();
   const smokeTex = puffTex;
+  // Sky's pictures (2026-09-30): a comet-like fireball and a cartoon explosion.
+  const picTex = (url: string) => {
+    const t = new T.TextureLoader().load(url);
+    t.encoding = T.sRGBEncoding;
+    return t;
+  };
+  const fireballPic = picTex("/art/fx/fireball.webp");
+  const boomPic = picTex("/art/fx/boom.webp");
   const glowSprite = (tex: any, colour: number, additive = true) => {
     const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, color: colour, transparent: true, depthWrite: false, depthTest: false, ...(additive ? { blending: T.AdditiveBlending } : {}) }));
     sp.renderOrder = 9;
@@ -875,9 +883,18 @@ export function createCityScene(
       flash.scale.setScalar((big ? 4.2 : 2.6) * (0.3 + k));
       flash.material.opacity = 1 - k;
     }, () => drop(flash));
+    const boom = glowSprite(boomPic, 0xffffff, false);
+    boom.position.copy(at).y += big ? 0.35 : 0.15;
+    const spin = (Math.random() - 0.5) * 0.6;
+    addFx(0, big ? 1000 : 700, (k) => {
+      const grow = k < 0.22 ? k / 0.22 : 1 + (k - 0.22) * 0.25;
+      boom.scale.setScalar((big ? 3.4 : 2) * (0.25 + 0.75 * (1 - Math.pow(1 - Math.min(grow, 1), 3))) * (grow > 1 ? grow : 1));
+      boom.material.opacity = k < 0.55 ? 1 : 1 - (k - 0.55) / 0.45;
+      boom.material.rotation = spin * k;
+    }, () => drop(boom));
     impactLight.position.copy(at).y += 0.6;
     addFx(0, 700, (k) => (impactLight.intensity = (big ? 6 : 3) * (1 - k)), () => (impactLight.intensity = 0));
-    for (let n = 0; n < (big ? 18 : 10); n++) {
+    for (let n = 0; n < (big ? 8 : 5); n++) {
       const f = glowSprite(flameTex, 0xffffff, false);
       // Hidden until its turn comes (it starts a few ms late), or it would flash in the middle of the island.
       f.position.copy(at);
@@ -953,7 +970,10 @@ export function createCityScene(
   }
   function fireball(from: any, to: any) {
     const halo = glowSprite(fireTex, 0xff7a1a);
-    const core = glowSprite(flameTex, 0xffffff, false);
+    const core = glowSprite(fireballPic, 0xffffff, false);
+    // The ball sits low-left in the picture with its tail up-right; pin the ball and turn the tail behind it.
+    core.center.set(0.33, 0.37);
+    const prev = new T.Vector3().copy(from).project(camera);
     const trail: any[] = [];
     let lastPuff = 0;
     addFx(0, FIRE_MS, (k, now) => {
@@ -961,8 +981,12 @@ export function createCityScene(
       p.y += Math.sin(k * Math.PI) * 1.4;
       core.position.copy(p);
       halo.position.copy(p);
-      core.scale.setScalar(0.8 + Math.sin(now / 40) * 0.07);
-      halo.scale.setScalar(1.6 + Math.sin(now / 55) * 0.15);
+      core.scale.setScalar(1.5 + Math.sin(now / 40) * 0.08);
+      halo.scale.setScalar(1.7 + Math.sin(now / 55) * 0.15);
+      const onScreen = p.clone().project(camera);
+      const dx = onScreen.x - prev.x, dy = (onScreen.y - prev.y) / camera.aspect;
+      if (Math.hypot(dx, dy) > 1e-4) core.material.rotation = Math.atan2(dy, dx) + (3 * Math.PI) / 4;
+      prev.copy(onScreen);
       if (now - lastPuff > 30) {
         lastPuff = now;
         const t = glowSprite(flameTex, 0xffffff, false);
