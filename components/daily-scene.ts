@@ -864,7 +864,15 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const inner = new T.Mesh(new T.CylinderGeometry(0.9, 0.12, 2.8, 20, 4, true), mat.clone());
     inner.position.y = 1.45;
     twister.add(inner);
-    twister.userData = { funnel, inner, tex };
+    funnel.visible = inner.visible = false;
+    // Sky's tornado picture (2026-10-01) is the twister itself; it wobbles and breathes while it spins you.
+    const picTex = new T.TextureLoader().load("/art/fx/tornado.webp");
+    picTex.encoding = T.sRGBEncoding;
+    const pic = new T.Sprite(new T.SpriteMaterial({ map: picTex, transparent: true, depthWrite: false, opacity: 0 }));
+    pic.center.set(0.5, 0.04);
+    pic.scale.set(3, 3, 1);
+    twister.add(pic);
+    twister.userData = { funnel, inner, tex, pic };
     twister.visible = false;
     scene.add(twister);
   }
@@ -875,7 +883,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       twister.visible = false;
       return 0;
     }
-    const { funnel, inner, tex } = twister.userData;
+    const { funnel, inner, tex, pic } = twister.userData;
     twister.visible = true;
     const fadeIn = Math.min(1, e / 250), fadeOut = e > BLOW_LIFT + BLOW_FLY ? 1 - (e - BLOW_LIFT - BLOW_FLY) / 400 : 1;
     funnel.material.opacity = 0.75 * fadeIn * fadeOut;
@@ -884,6 +892,9 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     inner.rotation.y += 0.5;
     tex.offset.x -= 0.03;
     twister.scale.setScalar(0.4 + 0.6 * fadeIn);
+    pic.material.opacity = fadeIn * fadeOut;
+    pic.material.rotation = Math.sin(e / 90) * 0.12;
+    pic.scale.set(3 * (1 + Math.sin(e / 70) * 0.06), 3 * (1 + Math.cos(e / 110) * 0.04), 1);
     let lift = 0;
     if (e < BLOW_LIFT) {
       ship.position.copy(blow.from);
