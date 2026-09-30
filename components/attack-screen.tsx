@@ -5,7 +5,7 @@ import { LANDMARK_NAMES, TILE_INFO } from "@/lib/board";
 import { CityView } from "@/components/city-view";
 import { CHARACTERS } from "@/lib/characters";
 import { previewTheme, themeOf, THEMES } from "@/lib/themes";
-import { ShieldFx } from "@/components/shield-fx";
+import { FIRE_MS } from "@/components/city-scene";
 import { holdsNft, matchUp, standingIndexes, totalLevels, type GameState } from "@/lib/game";
 import { ELEMENTS, TYPE_EDGE } from "@/lib/pet";
 import { useLang } from "@/lib/i18n";
@@ -13,11 +13,11 @@ import { play } from "@/lib/sfx";
 import { cn } from "cn";
 import { useEffect, useState } from "react";
 
-type Flash = { kind: "shield" | "smash" | "hit" | "miss"; key: number };
+type Shot = { at: number | null; result: "smash" | "block" | "break" | "hit"; key: number };
 
-const FLASH_MS = 1500;
-const SHIELD_MS = 1200;
-/** Pause after the last pop-up before heading back to the board on its own. */
+/** How long the explosion (or the shield) plays after the fireball lands. */
+const AFTER_MS = 1700;
+/** Pause after that before heading back to the board on its own. */
 const RETURN_MS = 700;
 
 /**
@@ -47,45 +47,49 @@ export function AttackScreen({
   const standing = standingIndexes(state.rivalLevels);
   const picking = !state.fightSettled && standing.length > 0;
   const { t } = useLang();
-  const [flash, setFlash] = useState<Flash | null>(null);
   const [aimed, setAimed] = useState<number | null>(null);
-  const [aimedAt, setAimedAt] = useState(0);
+  const [shot, setShot] = useState<Shot | null>(null);
+  /** The rival's levels from before the strike, shown until the fireball lands (then the building drops). */
+  const [held, setHeld] = useState<readonly number[] | null>(null);
+  const [quake, setQuake] = useState(false);
 
-  // Play the result once: the shield pop-up first if it broke, then the smash, hit or miss,
-  // and then head back to the board by itself.
+  // No words over the island (Sky 2026-09-30): your dragon breathes a fireball. A hit blows the building up and it
+  // drops a level; a miss is stopped by a glowing shield; a shield that breaks shatters first. Then back to the board.
   useEffect(() => {
     if (!readout) return;
-    const kind: Flash["kind"] = readout.smashed !== null ? "smash" : readout.hit ? "hit" : "miss";
-    const lead = readout.shieldBreak ? SHIELD_MS : 0;
-    const blocked = !readout.hit && state.enemyShield;
-    const sound = kind === "smash" ? "smash" : kind === "hit" ? "coin" : blocked ? "shield" : "miss";
+    const result: Shot["result"] =
+      readout.smashed !== null ? (readout.shieldBreak ? "break" : "smash") : readout.hit ? (readout.shieldBreak ? "break" : "hit") : "block";
+    const at = readout.smashed ?? aimed;
+    const sound = result === "block" ? "shield" : "smash";
     const timers = [
-      readout.shieldBreak
-        ? window.setTimeout(() => {
-            play("shield");
-            setFlash({ kind: "shield", key: Date.now() });
-          }, 0)
-        : 0,
+      window.setTimeout(() => {
+        play("attack");
+        setShot({ at, result, key: Date.now() });
+      }, 0),
       window.setTimeout(() => {
         play(sound);
-        setFlash({ kind, key: Date.now() + 1 });
-      }, lead),
-      window.setTimeout(() => setFlash(null), lead + FLASH_MS),
-      window.setTimeout(onReturn, lead + FLASH_MS + RETURN_MS),
+        if (result === "break") play("shield");
+        if (result !== "block") setQuake(true);
+      }, FIRE_MS),
+      window.setTimeout(() => setHeld(null), FIRE_MS + 220),
+      window.setTimeout(() => setQuake(false), FIRE_MS + 520),
+      window.setTimeout(onReturn, FIRE_MS + AFTER_MS + RETURN_MS),
     ];
     return () => timers.forEach((id) => window.clearTimeout(id));
-    // Only a new strike result should replay this; the shield flag is read at that moment.
+    // Only a new strike result should replay this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readout, onReturn]);
 
   function strike(target: number | null) {
     if (state.fightSettled) return;
     setAimed(target);
-    setAimedAt(Date.now());
+    setHeld(state.rivalLevels);
     onStrike(target);
   }
 
-  const status = state.fightSettled
+  const status = state.fightSettled && held !== null
+    ? t("火龍噴火！")
+    : state.fightSettled
     ? readout?.smashed != null
       ? t("{b}跌咗一級！", { b: t(LANDMARK_NAMES[readout.smashed]) })
       : readout?.hit
@@ -101,16 +105,16 @@ export function AttackScreen({
       data-testid="search"
     >
       {/* The rival's town page in 3D: tap a building to strike it. */}
-      <div className={cn("absolute inset-0", flash?.kind === "smash" && "animate-[smash_0.5s_ease-out]")}>
+      <div className={cn("absolute inset-0", quake && "animate-[smash_0.5s_ease-out]")}>
         <CityView
           theme={state.rivalCity}
-          levels={state.rivalLevels}
+          levels={held ?? state.rivalLevels}
           targets={picking}
           onPick={(index) => {
             if (picking && standing.includes(index)) strike(index);
           }}
-          smash={readout?.smashed ?? null}
-          smashKey={flash?.kind === "smash" ? flash.key : 0}
+          fire={shot}
+          fireKey={shot?.key ?? 0}
           attacker={state.pet ? { element: state.pet.element, stage: state.pet.stage, legend: holdsNft(state) } : null}
           resident={{
             // The rival's own monster (made up from who they are and how far along they are, for the practice board).
@@ -118,8 +122,6 @@ export function AttackScreen({
             stage: Math.min(4, 1 + state.rivalCity + Math.floor(totalLevels(state.rivalLevels) / 9)),
             legend: state.rivalHasNft && state.rivalNfts >= 3,
           }}
-          lunge={aimed}
-          lungeKey={aimedAt}
         />
       </div>
       {/* The same targets as buttons, for keyboards and screen readers. */}
@@ -136,9 +138,6 @@ export function AttackScreen({
         ))}
       </div>
       {picking && state.strikes === 0 ? <TipHand className="left-1/2 top-[40%] z-20 -translate-x-1/2" /> : null}
-      {aimed !== null && state.fightSettled ? (
-        <span className="pointer-events-none absolute left-1/2 top-[38%] z-20 -translate-x-1/2 text-5xl animate-[hammer_0.6s_ease-out]">🔨</span>
-      ) : null}
 
       {/* Rival: framed face and name, small, centred at the top. */}
       <header className="relative z-10 mx-auto mt-[max(env(safe-area-inset-top),0.75rem)] flex flex-col items-center" data-testid="rival">
@@ -203,33 +202,6 @@ export function AttackScreen({
         )}
       </footer>
 
-      {/* Strike result pop-up. */}
-      {flash ? (
-        <div
-          key={flash.key}
-          className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center"
-          data-testid={`flash-${flash.kind}`}
-        >
-          {flash.kind === "shield" ? (
-            <ShieldFx broken />
-          ) : flash.kind === "miss" && state.enemyShield ? (
-            <ShieldFx broken={false} />
-          ) : (
-            <p
-              className={cn(
-                "animate-[pop_0.45s_ease-out] rounded-3xl border-4 border-[#FBD000] px-8 py-4 text-4xl font-black text-white shadow-2xl",
-                flash.kind === "miss" ? "bg-[#3B5BA9]" : "bg-[#E52521]",
-              )}
-            >
-              {flash.kind === "smash"
-                ? t("💥 跌一級！")
-                : flash.kind === "hit"
-                  ? t("打中！")
-                  : t("打唔中")}
-            </p>
-          )}
-        </div>
-      ) : null}
     </main>
   );
 }

@@ -19,12 +19,18 @@ export type CityScene = {
   smash(index: number): void;
   /** Your monster (the attacker) swoops onto a building and back. */
   lunge(index: number): void;
+  /** The attacker breathes a fireball at building `index` (null: the middle of the island). `smash`: it blows up
+   *  (the lower level arrives with setLevels); `block`: a shield stops it; `break`: it shatters a shield, then blows up;
+   *  `hit`: it blows up on the ground. It lands FIRE_MS after the call. */
+  fire(index: number | null, result: "smash" | "block" | "break" | "hit"): void;
   /** Fireworks over the whole island (a page finished). */
   celebrate(): void;
   dispose(): void;
 };
 
 const TOP = 0.3;
+/** How long the fireball flies before it lands (the attack screen times its sounds to this). */
+export const FIRE_MS = 700;
 const PLOTS = 5;
 /** Plot centres: a ring of five round the middle piece, the first at the front. */
 const PLOT_AT: [number, number][] = Array.from({ length: PLOTS }, (_, i) => {
@@ -825,6 +831,120 @@ export function createCityScene(
     }
   }
 
+  // ---------- Fireball, explosion and shield (攻擊, Sky 2026-09-30) ----------
+  type Fx = { start: number; ms: number; step: (k: number, now: number) => void; end: () => void };
+  const fxs: Fx[] = [];
+  const addFx = (delay: number, ms: number, step: Fx["step"], end: Fx["end"] = () => undefined) =>
+    fxs.push({ start: performance.now() + delay, ms, step, end });
+  const fireTex = soft("rgba(255,244,200,1)", "rgba(255,90,0,0)");
+  const smokeTex = puffTex;
+  const glowSprite = (tex: any, colour: number, additive = true) => {
+    const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, color: colour, transparent: true, depthWrite: false, ...(additive ? { blending: T.AdditiveBlending } : {}) }));
+    scene.add(sp);
+    return sp;
+  };
+  const drop = (o: any) => {
+    scene.remove(o);
+    o.material?.dispose?.();
+    o.geometry?.dispose?.();
+  };
+  const impactLight = new T.PointLight(0xff8a2a, 0, 9, 2);
+  scene.add(impactLight);
+  function explode(at: any, big: boolean) {
+    // A white-hot flash, a ball of fire, sparks and a rising smoke cloud.
+    const flash = glowSprite(fireTex, 0xffffff);
+    flash.position.copy(at);
+    addFx(0, 380, (k) => {
+      flash.scale.setScalar((big ? 4.2 : 2.6) * (0.3 + k));
+      flash.material.opacity = 1 - k;
+    }, () => drop(flash));
+    impactLight.position.copy(at).y += 0.6;
+    addFx(0, 700, (k) => (impactLight.intensity = (big ? 6 : 3) * (1 - k)), () => (impactLight.intensity = 0));
+    for (let n = 0; n < (big ? 14 : 8); n++) {
+      const f = glowSprite(fireTex, [0xff6a00, 0xffb000, 0xff3d00][n % 3]);
+      const dir = new T.Vector3(Math.random() - 0.5, Math.random() * 0.8 + 0.2, Math.random() - 0.5).normalize();
+      const reach = (big ? 1.4 : 0.8) * (0.5 + Math.random() * 0.6);
+      addFx(n * 12, 520 + Math.random() * 260, (k) => {
+        f.position.copy(at).addScaledVector(dir, reach * (1 - (1 - k) * (1 - k)));
+        f.scale.setScalar((big ? 1.3 : 0.8) * (0.5 + k * 0.8));
+        f.material.opacity = 1 - k;
+      }, () => drop(f));
+    }
+    for (let n = 0; n < (big ? 8 : 4); n++) {
+      const sm = new T.Sprite(new T.SpriteMaterial({ map: smokeTex, color: 0x6b6258, transparent: true, depthWrite: false, opacity: 0 }));
+      scene.add(sm);
+      const dx = (Math.random() - 0.5) * 1.2, dz = (Math.random() - 0.5) * 1.2;
+      addFx(120 + n * 40, 1400 + Math.random() * 500, (k) => {
+        sm.position.set(at.x + dx * (0.4 + k), at.y + 0.2 + k * 1.8, at.z + dz * (0.4 + k));
+        sm.scale.setScalar((big ? 1.2 : 0.8) * (0.5 + k * 1.4));
+        sm.material.opacity = 0.75 * Math.min(1, k * 5) * (1 - k);
+        sm.material.rotation = k * 0.8;
+      }, () => drop(sm));
+    }
+    burst(at, big ? 30 : 16, [0xffd34d, 0xff7a1a, 0xffffff], big ? 5 : 3.5, 0.9, 0.07, true);
+    shakeAll = performance.now();
+  }
+  const shieldGeo = new T.SphereGeometry(1, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+  function shieldAt(at: any, radius: number, broken: boolean) {
+    // A glassy blue dome over the building: it pops up just before the fireball lands, ripples when struck,
+    // then fades (or bursts into shards if it breaks).
+    const dome = new T.Mesh(shieldGeo, new T.MeshBasicMaterial({ color: 0x7fd8ff, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending, side: T.DoubleSide }));
+    const rim = new T.Mesh(shieldGeo, new T.MeshBasicMaterial({ color: 0xbff0ff, wireframe: true, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending }));
+    const g = new T.Group();
+    g.add(dome, rim);
+    g.position.set(at.x, TOP, at.z);
+    scene.add(g);
+    const pop = FIRE_MS - 260, hit = FIRE_MS;
+    const life = broken ? hit + 160 : hit + 900;
+    addFx(pop, life - pop, (k) => {
+      const t = pop + k * (life - pop);
+      const grow = Math.min(1, (t - pop) / 180);
+      const struck = Math.max(0, 1 - Math.abs(t - hit) / 220);
+      g.scale.set(radius * (grow * (1 + 0.12 * struck)), radius * 1.15 * grow * (1 - 0.08 * struck), radius * (grow * (1 + 0.12 * struck)));
+      const fade = t > hit ? 1 - (t - hit) / (life - hit) : 1;
+      dome.material.opacity = (0.28 + 0.5 * struck) * fade;
+      rim.material.opacity = (0.35 + 0.5 * struck) * fade;
+      g.rotation.y += 0.02;
+    }, () => {
+      scene.remove(g);
+      dome.material.dispose();
+      rim.material.dispose();
+    });
+    addFx(hit, 10, () => undefined, () => {
+      const top = new T.Vector3(at.x, TOP + radius * 0.8, at.z);
+      if (broken) burst(top, 40, [0x7fd8ff, 0xffffff, 0xbff0ff], 5, 1.0, 0.1, true);
+      else burst(top, 22, [0xffffff, 0x7fd8ff, 0xffd34d], 4, 0.6, 0.06, false);
+    });
+  }
+  function fireball(from: any, to: any) {
+    const core = glowSprite(fireTex, 0xffffff);
+    const halo = glowSprite(fireTex, 0xff7a1a);
+    const trail: any[] = [];
+    let lastPuff = 0;
+    addFx(0, FIRE_MS, (k, now) => {
+      const p = new T.Vector3().lerpVectors(from, to, k);
+      p.y += Math.sin(k * Math.PI) * 1.4;
+      core.position.copy(p);
+      halo.position.copy(p);
+      core.scale.setScalar(0.55 + Math.sin(now / 40) * 0.05);
+      halo.scale.setScalar(1.25 + Math.sin(now / 55) * 0.12);
+      if (now - lastPuff > 30) {
+        lastPuff = now;
+        const t = glowSprite(fireTex, Math.random() < 0.5 ? 0xff6a00 : 0xffb000);
+        t.position.copy(p);
+        trail.push(t);
+        addFx(0, 420, (q) => {
+          t.scale.setScalar(0.7 * (1 - q));
+          t.material.opacity = 0.9 * (1 - q);
+          t.position.y += 0.004;
+        }, () => drop(t));
+      }
+    }, () => {
+      drop(core);
+      drop(halo);
+    });
+  }
+
   let last = performance.now();
   let shakeAll = -1e9;
   function frame(now: number) {
@@ -867,6 +987,16 @@ export function createCityScene(
       if (!reduceMotion) w.a += w.speed * dt;
       w.g.position.set(Math.cos(w.a) * w.r, TOP + Math.abs(Math.sin(now / 160 + w.phase)) * 0.03, Math.sin(w.a) * w.r);
       w.g.rotation.y = -w.a + (w.speed > 0 ? 0 : Math.PI);
+    }
+    for (let n = fxs.length - 1; n >= 0; n--) {
+      const f = fxs[n];
+      if (now < f.start) continue;
+      const k = Math.min(1, (now - f.start) / f.ms);
+      f.step(k, now);
+      if (k >= 1) {
+        fxs.splice(n, 1);
+        f.end();
+      }
     }
     for (const m of monsters) m.update(now);
     if (attacker) {
@@ -917,6 +1047,32 @@ export function createCityScene(
       if (!plots[index]) return;
       lungeState.to.copy(worldOf(index, heightOf(plots[index].level, index) * 0.7));
       lungeState.at = performance.now();
+    },
+    fire(index, result) {
+      const plot = index === null ? null : plots[index];
+      const to = plot ? worldOf(index!, Math.max(0.5, heightOf(plot.level, index!) * (result === "block" ? 0.9 : 0.55))) : new T.Vector3(0, TOP + 0.3, 0);
+      // The dragon rears back a little and breathes from its mouth, facing the target.
+      const mouth = attacker ? attacker.group.position.clone().add(new T.Vector3(0, 0.7, 0)) : attackerHome.clone();
+      lungeState.to.copy(attackerHome).lerp(to, 0.18);
+      lungeState.at = performance.now() - 250;
+      const aim = to.clone();
+      if (result === "block") {
+        // Stop at the dome's skin, in front of the building.
+        const r = plot ? 1.05 : 1.5;
+        const c = plot ? worldOf(index!, 0) : new T.Vector3(0, 0, 0);
+        aim.copy(c).add(mouth.clone().sub(c).setY(0).normalize().multiplyScalar(r));
+        aim.y = TOP + 0.9;
+      }
+      fireball(mouth, aim);
+      if (result === "block" || result === "break") shieldAt(plot ? worldOf(index!, 0) : new T.Vector3(0, 0, 0), plot ? 1.1 : 1.6, result === "break");
+      if (result === "block") return;
+      addFx(FIRE_MS + (result === "break" ? 120 : 0), 10, () => undefined, () => {
+        explode(to, result !== "hit");
+        if (plot && result !== "hit") {
+          plot.shakeAt = performance.now();
+          burst(to, 34, [theme.wall, theme.roof, 0x6b6f78, 0xff7a1a], 4.5, 1.1, 0.11);
+        }
+      });
     },
     celebrate() {
       const colours = [0xfbd000, 0xe52521, 0x22c55e, 0x3b82f6, 0xec4899, 0xf97316];

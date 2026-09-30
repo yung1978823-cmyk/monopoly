@@ -24,6 +24,8 @@ export function CityView({
   attacker = null,
   lunge = null,
   lungeKey = 0,
+  fire = null,
+  fireKey = 0,
 }: {
   theme: number;
   levels: readonly number[];
@@ -40,6 +42,9 @@ export function CityView({
   /** A new `lungeKey` sends the attacker swooping at building `lunge`. */
   lunge?: number | null;
   lungeKey?: number;
+  /** A new `fireKey` has the attacker breathe a fireball: at building `fire.at` (null: the middle), with this result. */
+  fire?: { at: number | null; result: "smash" | "block" | "break" | "hit" } | null;
+  fireKey?: number;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<CityScene | null>(null);
@@ -88,6 +93,10 @@ export function CityView({
     if (lungeKey > 0 && lunge !== null) sceneRef.current?.lunge(lunge);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lungeKey]);
+  useEffect(() => {
+    if (fireKey > 0 && fire) sceneRef.current?.fire(fire.at, fire.result);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fireKey]);
   useEffect(() => {
     if (celebrateKey > 0) sceneRef.current?.celebrate();
   }, [celebrateKey]);

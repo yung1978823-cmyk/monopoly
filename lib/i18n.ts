@@ -163,6 +163,7 @@ const DICT: Record<string, { hans: string; en: string }> = {
   "打唔中……": { hans: "没打中……", en: "Missed…" },
   打唔中: { hans: "没打中", en: "Missed" },
   "撳一座建築 🔨": { hans: "点一座建筑 🔨", en: "Tap a building 🔨" },
+  "火龍噴火！": { hans: "火龙喷火！", en: "Dragon fire!" },
   "一座建築都冇，直接打！": { hans: "一座建筑都没有，直接打！", en: "No buildings, just hit!" },
   "攻擊{b}": { hans: "攻击{b}", en: "Attack {b}" },
   "搬走 {n} DST": { hans: "搬走 {n} DST", en: "Took {n} DST" },
