@@ -936,7 +936,29 @@ export function createCityScene(
     if (!splash) shakeAll = performance.now();
   }
   const shieldGeo = new T.SphereGeometry(1, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-  function shieldAt(at: any, radius: number, broken: boolean) {
+  const shieldPic = picTex("/art/fx/shield.webp");
+  function shieldAt(at: any, radius: number, broken: boolean, from: any = null) {
+    // Sky's shield picture (2026-09-30) stands in front of the building, facing the fireball: it springs up
+    // just before the hit, jolts and flashes when struck, then fades — or flies apart if it breaks.
+    const badge = glowSprite(shieldPic, 0xffffff, false);
+    badge.renderOrder = 8;
+    const face = from ? from.clone().sub(at).setY(0).normalize() : new T.Vector3(0, 0, 1);
+    const spot = new T.Vector3(at.x, TOP + 0.95, at.z).addScaledVector(face, radius * 0.95);
+    badge.position.copy(spot);
+    badge.material.opacity = 0;
+    const bPop = FIRE_MS - 320, bHit = FIRE_MS, bEnd = broken ? FIRE_MS + 380 : FIRE_MS + 1000;
+    addFx(bPop, bEnd - bPop, (k) => {
+      const t = bPop + k * (bEnd - bPop);
+      const grow = Math.min(1, (t - bPop) / 200);
+      const pop = grow < 1 ? grow * (1 + Math.sin(grow * Math.PI) * 0.35) : 1;
+      const struck = Math.max(0, 1 - Math.abs(t - bHit) / 180);
+      const after = t > bHit ? (t - bHit) / (bEnd - bHit) : 0;
+      badge.scale.setScalar(1.7 * pop * (1 + 0.15 * struck) * (broken ? 1 + after * 1.2 : 1));
+      badge.position.copy(spot).addScaledVector(face, struck * 0.12 * Math.sin(t / 22));
+      badge.material.color.setRGB(1 + struck, 1 + struck, 1 + struck);
+      badge.material.rotation = broken && t > bHit ? after * 0.9 : Math.sin(t / 30) * 0.08 * struck;
+      badge.material.opacity = Math.min(1, grow * 2) * (after > 0 ? (broken ? 1 - after : after > 0.6 ? 1 - (after - 0.6) / 0.4 : 1) : 1);
+    }, () => drop(badge));
     // A glassy blue dome over the building: it pops up just before the fireball lands, ripples when struck,
     // then fades (or bursts into shards if it breaks).
     const dome = new T.Mesh(shieldGeo, new T.MeshBasicMaterial({ color: 0x2f9dff, transparent: true, opacity: 0, depthWrite: false, side: T.DoubleSide }));
@@ -953,8 +975,8 @@ export function createCityScene(
       const struck = Math.max(0, 1 - Math.abs(t - hit) / 220);
       g.scale.set(radius * (grow * (1 + 0.12 * struck)), radius * 1.15 * grow * (1 - 0.08 * struck), radius * (grow * (1 + 0.12 * struck)));
       const fade = t > hit ? 1 - (t - hit) / (life - hit) : 1;
-      dome.material.opacity = (0.38 + 0.3 * struck) * fade;
-      rim.material.opacity = (0.55 + 0.4 * struck) * fade;
+      dome.material.opacity = (0.22 + 0.3 * struck) * fade;
+      rim.material.opacity = (0.3 + 0.4 * struck) * fade;
       dome.material.color.setHex(struck > 0.3 ? 0x8fd4ff : 0x2f9dff);
       g.rotation.y += 0.02;
     }, () => {
@@ -1124,7 +1146,7 @@ export function createCityScene(
         aim.y = TOP + 0.9;
       }
       fireball(mouth, aim);
-      if (result === "block" || result === "break") shieldAt(plot ? worldOf(index!, 0) : new T.Vector3(0, 0, 0), plot ? 1.3 : 1.7, result === "break");
+      if (result === "block" || result === "break") shieldAt(plot ? worldOf(index!, 0) : new T.Vector3(0, 0, 0), plot ? 1.3 : 1.7, result === "break", mouth);
       if (result === "block") {
         // The fireball splashes harmlessly against the shield.
         addFx(FIRE_MS, 10, () => undefined, () => explode(aim, false, true));
