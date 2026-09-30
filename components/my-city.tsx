@@ -3,7 +3,7 @@
 import { CityView } from "@/components/city-view";
 import { LevelPips } from "@/components/building";
 import { TipHand } from "@/components/tip-hand";
-import { LANDMARK_NAMES, TILE_INFO } from "@/lib/board";
+import { LANDMARK_NAMES } from "@/lib/board";
 import { canUpgrade, holdsNft, isRepair, pageDone, upgradeCost, type GameState } from "@/lib/game";
 import { MAX_LEVEL, THEME_REWARD_DICE, themeRewardCoins } from "@/lib/rules";
 import { artPicture, previewTheme, themeOf, THEMES } from "@/lib/themes";
@@ -104,7 +104,7 @@ export function MyCity({
             {t(shown.name)}
           </p>
           <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-white py-1 pl-1.5 pr-3 text-lg font-black tabular-nums text-[#1E3A8A] shadow-md">
-            <img src={TILE_INFO.coin.art} alt={t("金幣")} className="size-6" />
+            <img src="/art/ui/coin.webp" alt={t("金幣")} draggable={false} className="-my-2 -ml-3 size-10 object-contain drop-shadow" />
             <span key={state.points} className="inline-block animate-[bump_0.35s_ease-out]">
               {state.points}
             </span>
@@ -202,7 +202,7 @@ export function MyCity({
                     <span className="text-base" aria-hidden>👑</span>
                   ) : (
                     <span className="flex items-center gap-0.5 text-xs font-black tabular-nums text-[#1E3A8A]">
-                      <img src={TILE_INFO.coin.art} alt="" className="size-3.5" />
+                      <img src="/art/ui/coin.webp" alt="" className="size-4" />
                       {cost}
                     </span>
                   )}

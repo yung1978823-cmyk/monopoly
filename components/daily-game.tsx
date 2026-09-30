@@ -543,7 +543,8 @@ export function DailyGame() {
       <header className="relative z-30 flex items-center justify-between gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
         <div className="relative">
           <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-[#1E3A8A] py-1 pl-2 pr-3 text-lg font-black tabular-nums text-white shadow-md" data-testid="dice-count">
-            🎲 <span key={state.dice} className="inline-block animate-[bump_0.35s_ease-out]">{state.dice}</span>
+            <img src="/art/ui/dice.webp" alt="" draggable={false} className="-my-2 -ml-3 size-10 object-contain drop-shadow" />
+            <span key={state.dice} className="inline-block animate-[bump_0.35s_ease-out]">{state.dice}</span>
           </div>
           {/* Time to the next free die, just the clock numbers, under the dice count. */}
           {countdown ? (
@@ -553,7 +554,7 @@ export function DailyGame() {
           ) : null}
         </div>
         <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-white py-1 pl-2 pr-3 text-lg font-black tabular-nums text-[#1E3A8A] shadow-md" data-testid="hud-points">
-          <img src={TILE_INFO.coin.art} alt={t("金幣")} className="size-6" />
+          <img src="/art/ui/coin.webp" alt={t("金幣")} draggable={false} className="-my-2 -ml-3 size-10 object-contain drop-shadow" />
           <span key={state.points} className="inline-block animate-[bump_0.35s_ease-out]">{state.points}</span>
         </div>
         <div className="flex items-center gap-2">
@@ -582,20 +583,20 @@ export function DailyGame() {
         <button
           type="button"
           onClick={() => !pending?.running && setRealmOpen(true)}
-          className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#4C1D95] text-xl text-white shadow-md"
+          className="flex size-12 shrink-0 cursor-pointer items-center justify-center active:scale-90"
           aria-label={t("領地")}
           data-testid="open-realm"
         >
-          🏰
+          <img src="/art/ui/land.webp" alt="" draggable={false} className="size-12 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
         </button>
         <button
           type="button"
           onClick={() => setMenuOpen(true)}
-          className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#E52521] text-xl text-white shadow-md"
+          className="flex size-12 shrink-0 cursor-pointer items-center justify-center active:scale-90"
           aria-label={t("設定")}
           data-testid="menu"
         >
-          ☰
+          <img src="/art/ui/gear.webp" alt="" draggable={false} className="size-11 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
         </button>
         </div>
       </header>
@@ -620,14 +621,15 @@ export function DailyGame() {
           aria-label={t("你個城")}
           data-testid="raise"
         >
-          <span
+          <img
+            src="/art/ui/crane.webp"
+            alt=""
+            draggable={false}
             className={cn(
-              "flex size-14 items-center justify-center rounded-2xl border-[3px] border-[#FBD000] bg-[#43B047] text-3xl shadow-[0_4px_0_#2E8B3E]",
-              buildable && "animate-[glow_1.8s_ease-in-out_infinite]",
+              "size-20 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)] active:scale-90",
+              buildable && "animate-[icon-glow_1.8s_ease-in-out_infinite]",
             )}
-          >
-            <img src="/art/crane.png" alt="" draggable={false} className="size-12 object-contain" />
-          </span>
+          />
           {buildable && !pending?.running && state.levels.every((level) => level === 0) ? (
             <TipHand className="-top-11 left-1/2 -translate-x-1/2" />
           ) : null}
@@ -638,7 +640,7 @@ export function DailyGame() {
                 !buildable && "opacity-60",
               )}
             >
-              <img src={TILE_INFO.coin.art} alt="" className="mr-0.5 inline size-3.5 align-[-2px]" />
+              <img src="/art/ui/coin.webp" alt="" className="mr-0.5 inline size-4 align-[-3px]" />
               {buildCost}
             </span>
           )}
