@@ -837,9 +837,26 @@ export function createCityScene(
   const addFx = (delay: number, ms: number, step: Fx["step"], end: Fx["end"] = () => undefined) =>
     fxs.push({ start: performance.now() + delay, ms, step, end });
   const fireTex = soft("rgba(255,244,200,1)", "rgba(255,90,0,0)");
+  // A solid-looking ball of flame (normal blending, so it still reads on the white island).
+  const flameTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const x = c.getContext("2d")!, g = x.createRadialGradient(64, 60, 4, 64, 64, 62);
+    g.addColorStop(0, "rgba(255,250,210,1)");
+    g.addColorStop(0.28, "rgba(255,206,60,1)");
+    g.addColorStop(0.55, "rgba(255,110,20,0.95)");
+    g.addColorStop(0.8, "rgba(210,40,10,0.55)");
+    g.addColorStop(1, "rgba(160,20,0,0)");
+    x.fillStyle = g;
+    x.fillRect(0, 0, 128, 128);
+    const t = new T.CanvasTexture(c);
+    t.encoding = T.sRGBEncoding;
+    return t;
+  })();
   const smokeTex = puffTex;
   const glowSprite = (tex: any, colour: number, additive = true) => {
-    const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, color: colour, transparent: true, depthWrite: false, ...(additive ? { blending: T.AdditiveBlending } : {}) }));
+    const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, color: colour, transparent: true, depthWrite: false, depthTest: false, ...(additive ? { blending: T.AdditiveBlending } : {}) }));
+    sp.renderOrder = 9;
     scene.add(sp);
     return sp;
   };
@@ -850,7 +867,7 @@ export function createCityScene(
   };
   const impactLight = new T.PointLight(0xff8a2a, 0, 9, 2);
   scene.add(impactLight);
-  function explode(at: any, big: boolean) {
+  function explode(at: any, big: boolean, splash = false) {
     // A white-hot flash, a ball of fire, sparks and a rising smoke cloud.
     const flash = glowSprite(fireTex, 0xffffff);
     flash.position.copy(at);
@@ -860,36 +877,53 @@ export function createCityScene(
     }, () => drop(flash));
     impactLight.position.copy(at).y += 0.6;
     addFx(0, 700, (k) => (impactLight.intensity = (big ? 6 : 3) * (1 - k)), () => (impactLight.intensity = 0));
-    for (let n = 0; n < (big ? 14 : 8); n++) {
-      const f = glowSprite(fireTex, [0xff6a00, 0xffb000, 0xff3d00][n % 3]);
-      const dir = new T.Vector3(Math.random() - 0.5, Math.random() * 0.8 + 0.2, Math.random() - 0.5).normalize();
-      const reach = (big ? 1.4 : 0.8) * (0.5 + Math.random() * 0.6);
-      addFx(n * 12, 520 + Math.random() * 260, (k) => {
+    for (let n = 0; n < (big ? 18 : 10); n++) {
+      const f = glowSprite(flameTex, 0xffffff, false);
+      // Hidden until its turn comes (it starts a few ms late), or it would flash in the middle of the island.
+      f.position.copy(at);
+      f.material.opacity = 0;
+      const dir = new T.Vector3(Math.random() - 0.5, Math.random() * 0.9 + 0.25, Math.random() - 0.5).normalize();
+      const reach = (big ? 1.5 : 0.9) * (0.4 + Math.random() * 0.7);
+      const size = (big ? 1.5 : 0.9) * (0.7 + Math.random() * 0.6);
+      addFx(n * 10, 600 + Math.random() * 300, (k) => {
         f.position.copy(at).addScaledVector(dir, reach * (1 - (1 - k) * (1 - k)));
-        f.scale.setScalar((big ? 1.3 : 0.8) * (0.5 + k * 0.8));
-        f.material.opacity = 1 - k;
+        f.position.y += k * 0.5;
+        f.scale.setScalar(size * (0.45 + k * 0.9));
+        f.material.opacity = k < 0.5 ? 1 : 1 - (k - 0.5) * 2;
+        f.material.color.setRGB(1, 1 - k * 0.55, 1 - k * 0.8);
       }, () => drop(f));
     }
-    for (let n = 0; n < (big ? 8 : 4); n++) {
-      const sm = new T.Sprite(new T.SpriteMaterial({ map: smokeTex, color: 0x6b6258, transparent: true, depthWrite: false, opacity: 0 }));
+    // A ring of dust racing out along the ground.
+    const ring = new T.Mesh(new T.RingGeometry(0.7, 1, 40), new T.MeshBasicMaterial({ color: 0xfff1d0, transparent: true, depthWrite: false, side: T.DoubleSide }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(at.x, TOP + 0.05, at.z);
+    ring.visible = !splash;
+    scene.add(ring);
+    addFx(0, 500, (k) => {
+      ring.scale.setScalar((big ? 2.4 : 1.4) * (0.3 + k));
+      ring.material.opacity = 0.8 * (1 - k);
+    }, () => drop(ring));
+    for (let n = 0; n < (splash ? 0 : big ? 9 : 4); n++) {
+      const sm = new T.Sprite(new T.SpriteMaterial({ map: smokeTex, color: 0x4a4440, transparent: true, depthWrite: false, depthTest: false, opacity: 0 }));
+      sm.renderOrder = 8;
       scene.add(sm);
       const dx = (Math.random() - 0.5) * 1.2, dz = (Math.random() - 0.5) * 1.2;
       addFx(120 + n * 40, 1400 + Math.random() * 500, (k) => {
         sm.position.set(at.x + dx * (0.4 + k), at.y + 0.2 + k * 1.8, at.z + dz * (0.4 + k));
         sm.scale.setScalar((big ? 1.2 : 0.8) * (0.5 + k * 1.4));
-        sm.material.opacity = 0.75 * Math.min(1, k * 5) * (1 - k);
+        sm.material.opacity = 0.85 * Math.min(1, k * 4) * (1 - k);
         sm.material.rotation = k * 0.8;
       }, () => drop(sm));
     }
     burst(at, big ? 30 : 16, [0xffd34d, 0xff7a1a, 0xffffff], big ? 5 : 3.5, 0.9, 0.07, true);
-    shakeAll = performance.now();
+    if (!splash) shakeAll = performance.now();
   }
   const shieldGeo = new T.SphereGeometry(1, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2);
   function shieldAt(at: any, radius: number, broken: boolean) {
     // A glassy blue dome over the building: it pops up just before the fireball lands, ripples when struck,
     // then fades (or bursts into shards if it breaks).
-    const dome = new T.Mesh(shieldGeo, new T.MeshBasicMaterial({ color: 0x7fd8ff, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending, side: T.DoubleSide }));
-    const rim = new T.Mesh(shieldGeo, new T.MeshBasicMaterial({ color: 0xbff0ff, wireframe: true, transparent: true, opacity: 0, depthWrite: false, blending: T.AdditiveBlending }));
+    const dome = new T.Mesh(shieldGeo, new T.MeshBasicMaterial({ color: 0x2f9dff, transparent: true, opacity: 0, depthWrite: false, side: T.DoubleSide }));
+    const rim = new T.Mesh(shieldGeo, new T.MeshBasicMaterial({ color: 0x1e6fe0, wireframe: true, transparent: true, opacity: 0, depthWrite: false }));
     const g = new T.Group();
     g.add(dome, rim);
     g.position.set(at.x, TOP, at.z);
@@ -902,8 +936,9 @@ export function createCityScene(
       const struck = Math.max(0, 1 - Math.abs(t - hit) / 220);
       g.scale.set(radius * (grow * (1 + 0.12 * struck)), radius * 1.15 * grow * (1 - 0.08 * struck), radius * (grow * (1 + 0.12 * struck)));
       const fade = t > hit ? 1 - (t - hit) / (life - hit) : 1;
-      dome.material.opacity = (0.28 + 0.5 * struck) * fade;
-      rim.material.opacity = (0.35 + 0.5 * struck) * fade;
+      dome.material.opacity = (0.38 + 0.3 * struck) * fade;
+      rim.material.opacity = (0.55 + 0.4 * struck) * fade;
+      dome.material.color.setHex(struck > 0.3 ? 0x8fd4ff : 0x2f9dff);
       g.rotation.y += 0.02;
     }, () => {
       scene.remove(g);
@@ -912,13 +947,13 @@ export function createCityScene(
     });
     addFx(hit, 10, () => undefined, () => {
       const top = new T.Vector3(at.x, TOP + radius * 0.8, at.z);
-      if (broken) burst(top, 40, [0x7fd8ff, 0xffffff, 0xbff0ff], 5, 1.0, 0.1, true);
-      else burst(top, 22, [0xffffff, 0x7fd8ff, 0xffd34d], 4, 0.6, 0.06, false);
+      if (broken) burst(top, 40, [0x7fd8ff, 0xffffff, 0x2f9dff], 5, 1.0, 0.1, true);
+      else burst(top, 26, [0xffffff, 0x7fd8ff, 0x2f9dff], 4, 0.7, 0.08, false);
     });
   }
   function fireball(from: any, to: any) {
-    const core = glowSprite(fireTex, 0xffffff);
     const halo = glowSprite(fireTex, 0xff7a1a);
+    const core = glowSprite(flameTex, 0xffffff, false);
     const trail: any[] = [];
     let lastPuff = 0;
     addFx(0, FIRE_MS, (k, now) => {
@@ -926,16 +961,17 @@ export function createCityScene(
       p.y += Math.sin(k * Math.PI) * 1.4;
       core.position.copy(p);
       halo.position.copy(p);
-      core.scale.setScalar(0.55 + Math.sin(now / 40) * 0.05);
-      halo.scale.setScalar(1.25 + Math.sin(now / 55) * 0.12);
+      core.scale.setScalar(0.8 + Math.sin(now / 40) * 0.07);
+      halo.scale.setScalar(1.6 + Math.sin(now / 55) * 0.15);
       if (now - lastPuff > 30) {
         lastPuff = now;
-        const t = glowSprite(fireTex, Math.random() < 0.5 ? 0xff6a00 : 0xffb000);
+        const t = glowSprite(flameTex, 0xffffff, false);
         t.position.copy(p);
         trail.push(t);
-        addFx(0, 420, (q) => {
-          t.scale.setScalar(0.7 * (1 - q));
+        addFx(0, 380, (q) => {
+          t.scale.setScalar(0.6 * (1 - q * 0.7));
           t.material.opacity = 0.9 * (1 - q);
+          t.material.color.setRGB(1, 1 - q * 0.6, 1 - q * 0.9);
           t.position.y += 0.004;
         }, () => drop(t));
       }
@@ -1058,14 +1094,18 @@ export function createCityScene(
       const aim = to.clone();
       if (result === "block") {
         // Stop at the dome's skin, in front of the building.
-        const r = plot ? 1.05 : 1.5;
+        const r = plot ? 1.25 : 1.65;
         const c = plot ? worldOf(index!, 0) : new T.Vector3(0, 0, 0);
         aim.copy(c).add(mouth.clone().sub(c).setY(0).normalize().multiplyScalar(r));
         aim.y = TOP + 0.9;
       }
       fireball(mouth, aim);
-      if (result === "block" || result === "break") shieldAt(plot ? worldOf(index!, 0) : new T.Vector3(0, 0, 0), plot ? 1.1 : 1.6, result === "break");
-      if (result === "block") return;
+      if (result === "block" || result === "break") shieldAt(plot ? worldOf(index!, 0) : new T.Vector3(0, 0, 0), plot ? 1.3 : 1.7, result === "break");
+      if (result === "block") {
+        // The fireball splashes harmlessly against the shield.
+        addFx(FIRE_MS, 10, () => undefined, () => explode(aim, false, true));
+        return;
+      }
       addFx(FIRE_MS + (result === "break" ? 120 : 0), 10, () => undefined, () => {
         explode(to, result !== "hit");
         if (plot && result !== "hit") {
