@@ -584,7 +584,7 @@ export function DailyGame() {
           </div>
         </div>
         <div className="flex items-start gap-1.5">
-        {/* Build (你個城), beside the dragon (Sky 2026-09-30); its price sits under it. */}
+        {/* Build (你個城): a golden hammer beside the dragon, no price under it (Sky 2026-09-30). */}
         <button
           type="button"
           onClick={onBuild}
@@ -602,17 +602,6 @@ export function DailyGame() {
               buildable && "animate-[icon-glow_1.8s_ease-in-out_infinite]",
             )}
           />
-          {buildCost === null ? null : (
-            <span
-              className={cn(
-                "relative z-10 -mt-1 rounded-full bg-white px-1.5 text-[11px] font-black leading-4 tabular-nums text-[#1E3A8A] shadow",
-                !buildable && "opacity-60",
-              )}
-            >
-              <img src="/art/ui/coin.webp" alt="" className="mr-0.5 inline size-3.5 align-[-3px]" />
-              {buildCost}
-            </span>
-          )}
           {buildable && !pending?.running && state.levels.every((level) => level === 0) ? (
             <TipHand className="left-1/2 top-14 -translate-x-1/2 rotate-180" />
           ) : null}
