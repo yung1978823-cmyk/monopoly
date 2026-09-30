@@ -5,7 +5,8 @@ import { type GameState } from "@/lib/game";
 import { useLang } from "@/lib/i18n";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
-import { useEffect } from "react";
+import { SmokeCloud } from "@/components/steal-intro";
+import { useEffect, useState } from "react";
 
 const ICON = { juice: "🧪", meat: "🍖", coins: "🪙" } as const;
 const BACK_MS = 2200;
@@ -16,6 +17,12 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
   const rival = CHARACTERS[state.rivalFace] ?? CHARACTERS[1];
   const boxes = state.stealBoxes ?? [];
   const picked = state.stealPicked;
+  // Arriving from the raccoon's puff of smoke: it clears to show the store.
+  const [smoke, setSmoke] = useState(true);
+  useEffect(() => {
+    const id = window.setTimeout(() => setSmoke(false), 1100);
+    return () => window.clearTimeout(id);
+  }, []);
 
   useEffect(() => {
     if (picked === null) return;
@@ -75,6 +82,11 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
         >
           {t("返回棋盤")}
         </button>
+      ) : null}
+      {smoke ? (
+        <div className="pointer-events-none absolute inset-0 z-50 overflow-hidden">
+          <SmokeCloud mode="out" delay={150} />
+        </div>
       ) : null}
     </main>
   );

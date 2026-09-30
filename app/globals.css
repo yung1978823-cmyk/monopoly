@@ -267,3 +267,30 @@
 @keyframes cloud-in-right { from { transform: translateX(160%); } to { transform: translateX(0); } }
 @keyframes cloud-out-left { from { transform: translateX(0); } to { transform: translateX(-160%); } }
 @keyframes cloud-out-right { from { transform: translateX(0); } to { transform: translateX(160%); } }
+
+/* 偷嘢 intro: timings are shares of 2.6 s. */
+@keyframes night-fall { 0% { opacity: 0; } 12% { opacity: 0.72; } 100% { opacity: 0.72; } }
+@keyframes searchlight {
+  0% { opacity: 0; transform: translateX(-50%) rotate(38deg); }
+  10% { opacity: 1; }
+  40% { transform: translateX(-50%) rotate(-34deg); }
+  62% { transform: translateX(-50%) rotate(8deg); opacity: 1; }
+  72%, 100% { transform: translateX(-50%) rotate(8deg); opacity: 0; }
+}
+@keyframes paw-print { 0% { opacity: 0; transform: scale(1.6); } 15% { opacity: 1; transform: scale(1); } 70% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes thief-sneak {
+  0%, 12% { transform: translate(-190%, -50%) rotate(-4deg); opacity: 0; }
+  16% { opacity: 1; }
+  22% { transform: translate(-150%, -54%) rotate(4deg); }
+  28% { transform: translate(-125%, -50%) rotate(-4deg); }
+  34% { transform: translate(-100%, -54%) rotate(4deg); }
+  40% { transform: translate(-78%, -50%) rotate(-4deg); }
+  46% { transform: translate(-60%, -54%) rotate(3deg); }
+  52% { transform: translate(-50%, -50%) rotate(0deg); }
+  56% { transform: translate(-50%, -50%) scale(1.08); }
+  60%, 66% { transform: translate(-50%, -50%) scale(1); }
+  72% { transform: translate(-50%, -75%) scale(1.05) rotate(-8deg); opacity: 1; }
+  80%, 100% { transform: translate(-50%, -40%) scale(0.2) rotate(20deg); opacity: 0; }
+}
+@keyframes smoke-in { 0% { transform: scale(0.1); opacity: 0; } 60% { opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes smoke-out { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }

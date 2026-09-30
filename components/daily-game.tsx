@@ -4,6 +4,7 @@ import { AttackScreen } from "@/components/attack-screen";
 import { PetScreen } from "@/components/pet-screen";
 import { StealScreen } from "@/components/steal-screen";
 import { AttackIntro, ATTACK_INTRO_MS } from "@/components/attack-intro";
+import { StealIntro, STEAL_INTRO_MS } from "@/components/steal-intro";
 import { MyCity } from "@/components/my-city";
 import { RealmScreen } from "@/components/realm-screen";
 import { TableGame } from "@/components/table-game";
@@ -164,6 +165,8 @@ export function DailyGame() {
   const [pending, setPending] = useState<PendingWalk | null>(null);
   /** The roll whose attack intro has already played. */
   const [introSeen, setIntroSeen] = useState(-1);
+  /** The roll whose 偷嘢 intro has already played. */
+  const [stealSeen, setStealSeen] = useState(-1);
   /** Whether your own town (opened with 🏗️) is showing instead of the board. */
   const [cityOpen, setCityOpen] = useState(false);
   /** Whether the public table (第二層) is showing instead of the board. */
@@ -317,6 +320,14 @@ export function DailyGame() {
     return () => window.clearTimeout(id);
   }, [state.phase, state.rollCount, introSeen]);
 
+  // Landing on 偷嘢 plays the raccoon's sneak-in, then opens the rival's store.
+  useEffect(() => {
+    if (state.phase !== "steal" || stealSeen === state.rollCount) return;
+    const roll = state.rollCount;
+    const id = window.setTimeout(() => setStealSeen(roll), STEAL_INTRO_MS);
+    return () => window.clearTimeout(id);
+  }, [state.phase, state.rollCount, stealSeen]);
+
   function rollPair(): [number, number] {
     return [rollDie(), rollDie()];
   }
@@ -459,7 +470,8 @@ export function DailyGame() {
     );
   }
 
-  if (state.phase === "steal") {
+  const stealIntro = state.phase === "steal" && stealSeen !== state.rollCount;
+  if (state.phase === "steal" && !stealIntro) {
     return <StealScreen state={state} onPick={(index) => dispatch({ type: "steal-pick", index })} onReturn={returnToBoard} />;
   }
 
@@ -668,6 +680,7 @@ export function DailyGame() {
       </footer>
 
       {intro ? <AttackIntro rivalFace={state.rivalFace} /> : null}
+      {stealIntro ? <StealIntro /> : null}
 
       {/* Settings sheet. */}
       {menuOpen ? (
