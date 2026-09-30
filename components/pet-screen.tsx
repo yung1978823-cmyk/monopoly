@@ -38,8 +38,12 @@ export function PetScreen({
           ←
         </button>
         <div className="flex items-center gap-2 text-base font-black tabular-nums" data-testid="pet-store">
-          <span className="rounded-full border-2 border-[#FBD000] bg-white px-2.5 py-0.5 text-[#1E3A8A]">🍖 {state.meat}</span>
-          <span className="rounded-full border-2 border-[#FBD000] bg-white px-2.5 py-0.5 text-[#1E3A8A]">💎 {state.juice}</span>
+          <span className="flex items-center gap-1 rounded-full border-2 border-[#FBD000] bg-white px-2.5 py-0.5 text-[#1E3A8A]">
+            <img src="/art/icons/meat.webp" alt="" className="-my-1 size-6 object-contain" /> {state.meat}
+          </span>
+          <span className="flex items-center gap-1 rounded-full border-2 border-[#FBD000] bg-white px-2.5 py-0.5 text-[#1E3A8A]">
+            <img src="/art/ui/crystal.webp" alt="" className="-my-1 size-6 object-contain" /> {state.juice}
+          </span>
         </div>
       </header>
 
@@ -98,11 +102,11 @@ export function PetScreen({
               <>
                 <p className="text-sm font-black">{t("長大做「{s}」要：", { s: t(STAGE_NAMES[pet.stage + 1]) })}</p>
                 {[
-                  { icon: "🍖", have: state.meat, want: need[0] },
-                  { icon: "💎", have: state.juice, want: need[1] },
+                  { icon: "/art/icons/meat.webp", have: state.meat, want: need[0] },
+                  { icon: "/art/ui/crystal.webp", have: state.juice, want: need[1] },
                 ].map((bar) => (
                   <div key={bar.icon} className="flex items-center gap-2 text-sm font-black tabular-nums">
-                    <span className="w-6">{bar.icon}</span>
+                    <img src={bar.icon} alt="" className="size-6 object-contain" />
                     <span className="h-3 flex-1 overflow-hidden rounded-full bg-[#E3E9F3]">
                       <span className="block h-full rounded-full bg-[#16A34A]" style={{ width: `${Math.min(100, (bar.have / bar.want) * 100)}%` }} />
                     </span>

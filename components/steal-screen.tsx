@@ -8,8 +8,9 @@ import { cn } from "cn";
 import { SmokeCloud } from "@/components/steal-intro";
 import { useEffect, useState } from "react";
 
-/** Pictures for what a crate holds (水晶 and 老鼠夾 wait for Sky's art; a symbol stands in). */
+/** Pictures for what a crate holds (老鼠夾 waits for Sky's art; a symbol stands in). */
 const PIC: Partial<Record<StealKind, string>> = {
+  juice: "/art/ui/crystal.webp",
   meat: "/art/icons/meat.webp",
   coins: "/art/ui/coin.webp",
   dice: "/art/ui/dice.webp",
