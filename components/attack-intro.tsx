@@ -7,15 +7,14 @@ export const ATTACK_INTRO_MS = 2300;
 
 /** Soft white cloud puffs for the cloud wall (x, y in %, size in vmin). */
 const PUFFS: [number, number, number][] = [
-  [8, 8, 46], [30, 2, 42], [4, 34, 50], [26, 30, 46], [10, 62, 52], [32, 58, 44], [6, 90, 50], [28, 86, 46],
-  [48, 16, 36], [46, 48, 40], [50, 78, 38],
+  [-1, -3, 46], [13, 0, 41], [28, 0, 35], [47, -3, 36], [-1, 15, 36], [14, 14, 51], [33, 12, 52], [44, 15, 39], [-3, 22, 40], [19, 22, 44], [33, 24, 44], [45, 21, 38], [1, 37, 40], [17, 37, 39], [34, 39, 38], [49, 38, 50], [2, 48, 52], [13, 49, 48], [29, 50, 35], [49, 52, 44], [3, 61, 47], [17, 63, 42], [35, 66, 43], [49, 59, 47], [1, 79, 49], [14, 74, 46], [28, 75, 37], [45, 71, 48], [-3, 85, 41], [19, 84, 42], [32, 91, 49], [51, 86, 41], [-1, 103, 51], [13, 97, 38], [30, 100, 45], [46, 96, 42],
 ];
 
 /** A wall of clouds: `side` sweeps in from the left or right. `mode` "in" closes it, "out" opens it. */
 export function CloudWall({ side, mode, delay = 0 }: { side: "left" | "right"; mode: "in" | "out"; delay?: number }) {
   return (
     <div
-      className="pointer-events-none absolute inset-y-0 w-[62%]"
+      className="pointer-events-none absolute -inset-y-[10%] w-[66%]"
       style={{
         [side]: 0,
         animation: `${mode === "in" ? "cloud-in" : "cloud-out"}-${side} ${mode === "in" ? 650 : 750}ms ${mode === "in" ? "cubic-bezier(.2,.8,.3,1)" : "cubic-bezier(.6,0,.8,.4)"} ${delay}ms both`,
@@ -31,8 +30,8 @@ export function CloudWall({ side, mode, delay = 0 }: { side: "left" | "right"; m
             width: `${s}vmin`,
             height: `${s}vmin`,
             transform: "translate(-30%, -50%)",
-            background: "radial-gradient(circle at 40% 35%, #ffffff 0%, #f4f7ff 55%, #dfe7f7 100%)",
-            boxShadow: "inset -8px -12px 20px rgba(120,140,190,0.25)",
+            // Soft edges, so the puffs melt into one fluffy wall with a little blue shade underneath.
+            background: "radial-gradient(circle at 45% 38%, #ffffff 0%, #ffffff 42%, #eef3ff 56%, rgba(214,226,250,0.85) 64%, rgba(214,226,250,0) 72%)",
           }}
         />
       ))}

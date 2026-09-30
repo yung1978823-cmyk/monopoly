@@ -263,7 +263,7 @@
   74%, 100% { transform: translate(-50%, -120vh) scale(3.2); opacity: 0; }
 }
 @keyframes white-flash { 0%, 62% { opacity: 0; } 67% { opacity: 0.9; } 78%, 100% { opacity: 0; } }
-@keyframes cloud-in-left { from { transform: translateX(-105%); } to { transform: translateX(0); } }
-@keyframes cloud-in-right { from { transform: translateX(105%); } to { transform: translateX(0); } }
-@keyframes cloud-out-left { from { transform: translateX(0); } to { transform: translateX(-110%); } }
-@keyframes cloud-out-right { from { transform: translateX(0); } to { transform: translateX(110%); } }
+@keyframes cloud-in-left { from { transform: translateX(-160%); } to { transform: translateX(0); } }
+@keyframes cloud-in-right { from { transform: translateX(160%); } to { transform: translateX(0); } }
+@keyframes cloud-out-left { from { transform: translateX(0); } to { transform: translateX(-160%); } }
+@keyframes cloud-out-right { from { transform: translateX(0); } to { transform: translateX(160%); } }
