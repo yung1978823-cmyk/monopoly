@@ -48,8 +48,6 @@ const NO_FLOATS = true;
 const GO_SIZE = 3;
 /** Only left and right: the board keeps this tilt (about 50°). */
 const BOARD_ELEV = 0.9;
-/** How far down the screen the GO stone sits (0 = middle, 1 = bottom edge). */
-const GO_LOW = 0.72;
 /** Looking at the diamond from a corner turns it into a square on screen, which fills a phone better. */
 const HOME_YAW = Math.PI / 4;
 /** How much closer than the whole-board view the camera sits (the edges run off a phone; the camera follows the balloon). */
@@ -616,9 +614,15 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const half = Math.atan(Math.tan((38 * Math.PI) / 360) * Math.min(1, camera.aspect));
     fitDist = Math.max(9, ((R / Math.SQRT2) * 1.45) / Math.tan(half) / ZOOM);
     view.goalDist = view.dist = fitDist;
-    // Between the board's front corner and the bottom bar: GO_LOW of the way down from the middle of the view.
-    const halfH = Math.tan((38 * Math.PI) / 360) * fitDist;
-    goStone.position.set(0, -halfH * GO_LOW - TOP, -fitDist);
+    // Halfway between the board's front corner and the bottom of the screen, worked out for this screen's
+    // shape (a wider phone brings the board closer, so its front corner sits lower).
+    const tanHalf = Math.tan((38 * Math.PI) / 360), halfH = tanHalf * fitDist;
+    const e = BOARD_ELEV, front = R + 0.8;
+    const frontNdc = (-front * Math.sin(e) + TOP * Math.cos(e)) / ((fitDist - front * Math.cos(e) - TOP * Math.sin(e)) * tanHalf);
+    const bottomNdc = -1 + (2 * 24) / h;
+    const goHalf = (GO_SIZE * 0.5 * Math.sin(e) + 0.5) / halfH;
+    const goNdc = Math.min(frontNdc - goHalf - 0.02, Math.max(bottomNdc + goHalf, (frontNdc + bottomNdc) / 2));
+    goStone.position.set(0, goNdc * halfH - TOP, -fitDist);
     goStone.rotation.set(BOARD_ELEV, 0, 0);
   }
   const watch = new ResizeObserver(resize);
@@ -896,7 +900,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     view.yaw += (view.goalYaw - view.yaw) * Math.min(1, dt * 8);
     view.elev += (view.goalElev - view.elev) * Math.min(1, dt * 8);
     view.dist += (view.goalDist - view.dist) * Math.min(1, dt * 6);
-    target.lerp(new T.Vector3(ship.position.x * 0.3, 0, ship.position.z * 0.3), Math.min(1, dt * 1.5));
+    // The board stays put (no drifting after the ship), so the GO stone below it never gets covered.
     const sway = reduceMotion ? 0 : Math.sin(now / 7000) * 0.12 * Math.min(1, Math.max(0, view.idle - 2) / 3);
     const yaw = view.yaw + sway, flat = Math.cos(view.elev) * view.dist;
     camera.position.set(target.x + Math.sin(yaw) * flat, Math.sin(view.elev) * view.dist, target.z + Math.cos(yaw) * flat);

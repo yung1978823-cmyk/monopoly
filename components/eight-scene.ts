@@ -887,9 +887,13 @@ export function createBoardScene(
   function settle(key: string, except: number) {
     for (const seat of sharing(key)) {
       if (seat === except) continue;
-      const token = tokens[seat], from = token.position.clone(), to = place(seat, spots[seat]);
+      const token = tokens[seat], at = spots[seat], from = token.position.clone(), to = place(seat, at);
       if (from.distanceTo(to) < 0.01) continue;
-      void tween(220, (k) => token.position.lerpVectors(from, to, k));
+      // Stop sliding if this seat is moved meanwhile (a swap warps the other seat straight after, and
+      // this slide used to drag it back to the square it had just left).
+      void tween(220, (k) => {
+        if (spots[seat] === at) token.position.lerpVectors(from, to, k);
+      });
     }
   }
   /** When each seat last moved; a little after that, it turns round to face the camera. */
