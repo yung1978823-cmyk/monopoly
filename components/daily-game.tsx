@@ -594,7 +594,7 @@ export function DailyGame() {
           {buildCost === null ? null : (
             <span
               className={cn(
-                "-mt-1.5 rounded-full bg-white px-1.5 text-[11px] font-black leading-4 tabular-nums text-[#1E3A8A] shadow",
+                "relative z-10 -mt-1 rounded-full bg-white px-1.5 text-[11px] font-black leading-4 tabular-nums text-[#1E3A8A] shadow",
                 !buildable && "opacity-60",
               )}
             >
