@@ -7,7 +7,7 @@ import { ELEMENTS, HATCH_ROLLS, HUNGRY_DROP, STAGE_NAMES, UPKEEP, growNeed, petA
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
 
-/** Your dragon: take a dragon egg (its attribute is random), then feed it 🍖 and 🧪 to grow it from 龍蛋 to SSR. */
+/** Your dragon: take a dragon egg (its attribute is random), then feed it 🍖 and 💎 to grow it from 龍蛋 to SSR. */
 export function PetScreen({
   state,
   onPick,
@@ -39,7 +39,7 @@ export function PetScreen({
         </button>
         <div className="flex items-center gap-2 text-base font-black tabular-nums" data-testid="pet-store">
           <span className="rounded-full border-2 border-[#FBD000] bg-white px-2.5 py-0.5 text-[#1E3A8A]">🍖 {state.meat}</span>
-          <span className="rounded-full border-2 border-[#FBD000] bg-white px-2.5 py-0.5 text-[#1E3A8A]">🧪 {state.juice}</span>
+          <span className="rounded-full border-2 border-[#FBD000] bg-white px-2.5 py-0.5 text-[#1E3A8A]">💎 {state.juice}</span>
         </div>
       </header>
 
@@ -77,7 +77,7 @@ export function PetScreen({
             </p>
             {pet.stage > 0 ? (
               <p className="text-xs font-bold text-[#3B5BA9]">
-                {t("每日食 {m} 🍖 同 {j} 🧪（自動由倉庫扣）", { m: UPKEEP[pet.stage][0], j: UPKEEP[pet.stage][1] })}
+                {t("每日食 {m} 🍖 同 {j} 💎（自動由倉庫扣）", { m: UPKEEP[pet.stage][0], j: UPKEEP[pet.stage][1] })}
               </p>
             ) : null}
             {pet.stage === 0 ? (
@@ -99,7 +99,7 @@ export function PetScreen({
                 <p className="text-sm font-black">{t("長大做「{s}」要：", { s: t(STAGE_NAMES[pet.stage + 1]) })}</p>
                 {[
                   { icon: "🍖", have: state.meat, want: need[0] },
-                  { icon: "🧪", have: state.juice, want: need[1] },
+                  { icon: "💎", have: state.juice, want: need[1] },
                 ].map((bar) => (
                   <div key={bar.icon} className="flex items-center gap-2 text-sm font-black tabular-nums">
                     <span className="w-6">{bar.icon}</span>
@@ -126,7 +126,7 @@ export function PetScreen({
                 >
                   {t("🍖 餵大佢！")}
                 </button>
-                <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("🍖 喺棋盤肉格攞；🧪 營養液要去偷嘢格偷返嚟。")}</p>
+                <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("🍖 喺棋盤肉格攞；💎 水晶要去偷嘢格偷返嚟。")}</p>
               </>
             ) : (
               <p className="text-center text-lg font-black text-[#D97706]">{t("👑 已經係 SSR！")}</p>

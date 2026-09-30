@@ -19,7 +19,7 @@ export const LANDMARK_NAMES = ["一號樓", "二號樓", "三號樓", "四號樓
 
 /**
  * The 28 squares (2026-09-27): start 1, coins 9, 🍖 meat 5, chests 3, lucky dice 2, 攻擊 4 (one per
- * side), 🦝 偷嘢 2 (steal 🧪 營養液 from a rival's store), jail 1, black hole 1.
+ * side), 🦝 偷嘢 2 (steal 💎 水晶 from a rival's store), jail 1, black hole 1.
  */
 export const ATTACK_SQUARES = [3, 10, 17, 24] as const;
 export const STEAL_SQUARES = [6, 20] as const;

@@ -43,7 +43,7 @@ export type DiePair = [number, number];
 
 export type Phase = "walk" | "search" | "steal";
 
-/** One of the three crates in a rival's store on 🦝 偷嘢: mostly 🧪 營養液, sometimes 🍖 or coins. */
+/** One of the three crates in a rival's store on 🦝 偷嘢: mostly 💎 水晶, sometimes 🍖 or coins. */
 export type StealBox = { kind: "juice" | "meat" | "coins"; amount: number };
 /** 🍖 each meat square gives. */
 export const MEAT_PER_SQUARE = 2;
@@ -87,7 +87,7 @@ export type GameState = {
   points: number;
   /** Your monster, once picked (null until then). */
   pet: Pet | null;
-  /** Your store of 🍖 肉 and 🧪 營養液 (monster food). */
+  /** Your store of 🍖 肉 and 💎 水晶 (monster food). */
   meat: number;
   juice: number;
   /** The three crates in the rival's store while stealing, and which one you took. */
@@ -323,7 +323,7 @@ function readLevels(value: unknown, length: number): number[] | null {
   return [...value, ...Array.from({ length: length - value.length }, () => 0)];
 }
 
-/** Three crates for 偷嘢 (from the screen's dice); anything malformed falls back to two 🧪 and a 🍖. */
+/** Three crates for 偷嘢 (from the screen's dice); anything malformed falls back to two 💎 and a 🍖. */
 function readBoxes(value: unknown): StealBox[] {
   const fallback: StealBox[] = [{ kind: "juice", amount: 2 }, { kind: "juice", amount: 1 }, { kind: "meat", amount: 3 }];
   if (!Array.isArray(value) || value.length !== 3) return fallback;
@@ -752,7 +752,7 @@ export function reduce(state: GameState, action: Action): GameState {
         meat: state.meat + (box.kind === "meat" ? box.amount : 0),
         points: state.points + (box.kind === "coins" ? box.amount : 0),
       };
-      const what = box.kind === "juice" ? "🧪 營養液" : box.kind === "meat" ? "🍖" : "金幣";
+      const what = box.kind === "juice" ? "💎 水晶" : box.kind === "meat" ? "🍖" : "金幣";
       return pushLog(next, "you", `偷到 ${box.amount} ${what}。`);
     }
     case "pick-pet": {
@@ -767,7 +767,7 @@ export function reduce(state: GameState, action: Action): GameState {
       return pushLog(
         { ...state, pet: grown, meat: state.meat - need[0], juice: state.juice - need[1] },
         "you",
-        `餵咗 ${need[0]} 🍖 同 ${need[1]} 🧪，${petName(pet)}長大做${STAGE_NAMES[grown.stage]}！`,
+        `餵咗 ${need[0]} 🍖 同 ${need[1]} 💎，${petName(pet)}長大做${STAGE_NAMES[grown.stage]}！`,
       );
     }
     case "upgrade": {

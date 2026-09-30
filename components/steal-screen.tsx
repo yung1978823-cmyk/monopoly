@@ -8,10 +8,10 @@ import { cn } from "cn";
 import { SmokeCloud } from "@/components/steal-intro";
 import { useEffect, useState } from "react";
 
-const ICON = { juice: "🧪", meat: "🍖", coins: "🪙" } as const;
+const ICON = { juice: "💎", meat: "🍖", coins: "🪙" } as const;
 const BACK_MS = 2200;
 
-/** 🦝 偷嘢: sneak into a rival's store and take one of three crates — mostly 🧪 營養液. */
+/** 🦝 偷嘢: sneak into a rival's store and take one of three crates — mostly 💎 水晶. */
 export function StealScreen({ state, onPick, onReturn }: { state: GameState; onPick: (index: number) => void; onReturn: () => void }) {
   const { t } = useLang();
   const rival = CHARACTERS[state.rivalFace] ?? CHARACTERS[1];

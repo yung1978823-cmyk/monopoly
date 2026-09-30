@@ -1,7 +1,7 @@
 /**
  * Your dragon: it lives in the middle of your town and flies out to attack other players' land.
  * Everyone gets a dragon egg; its attribute is random — 光 35%, 暗 35%, 混濁 30%. It grows through
- * five grades (龍蛋 → N → R → SR → SSR) on 🍖 肉 (from the board) and 🧪 營養液 (only stolen from
+ * five grades (龍蛋 → N → R → SR → SSR) on 🍖 肉 (from the board) and 💎 水晶 (only stolen from
  * rivals' stores). Each day it eats; go hungry two days running and it drops back a grade. NFT
  * holders' dragons are the legendary series.
  */
@@ -50,7 +50,7 @@ export function rollElement(random: number): number {
 
 export const STAGE_NAMES = ["龍蛋", "N", "R", "SR", "SSR"] as const;
 export const TOP_STAGE = STAGE_NAMES.length - 1;
-/** 🍖 and 🧪 to grow from each stage to the next (the last stage has nowhere to go). The egg needs no
+/** 🍖 and 💎 to grow from each stage to the next (the last stage has nowhere to go). The egg needs no
  * food: it hatches by itself after HATCH_ROLLS rolls. */
 export const STAGE_NEED: readonly (readonly [number, number] | null)[] = [
   null,
@@ -60,7 +60,7 @@ export const STAGE_NEED: readonly (readonly [number, number] | null)[] = [
 ];
 /** Attack at each stage. */
 export const STAGE_ATTACK = [10, 16, 24, 34, 46] as const;
-/** What it eats each day at each stage (🍖, 🧪). An egg eats nothing. */
+/** What it eats each day at each stage (🍖, 💎). An egg eats nothing. */
 export const UPKEEP: readonly (readonly [number, number])[] = [
   [0, 0],
   [3, 0],

@@ -395,7 +395,7 @@ export function DailyGame() {
     const rivalElement = rollElement(Math.random());
     const chest = 3 + Math.floor(Math.random() * 4);
     const rivalNfts = 1 + Math.floor(Math.random() * 5);
-    // A chest holds 🍖 half the time. A rival's store (on 偷嘢): two crates of 🧪, one of 🍖 or coins, shuffled.
+    // A chest holds 🍖 half the time. A rival's store (on 偷嘢): two crates of 💎, one of 🍖 or coins, shuffled.
     const chestMeat = Math.random() < 0.5;
     const stealBoxes: StealBox[] = [
       { kind: "juice", amount: 1 + Math.floor(Math.random() * 3) },

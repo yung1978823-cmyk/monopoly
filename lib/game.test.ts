@@ -424,7 +424,7 @@ describe("daily board", () => {
     assert.equal(back.stealBoxes, null);
   });
 
-  it("raises a monster: pick one, feed it 🍖 and 🧪 to grow, and it attacks harder", () => {
+  it("raises a monster: pick one, feed it 🍖 and 💎 to grow, and it attacks harder", () => {
     let state = start();
     assert.equal(reduce(state, { type: "grow-pet" }), state, "no monster yet");
     state = reduce(state, { type: "pick-pet", element: 2 });
@@ -443,7 +443,7 @@ describe("daily board", () => {
     assert.match(rolling.log[0]?.text ?? "", /孵化咗！係一隻混濁龍/);
     state = { ...state, pet: { element: 2, stage: 1, hungry: 0, rolls: 60 }, meat: 105, juice: 13 };
     state = reduce(state, { type: "grow-pet" });
-    assert.equal(state.pet?.stage, 2, "N to R on 100 🍖 and 12 🧪");
+    assert.equal(state.pet?.stage, 2, "N to R on 100 🍖 and 12 💎");
     assert.equal(state.meat, 5);
     assert.equal(state.juice, 1);
     assert.equal(attackPower({ ...state, pet: { element: 2, stage: 1, hungry: 0, rolls: 60 } }), 16);
@@ -474,7 +474,7 @@ describe("daily board", () => {
   it("feeds the monster each day and drops it a stage after two hungry days", () => {
     const pet = { element: 0, stage: 3, hungry: 0, rolls: 0 };
     const fed = reduce({ ...start(), pet, meat: 20, juice: 5 }, { type: "tick", now: NOW, dayKey: "2026-09-25" });
-    assert.deepEqual([fed.meat, fed.juice, fed.pet?.stage], [12, 3, 3], "成年 eats 8 🍖 and 2 🧪");
+    assert.deepEqual([fed.meat, fed.juice, fed.pet?.stage], [12, 3, 3], "成年 eats 8 🍖 and 2 💎");
     const hungry = reduce({ ...start(), pet, meat: 0, juice: 0 }, { type: "tick", now: NOW, dayKey: "2026-09-25" });
     assert.deepEqual([hungry.pet?.stage, hungry.pet?.hungry], [3, 1]);
     const dropped = reduce(hungry, { type: "tick", now: NOW, dayKey: "2026-09-26" });
