@@ -521,7 +521,7 @@ export function DailyGame() {
         onEggTap={() => !pending?.running && setPetOpen(true)}
       />
       {/* What you got on the square you stopped on: its picture big in the middle, then what it paid (Sky: the words were too small). */}
-      {pending?.committed && state.landing && state.landing.kind !== "attack" && popGone !== state.rollCount ? (
+      {pending?.committed && state.landing && state.landing.kind !== "attack" && state.landing.kind !== "steal" && popGone !== state.rollCount ? (
         <div
           key={state.rollCount}
           className="pointer-events-none absolute inset-x-0 top-[26%] z-40 flex flex-col items-center opacity-75 animate-[pop_0.35s_ease-out,fade-out_0.6s_ease-in_2.6s_forwards]"

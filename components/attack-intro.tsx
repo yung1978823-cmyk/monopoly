@@ -10,6 +10,9 @@ const PUFFS: [number, number, number][] = [
   [-1, -3, 46], [13, 0, 41], [28, 0, 35], [47, -3, 36], [-1, 15, 36], [14, 14, 51], [33, 12, 52], [44, 15, 39], [-3, 22, 40], [19, 22, 44], [33, 24, 44], [45, 21, 38], [1, 37, 40], [17, 37, 39], [34, 39, 38], [49, 38, 50], [2, 48, 52], [13, 49, 48], [29, 50, 35], [49, 52, 44], [3, 61, 47], [17, 63, 42], [35, 66, 43], [49, 59, 47], [1, 79, 49], [14, 74, 46], [28, 75, 37], [45, 71, 48], [-3, 85, 41], [19, 84, 42], [32, 91, 49], [51, 86, 41], [-1, 103, 51], [13, 97, 38], [30, 100, 45], [46, 96, 42],
 ];
 
+/** Pale mist colours for the cloud wall. */
+const MIST = ["rgba(255,255,255,0.8)", "rgba(255,226,246,0.8)", "rgba(228,222,255,0.8)", "rgba(220,238,255,0.8)"];
+
 /** A wall of clouds: `side` sweeps in from the left or right. `mode` "in" closes it, "out" opens it. */
 export function CloudWall({ side, mode, delay = 0 }: { side: "left" | "right"; mode: "in" | "out"; delay?: number }) {
   return (
@@ -30,8 +33,9 @@ export function CloudWall({ side, mode, delay = 0 }: { side: "left" | "right"; m
             width: `${s}vmin`,
             height: `${s}vmin`,
             transform: "translate(-30%, -50%)",
-            // Soft edges, so the puffs melt into one fluffy wall with a little blue shade underneath.
-            background: "radial-gradient(circle at 45% 38%, #ffffff 0%, #ffffff 42%, #eef3ff 56%, rgba(214,226,250,0.85) 64%, rgba(214,226,250,0) 72%)",
+            // Dreamy mist (Sky 2026-09-30: not so solid): see-through, blurred, with pale pink and lilac tints.
+            background: `radial-gradient(circle at 45% 40%, ${MIST[i % MIST.length]} 0%, ${MIST[i % MIST.length].replace("0.8)", "0.45)")} 45%, rgba(255,255,255,0) 70%)`,
+            filter: "blur(6px)",
           }}
         />
       ))}
@@ -41,10 +45,10 @@ export function CloudWall({ side, mode, delay = 0 }: { side: "left" | "right"; m
 
 /**
  * Landing on 攻擊 (Sky 2026-09-30: a surprise, not a flat pop-up): the board shakes under red siren light, a target
- * lock closes on the rival's face, your dragon rockets up past the camera, a white flash, then a wall of clouds
+ * lock closes on the rival's face, a soft flash, then a dreamy wall of mist
  * closes over everything — and the rival's island opens behind the clouds (the attack screen parts them).
  */
-export function AttackIntro({ rivalFace, dragonArt = "/art/ui/pet.webp" }: { rivalFace: number; dragonArt?: string }) {
+export function AttackIntro({ rivalFace }: { rivalFace: number }) {
   const rival = CHARACTERS[rivalFace] ?? CHARACTERS[1];
   return (
     <div className="pointer-events-none absolute inset-0 z-50 overflow-hidden" data-testid="attack-intro">
@@ -72,15 +76,7 @@ export function AttackIntro({ rivalFace, dragonArt = "/art/ui/pet.webp" }: { riv
         </div>
       </div>
 
-      {/* Your dragon rockets up from below and past the camera, with a fiery trail. */}
-      <div className="absolute bottom-0 left-1/2 animate-[dragon-rocket_2300ms_both]">
-        <div className="relative">
-          <span className="absolute left-1/2 top-[70%] h-[40vh] w-16 -translate-x-1/2 rounded-full bg-gradient-to-b from-[#ffd34d] via-[#ff7a1a]/80 to-transparent blur-md" />
-          <img src={dragonArt} alt="" draggable={false} className="relative size-40 object-contain drop-shadow-[0_0_24px_rgba(255,160,40,0.9)]" />
-        </div>
-      </div>
-
-      {/* White flash as it passes. */}
+      {/* A soft flash as the lock fires. */}
       <div className="absolute inset-0 animate-[white-flash_2300ms_both] bg-white opacity-0" />
 
       {/* The cloud wall closes. */}
