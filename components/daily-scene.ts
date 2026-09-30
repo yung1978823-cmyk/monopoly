@@ -45,7 +45,7 @@ const TOP = 0.34;
 /** Words floating up over the hero are switched off (Sky). */
 const NO_FLOATS = true;
 /** The GO stone is twice the size of a square's stone. */
-const GO_SIZE = 2.4;
+const GO_SIZE = 3;
 /** Only left and right: the board keeps this tilt (about 50°). */
 const BOARD_ELEV = 0.9;
 /** How far down the screen the GO stone sits (0 = middle, 1 = bottom edge). */

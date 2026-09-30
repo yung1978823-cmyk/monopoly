@@ -176,6 +176,34 @@ export const DUBAI: Theme = {
     },
   },
 };
+/** 維多利亞港: the sixth page, at night, with the Star Ferry (the gull is Greece's). */
+export const VICTORIA: Theme = {
+  id: "victoria",
+  name: "維多利亞港",
+  style: "art",
+  ground: 0xe6e1d8,
+  rock: 0x8f8a84,
+  wall: 0xefe6d6,
+  roof: 0x2f6b4f,
+  trim: 0xff5fa2,
+  sky: "#3a3a9a",
+  art: {
+    dir: "/art/city/victoria",
+    names: ["tong", "tram", "pier", "tower", "wheel"],
+    boatV: -0.2,
+    boatAspect: 320 / 143,
+    gullAspect: 256 / 192,
+    boatSize: 0.13,
+    sizes: {
+      tong: [[216, 178], [171, 288], [188, 398], [221, 454], [236, 560]],
+      tram: [[126, 78], [169, 219], [190, 233], [256, 254], [300, 363]],
+      pier: [[105, 115], [139, 140], [180, 170], [227, 227], [300, 280]],
+      tower: [[201, 185], [171, 223], [174, 353], [200, 492], [198, 560]],
+      wheel: [[138, 92], [161, 186], [175, 296], [223, 355], [300, 493]],
+    },
+  },
+};
+
 export const THEMES: readonly Theme[] = [
   // Sky (2026-09-28): only the seaside pages — 工地小鎮, 清朝古鎮 and 沙漠綠洲 are gone. More follow.
   GREECE,
@@ -183,6 +211,7 @@ export const THEMES: readonly Theme[] = [
   HAWAII,
   JIANGNAN,
   DUBAI,
+  VICTORIA,
 ];
 
 /** The page asked for in a preview link (?city=greece, ?city=venice …) as a page number, or null. Browser only. */
