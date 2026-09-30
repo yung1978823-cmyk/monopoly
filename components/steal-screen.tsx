@@ -105,6 +105,8 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
         ))}
       </div>
 
+      <p className="mt-2 text-sm font-bold text-white/80">{done ? (trapped ? t("中咗老鼠夾！") : t("得手！快啲走！")) : t("開三個箱，小心老鼠夾")}</p>
+
       {/* Six crates on two shelves. */}
       <div className="mt-6 grid w-full grid-cols-3 gap-x-3 gap-y-8 px-1">
         {boxes.map((box, i) => {
