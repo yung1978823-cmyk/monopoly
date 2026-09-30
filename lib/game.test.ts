@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { TILES, TILE_POSITIONS } from "./board";
 import {
+  JACKPOT,
   STARTING_DICE,
   attackPower,
   canUpgrade,
@@ -409,19 +410,51 @@ describe("daily board", () => {
     assert.equal(next.dayKey, "2026-09-25");
   });
 
-  it("steals from a rival's store on 偷嘢: pick one of three crates", () => {
-    const boxes = [{ kind: "juice", amount: 3 }, { kind: "meat", amount: 4 }, { kind: "coins", amount: 5 }] as const;
+  it("steals from a rival's store on 偷嘢: open three of six crates", () => {
+    const boxes = [
+      { kind: "juice", amount: 3 },
+      { kind: "meat", amount: 4 },
+      { kind: "coins", amount: 5 },
+      { kind: "dice", amount: 1 },
+      { kind: "jackpot", amount: 1 },
+      { kind: "trap", amount: 1 },
+    ] as const;
     const state = reduce({ ...start(), dice: 2 }, { type: "move", faces: [3, 3], stealBoxes: [...boxes], now: NOW });
     assert.equal(TILES[6]?.kind, "steal");
     assert.equal(state.phase, "steal");
     assert.equal(reduce(state, { type: "move", faces: [1, 1], now: NOW }), state, "no walking mid-theft");
-    const took = reduce(state, { type: "steal-pick", index: 0 });
+    let took = reduce(state, { type: "steal-pick", index: 0 });
     assert.equal(took.juice, 3);
-    assert.equal(took.stealPicked, 0);
-    assert.equal(reduce(took, { type: "steal-pick", index: 1 }), took, "one crate only");
+    assert.equal(reduce(took, { type: "steal-pick", index: 0 }), took, "each crate once");
+    took = reduce(took, { type: "steal-pick", index: 3 });
+    assert.equal(took.dice, state.dice + 1);
+    took = reduce(took, { type: "steal-pick", index: 4 });
+    assert.equal(took.points, state.points + JACKPOT.coins);
+    assert.equal(took.juice, 3 + JACKPOT.juice);
+    assert.deepEqual(took.stealOpened, [0, 3, 4]);
+    assert.equal(reduce(took, { type: "steal-pick", index: 1 }), took, "three crates only");
+
+    const trapped = reduce(reduce(state, { type: "steal-pick", index: 5 }), { type: "steal-pick", index: 0 });
+    assert.deepEqual(trapped.stealOpened, [5], "the trap ends the raid");
+
     const back = reduce(took, { type: "return-walk" });
     assert.equal(back.phase, "walk");
     assert.equal(back.stealBoxes, null);
+  });
+
+  it("pays three of a kind twice on 偷嘢", () => {
+    const boxes = [
+      { kind: "meat", amount: 3 },
+      { kind: "meat", amount: 3 },
+      { kind: "meat", amount: 3 },
+      { kind: "juice", amount: 1 },
+      { kind: "coins", amount: 6 },
+      { kind: "trap", amount: 1 },
+    ] as const;
+    let state = reduce({ ...start(), dice: 2 }, { type: "move", faces: [3, 3], stealBoxes: [...boxes], now: NOW });
+    const meat = state.meat;
+    for (const index of [0, 1, 2]) state = reduce(state, { type: "steal-pick", index });
+    assert.equal(state.meat, meat + 18, "3 + 3 + 3, then all of it again");
   });
 
   it("raises a monster: pick one, feed it 🍖 and 💎 to grow, and it attacks harder", () => {

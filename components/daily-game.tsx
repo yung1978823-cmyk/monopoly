@@ -395,13 +395,15 @@ export function DailyGame() {
     const rivalElement = rollElement(Math.random());
     const chest = 3 + Math.floor(Math.random() * 4);
     const rivalNfts = 1 + Math.floor(Math.random() * 5);
-    // A chest holds 🍖 half the time. A rival's store (on 偷嘢): two crates of 💎, one of 🍖 or coins, shuffled.
+    // A chest holds 🍖 half the time.
     const chestMeat = Math.random() < 0.5;
-    const stealBoxes: StealBox[] = [
-      { kind: "juice", amount: 1 + Math.floor(Math.random() * 3) },
-      { kind: "juice", amount: 1 + Math.floor(Math.random() * 3) },
-      Math.random() < 0.5 ? { kind: "meat", amount: 3 } : { kind: "coins", amount: 4 },
-    ].sort(() => Math.random() - 0.5) as StealBox[];
+    // A rival's store (偷嘢): six crates — one 老鼠夾, one rarer prize (a bag of coins or a die), and 💎 and 🍖;
+    // now and then one of those is the 大寶箱 jackpot. Shuffled.
+    const common = (): StealBox => (Math.random() < 0.6 ? { kind: "juice", amount: 1 + Math.floor(Math.random() * 3) } : { kind: "meat", amount: 3 });
+    const commons = [common(), common(), common(), common()];
+    if (Math.random() < 0.15) commons[0] = { kind: "jackpot", amount: 1 };
+    const rare: StealBox = Math.random() < 0.6 ? { kind: "coins", amount: 6 + Math.floor(Math.random() * 5) } : { kind: "dice", amount: 1 };
+    const stealBoxes: StealBox[] = [{ kind: "trap", amount: 1 } as StealBox, rare, ...commons].sort(() => Math.random() - 0.5);
     setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalFace, rivalElement, rivalNfts, chest, chestMeat, stealBoxes, tornado, running: true, committed: false });
   }
 
