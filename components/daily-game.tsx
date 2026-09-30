@@ -561,24 +561,26 @@ export function DailyGame() {
         <button
           type="button"
           onClick={() => !pending?.running && setPetOpen(true)}
-          className={cn(
-            "relative flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#16A34A] text-xl text-white shadow-md",
-            petReady && "animate-[glow_1.8s_ease-in-out_infinite]",
-          )}
+          className="relative flex size-12 shrink-0 cursor-pointer items-center justify-center active:scale-90"
           aria-label={t("你隻怪獸")}
           data-testid="open-pet"
         >
-          🐾
+          <img
+            src="/art/ui/pet.webp"
+            alt=""
+            draggable={false}
+            className={cn("size-12 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]", petReady && "animate-[icon-glow_1.8s_ease-in-out_infinite]")}
+          />
           {state.pet && state.pet.hungry > 0 ? <span className="absolute -right-1 -top-1 text-sm">❗</span> : null}
         </button>
         <button
           type="button"
           onClick={() => !pending?.running && setTableOpen(true)}
-          className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-[#FBD000] bg-[#7C3AED] text-xl text-white shadow-md"
+          className="flex size-12 shrink-0 cursor-pointer items-center justify-center active:scale-90"
           aria-label={t("公開桌")}
           data-testid="open-table"
         >
-          👥
+          <img src="/art/ui/table.webp" alt="" draggable={false} className="size-11 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
         </button>
         <button
           type="button"
