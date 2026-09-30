@@ -75,6 +75,8 @@ export type Landing = {
   /** 🍖 gained. */
   meat: number;
   passedStart: boolean;
+  /** 龍捲風: the walk stopped on the tornado square and you were blown on to this square (what it did is above). */
+  tornado?: boolean;
 };
 
 export type GameState = {
@@ -151,6 +153,8 @@ export type Action =
       chestMeat?: boolean;
       /** The three crates found on 🦝 偷嘢. */
       stealBoxes?: StealBox[];
+      /** Where the 龍捲風 blows you if the walk stops on it (any other square; defaults to 3 back). */
+      tornado?: number;
       now: number;
     }
   | { type: "weapon"; target?: number | null; /** A random number in [0, 1) deciding the hit. */ roll?: number }
@@ -483,7 +487,6 @@ function landOn(
   let meat = kind === "meat" ? MEAT_PER_SQUARE : 0;
   if (kind === "chest" && chestMeat) meat += chest;
   else if (kind === "chest") change += chest;
-  if (kind === "jail") change += POINTS.jail;
   if (kind === "hole") change -= holeLoss(points + change);
   if (kind === "lucky" && dice < DICE_CAP) diceGained = 1;
   // Penalties sting a little but never push points below zero.
@@ -583,7 +586,19 @@ export function reduce(state: GameState, action: Action): GameState {
       const spent = spendDice(state.dice, state.lastRefillAt, action.now, 1);
       if (!spent) return state;
       const chest = inRange(action.chest, CHEST_MIN, CHEST_MAX) ? action.chest : CHEST_DEFAULT;
-      const moved = landOn(state.position, steps, state.points, spent.dice, chest, action.chestMeat === true);
+      let moved = landOn(state.position, steps, state.points, spent.dice, chest, action.chestMeat === true);
+      // 龍捲風 (Sky 2026-09-30, instead of jail): it picks you up and drops you on another square, which then
+      // does its thing — a surprise, good or bad. The start bonus from the walk itself still counts.
+      if (moved.landing.kind === "jail") {
+        const to = inRange(action.tornado, 0, TILES.length - 1) && action.tornado !== moved.position
+          ? action.tornado
+          : (moved.position - 3 + TILES.length) % TILES.length;
+        const blown = landOn(to, 0, moved.points, moved.dice, chest, action.chestMeat === true);
+        moved = {
+          ...blown,
+          landing: { ...blown.landing, points: blown.points - state.points, passedStart: moved.landing.passedStart, tornado: true },
+        };
+      }
       const stealing = TILES[moved.position]?.kind === "steal";
       const stealBoxes = stealing ? readBoxes(action.stealBoxes) : null;
       const tile = TILES[moved.position];

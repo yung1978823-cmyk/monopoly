@@ -20,6 +20,7 @@ export function DailyBoard({
   actor,
   pet = null,
   onEggTap,
+  blown,
 }: {
   position: number;
   stopIndex: number | null;
@@ -35,6 +36,8 @@ export function DailyBoard({
   /** Your dragon on the middle stone. */
   pet?: PetLook | null;
   onEggTap?: () => void;
+  /** The next move is the 龍捲風 carrying you (not a walk). */
+  blown?: boolean;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<DailyScene | null>(null);
@@ -65,8 +68,11 @@ export function DailyBoard({
     };
   }, []);
 
+  const blownRef = useRef(false);
+  blownRef.current = blown === true;
   useEffect(() => {
-    sceneRef.current?.moveTo(position);
+    if (blownRef.current) sceneRef.current?.blowTo(position);
+    else sceneRef.current?.moveTo(position);
   }, [position]);
   useEffect(() => {
     sceneRef.current?.highlight(stopIndex);

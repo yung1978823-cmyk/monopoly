@@ -39,7 +39,7 @@ export const TILE_INFO: Record<TileKind, { name: string; icon: string; art?: str
   lucky: { name: "幸運骰", icon: "🎲", art: "/art/tiles/lucky.png" },
   attack: { name: "攻擊", icon: "🔨", art: "/art/tiles/attack.png" },
   steal: { name: "偷嘢", icon: "🦝" },
-  jail: { name: "監獄", icon: "🚔", art: "/art/tiles/jail.png" },
+  jail: { name: "龍捲風", icon: "🌪️", art: "/art/tiles/jail.png" },
   hole: { name: "黑洞", icon: "🕳️" },
 };
 

@@ -352,12 +352,25 @@ describe("daily board", () => {
     assert.equal(lucky.landing?.dice, 1);
   });
 
-  it("keeps jail and tax mild and never below zero", () => {
-    const jail = reduce({ ...start(), points: 10, dice: 1 }, { type: "move", faces: [3, 4], now: NOW });
-    assert.equal(jail.position, 7);
-    assert.equal(jail.points, 8);
-    assert.equal(jail.dice, 0, "no extra dice lost");
-    assert.equal(jail.phase, "walk");
+  it("the tornado blows you to another square, which then does its thing", () => {
+    const back = reduce({ ...start(), points: 10, dice: 1 }, { type: "move", faces: [3, 4], chest: 5, now: NOW });
+    assert.equal(back.position, 4, "three back by default");
+    assert.equal(back.landing?.tornado, true);
+    assert.equal(back.landing?.kind, "chest");
+    assert.equal(back.points, 15);
+    assert.equal(back.dice, 0);
+
+    const toCoin = reduce({ ...start(), points: 10, dice: 1 }, { type: "move", faces: [3, 4], tornado: 13, now: NOW });
+    assert.equal(toCoin.position, 13);
+    assert.equal(toCoin.landing?.kind, "coin");
+    assert.equal(toCoin.phase, "walk");
+
+    const toFight = reduce({ ...start(), dice: 1 }, { type: "move", faces: [3, 4], tornado: 10, enemyDice: [2, 2], now: NOW });
+    assert.equal(toFight.position, 10);
+    assert.equal(toFight.phase, "search");
+  });
+
+  it("keeps tax mild and never below zero", () => {
 
     const tax = reduce({ ...start(), position: 15, points: 1, dice: 1 }, { type: "move", faces: [3, 3], now: NOW });
     assert.equal(tax.position, 21);

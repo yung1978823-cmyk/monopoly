@@ -22,6 +22,8 @@ export type DailyScene = {
   setReady(ready: boolean): void;
   /** Your character throws up its arms (a good landing). */
   cheer(): void;
+  /** 龍捲風: a twister lifts your character off its square, spinning, and carries it to square `index`. */
+  blowTo(index: number): void;
   /** Throw two small dice onto the middle stone; they tumble and settle showing these faces. */
   throwDice(faces: [number, number]): void;
   /** Fade the dice away (the walk is over). */
@@ -831,6 +833,76 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     if (pet.zzz.visible) pet.zzz.position.x = Math.sin(now / 600) * 0.08;
   }
 
+  // ---------- 龍捲風 (Sky 2026-09-30): a spinning funnel that carries you off ----------
+  const BLOW_LIFT = 700, BLOW_FLY = 1000, BLOW_END = BLOW_LIFT + BLOW_FLY + 400;
+  const blow = { at: -1e9, from: new T.Vector3(), to: new T.Vector3() };
+  const twister = new T.Group();
+  {
+    const c = document.createElement("canvas");
+    c.width = 256;
+    c.height = 128;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "rgba(210,222,240,0.35)";
+    x.fillRect(0, 0, 256, 128);
+    x.strokeStyle = "rgba(255,255,255,0.9)";
+    x.lineCap = "round";
+    for (let k = 0; k < 9; k++) {
+      x.lineWidth = 3 + (k % 3) * 2;
+      x.beginPath();
+      const y0 = 8 + k * 14;
+      x.moveTo(0, y0);
+      x.bezierCurveTo(80, y0 - 18, 170, y0 + 18, 256, y0);
+      x.stroke();
+    }
+    const tex = new T.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = T.RepeatWrapping;
+    tex.repeat.set(2, 1);
+    const mat = new T.MeshBasicMaterial({ map: tex, color: 0xdfe8f7, transparent: true, opacity: 0, depthWrite: false, side: T.DoubleSide });
+    const funnel = new T.Mesh(new T.CylinderGeometry(1.25, 0.18, 3.2, 28, 6, true), mat);
+    funnel.position.y = 1.6;
+    twister.add(funnel);
+    const inner = new T.Mesh(new T.CylinderGeometry(0.9, 0.12, 2.8, 20, 4, true), mat.clone());
+    inner.position.y = 1.45;
+    twister.add(inner);
+    twister.userData = { funnel, inner, tex };
+    twister.visible = false;
+    scene.add(twister);
+  }
+  function blowStep(now: number): number {
+    // Returns how high your character is lifted (0 when no twister is about).
+    const e = now - blow.at;
+    if (e < 0 || e > BLOW_END) {
+      twister.visible = false;
+      return 0;
+    }
+    const { funnel, inner, tex } = twister.userData;
+    twister.visible = true;
+    const fadeIn = Math.min(1, e / 250), fadeOut = e > BLOW_LIFT + BLOW_FLY ? 1 - (e - BLOW_LIFT - BLOW_FLY) / 400 : 1;
+    funnel.material.opacity = 0.75 * fadeIn * fadeOut;
+    inner.material.opacity = 0.55 * fadeIn * fadeOut;
+    funnel.rotation.y -= 0.35;
+    inner.rotation.y += 0.5;
+    tex.offset.x -= 0.03;
+    twister.scale.setScalar(0.4 + 0.6 * fadeIn);
+    let lift = 0;
+    if (e < BLOW_LIFT) {
+      ship.position.copy(blow.from);
+      lift = (e / BLOW_LIFT) * 1.4;
+    } else if (e < BLOW_LIFT + BLOW_FLY) {
+      const k = (e - BLOW_LIFT) / BLOW_FLY, ease = k * k * (3 - 2 * k);
+      ship.position.lerpVectors(blow.from, blow.to, ease);
+      lift = 1.4 + Math.sin(k * Math.PI) * 1.6 - k * 1.4;
+    } else {
+      ship.position.copy(blow.to);
+      lift = 0;
+    }
+    twister.position.set(ship.position.x, TOP, ship.position.z);
+    if (!heroState.ready) ship.position.y += lift;
+    // The character twirls while it's up in the air.
+    if (heroState.ready && lift > 0.05) hero.rotation.y += 0.45;
+    return lift;
+  }
+
   function frame(now: number) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
@@ -854,7 +926,11 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     }
     islands.forEach((isle, i) => (isle.glow.material.opacity = i === lit ? 0.95 : 0.4));
     // The ship glides to its square with a little hop, hovers, and points the way it's going.
-    if (shipAt.t < 1) {
+    const blowing = now - blow.at >= 0 && now - blow.at <= BLOW_LIFT + BLOW_FLY;
+    const lift = blowStep(now);
+    if (blowing) {
+      // The twister has the character.
+    } else if (shipAt.t < 1) {
       shipAt.t = Math.min(1, shipAt.t + dt / 0.22);
       ship.position.lerpVectors(shipAt.from, shipAt.to, shipAt.t);
       ship.position.y += Math.sin(shipAt.t * Math.PI) * 0.3;
@@ -874,14 +950,14 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       const k = shipAt.t;
       const fromIsle = islands[shipAt.fromIndex], toIsle = islands[shipAt.index];
       const groundY = (fromIsle?.group.position.y ?? 0) * (1 - k) + (toIsle?.group.position.y ?? 0) * k;
-      hero.position.set(ship.position.x, TOP + groundY + Math.sin(k * Math.PI) * 0.12, ship.position.z);
+      hero.position.set(ship.position.x, TOP + groundY + Math.sin(k * Math.PI) * 0.12 + lift, ship.position.z);
       heroState.mixer.update(dt);
       const moving = k < 1;
       if (moving) {
         heroState.still = 0;
         if (!heroState.cheering) heroState.walk.paused = false;
         const want = Math.atan2(shipAt.to.x - shipAt.from.x, shipAt.to.z - shipAt.from.z);
-        hero.rotation.y = turnToward(hero.rotation.y, want, dt * 14);
+        if (!blowing) hero.rotation.y = turnToward(hero.rotation.y, want, dt * 14);
       } else {
         heroState.still += dt;
         if (heroState.still > 0.25 && !heroState.cheering) {
@@ -960,6 +1036,17 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   frameId = requestAnimationFrame(frame);
 
   return {
+    blowTo(index) {
+      if (index === shipAt.index) return;
+      blow.at = performance.now();
+      blow.from.copy(ship.position);
+      blow.to.copy(spotOf(index));
+      shipAt.fromIndex = shipAt.index;
+      shipAt.index = index;
+      shipAt.from.copy(blow.to);
+      shipAt.to.copy(blow.to);
+      shipAt.t = 1;
+    },
     moveTo(index) {
       if (index === shipAt.index) return;
       shipAt.fromIndex = shipAt.index;

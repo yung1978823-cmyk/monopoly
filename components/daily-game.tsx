@@ -54,6 +54,8 @@ type PendingWalk = {
   rivalNfts: number;
   chest: number;
   chestMeat: boolean;
+  /** Where the 龍捲風 blows you, if the walk stops on it. */
+  tornado: number | null;
   stealBoxes: StealBox[];
   running: boolean;
   committed: boolean;
@@ -308,7 +310,7 @@ export function DailyGame() {
   useEffect(() => {
     if (!pending?.committed || !state.landing) return;
     const roll = state.rollCount;
-    const timer = window.setTimeout(() => setPopGone(roll), 3300);
+    const timer = window.setTimeout(() => setPopGone(roll), state.landing.tornado ? 5100 : 3300);
     return () => window.clearTimeout(timer);
   }, [pending?.committed, state.landing, state.rollCount]);
 
@@ -364,6 +366,7 @@ export function DailyGame() {
         chest: move.chest,
         chestMeat: move.chestMeat,
         stealBoxes: move.stealBoxes,
+        tornado: move.tornado ?? undefined,
         now: Date.now(),
       });
     }, STEP_MS);
@@ -377,7 +380,10 @@ export function DailyGame() {
     const faces = rollPair();
     const steps = faces[0] + faces[1];
     const from = state.position;
-    const nextIndex = (from + steps) % TILES.length;
+    const stopIndex = (from + steps) % TILES.length;
+    // 龍捲風: stopping on it blows you on to any other square (decided now, so a fight there gets its dice).
+    const tornado = TILES[stopIndex]?.kind === "jail" ? (stopIndex + 1 + Math.floor(Math.random() * (TILES.length - 1))) % TILES.length : null;
+    const nextIndex = tornado ?? stopIndex;
     const enemyDice = TILES[nextIndex]?.kind === "attack" ? rollPair() : null;
     // Each 攻擊 square meets another character on a page near yours (one before, the same or one
     // after), with five buildings at random levels — never all five at 5, as that page would be finished.
@@ -396,7 +402,7 @@ export function DailyGame() {
       { kind: "juice", amount: 1 + Math.floor(Math.random() * 3) },
       Math.random() < 0.5 ? { kind: "meat", amount: 3 } : { kind: "coins", amount: 4 },
     ].sort(() => Math.random() - 0.5) as StealBox[];
-    setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalFace, rivalElement, rivalNfts, chest, chestMeat, stealBoxes, running: true, committed: false });
+    setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalFace, rivalElement, rivalNfts, chest, chestMeat, stealBoxes, tornado, running: true, committed: false });
   }
 
   function onBuild() {
@@ -419,7 +425,9 @@ export function DailyGame() {
   const weapon = totalLevels(state.levels);
   const power = attackPower(state);
   const shownStep = pending?.step ?? 0;
-  const tokenIndex = pending ? (pending.from + shownStep) % TILES.length : state.position;
+  /** The walk stopped on 龍捲風 and it has blown you on: the board flies you there inside the twister. */
+  const blown = !!pending?.committed && state.landing?.tornado === true;
+  const tokenIndex = pending && !blown ? (pending.from + shownStep) % TILES.length : state.position;
   const arrived = pending !== null && shownStep > 0;
   const countdown = booted && now > 0 ? msUntilNextDie(state.dice, state.lastRefillAt, now) : null;
   const buildCost = cheapestUpgrade(state);
@@ -495,6 +503,7 @@ export function DailyGame() {
         key={pick}
         actor={CHARACTERS[pick]?.actor}
         position={tokenIndex}
+        blown={blown}
         stopIndex={arrived ? tokenIndex : null}
         float={pending?.committed ? floatOf(burstOf(state), t) : null}
         recentreKey={goPresses}
@@ -516,6 +525,8 @@ export function DailyGame() {
         <div
           key={state.rollCount}
           className="pointer-events-none absolute inset-x-0 top-[26%] z-40 flex flex-col items-center opacity-75 animate-[pop_0.35s_ease-out,fade-out_0.6s_ease-in_2.6s_forwards]"
+          // After a 龍捲風 ride, wait until you've been dropped on the new square.
+          style={state.landing.tornado ? { animation: "pop 0.35s ease-out 1.8s both, fade-out 0.6s ease-in 4.4s forwards" } : undefined}
           data-testid="landing-pop"
         >
           <img src={`/art/icons/${state.landing.kind}.webp`} alt="" draggable={false} className="size-[38cqw] max-h-40 max-w-40 object-contain drop-shadow-[0_6px_12px_rgba(0,0,0,0.45)]" />
