@@ -541,28 +541,63 @@ export function DailyGame() {
       {/* First time: point at the GO stone in the middle. */}
       {state.rollCount === 0 && !pending ? <TipHand className="left-1/2 top-[42%] z-20 -translate-x-1/2" /> : null}
       {/* Top bar: dice and points only; everything else lives behind the menu. */}
-      <header className="relative z-30 flex items-center justify-between gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
-        <div className="relative">
-          <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-[#1E3A8A] py-1 pl-2 pr-3 text-lg font-black tabular-nums text-white shadow-md" data-testid="dice-count">
-            <img src="/art/ui/dice.webp" alt="" draggable={false} className="-my-2 -ml-3 size-10 object-contain drop-shadow" />
-            <span key={state.dice} className="inline-block animate-[bump_0.35s_ease-out]">{state.dice}</span>
+      <header className="relative z-30 flex items-start justify-between gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
+        {/* Left: coins on top, dice under them, the clock to the next free die under that (Sky 2026-09-30). */}
+        <div className="flex shrink-0 flex-col items-start gap-2">
+          <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-white py-0.5 pl-2 pr-3 text-base font-black tabular-nums text-[#1E3A8A] shadow-md" data-testid="hud-points">
+            <img src="/art/ui/coin.webp" alt={t("金幣")} draggable={false} className="-my-2 -ml-3 size-9 object-contain drop-shadow" />
+            <span key={state.points} className="inline-block animate-[bump_0.35s_ease-out]">{state.points}</span>
           </div>
-          {/* Time to the next free die, just the clock numbers, under the dice count. */}
-          {countdown ? (
-            <span className="absolute left-1/2 top-full mt-0.5 h-4 -translate-x-1/2 rounded-full bg-black/35 px-1.5 text-[11px] font-bold leading-4 tabular-nums text-white" data-testid="need-two">
-              {formatClock(countdown)}
+          <div className="relative">
+            <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-[#1E3A8A] py-0.5 pl-2 pr-3 text-base font-black tabular-nums text-white shadow-md" data-testid="dice-count">
+              <img src="/art/ui/dice.webp" alt="" draggable={false} className="-my-2 -ml-3 size-9 object-contain drop-shadow" />
+              <span key={state.dice} className="inline-block animate-[bump_0.35s_ease-out]">{state.dice}</span>
+            </div>
+            {countdown ? (
+              <span className="absolute left-1/2 top-full mt-0.5 h-4 -translate-x-1/2 rounded-full bg-black/35 px-1.5 text-[11px] font-bold leading-4 tabular-nums text-white" data-testid="need-two">
+                {formatClock(countdown)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex items-start gap-1.5">
+        {/* Build (你個城), beside the dragon (Sky 2026-09-30); its price sits under it. */}
+        <button
+          type="button"
+          onClick={onBuild}
+          disabled={pending?.running === true}
+          className="relative flex shrink-0 cursor-pointer flex-col items-center disabled:cursor-default"
+          aria-label={t("你個城")}
+          data-testid="raise"
+        >
+          <img
+            src="/art/ui/build.webp"
+            alt=""
+            draggable={false}
+            className={cn(
+              "size-11 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)] active:scale-90",
+              buildable && "animate-[icon-glow_1.8s_ease-in-out_infinite]",
+            )}
+          />
+          {buildCost === null ? null : (
+            <span
+              className={cn(
+                "-mt-1.5 rounded-full bg-white px-1.5 text-[11px] font-black leading-4 tabular-nums text-[#1E3A8A] shadow",
+                !buildable && "opacity-60",
+              )}
+            >
+              <img src="/art/ui/coin.webp" alt="" className="mr-0.5 inline size-3.5 align-[-3px]" />
+              {buildCost}
             </span>
+          )}
+          {buildable && !pending?.running && state.levels.every((level) => level === 0) ? (
+            <TipHand className="left-1/2 top-14 -translate-x-1/2 rotate-180" />
           ) : null}
-        </div>
-        <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-white py-1 pl-2 pr-3 text-lg font-black tabular-nums text-[#1E3A8A] shadow-md" data-testid="hud-points">
-          <img src="/art/ui/coin.webp" alt={t("金幣")} draggable={false} className="-my-2 -ml-3 size-10 object-contain drop-shadow" />
-          <span key={state.points} className="inline-block animate-[bump_0.35s_ease-out]">{state.points}</span>
-        </div>
-        <div className="flex items-center gap-2">
+        </button>
         <button
           type="button"
           onClick={() => !pending?.running && setPetOpen(true)}
-          className="relative flex size-12 shrink-0 cursor-pointer items-center justify-center active:scale-90"
+          className="relative flex size-11 shrink-0 cursor-pointer items-center justify-center active:scale-90"
           aria-label={t("你隻怪獸")}
           data-testid="open-pet"
         >
@@ -570,36 +605,36 @@ export function DailyGame() {
             src="/art/ui/pet.webp"
             alt=""
             draggable={false}
-            className={cn("size-12 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]", petReady && "animate-[icon-glow_1.8s_ease-in-out_infinite]")}
+            className={cn("size-11 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]", petReady && "animate-[icon-glow_1.8s_ease-in-out_infinite]")}
           />
           {state.pet && state.pet.hungry > 0 ? <span className="absolute -right-1 -top-1 text-sm">❗</span> : null}
         </button>
         <button
           type="button"
           onClick={() => !pending?.running && setTableOpen(true)}
-          className="flex size-12 shrink-0 cursor-pointer items-center justify-center active:scale-90"
+          className="flex size-11 shrink-0 cursor-pointer items-center justify-center active:scale-90"
           aria-label={t("公開桌")}
           data-testid="open-table"
         >
-          <img src="/art/ui/table.webp" alt="" draggable={false} className="size-11 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
+          <img src="/art/ui/table.webp" alt="" draggable={false} className="size-10 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
         </button>
         <button
           type="button"
           onClick={() => !pending?.running && setRealmOpen(true)}
-          className="flex size-12 shrink-0 cursor-pointer items-center justify-center active:scale-90"
+          className="flex size-11 shrink-0 cursor-pointer items-center justify-center active:scale-90"
           aria-label={t("領地")}
           data-testid="open-realm"
         >
-          <img src="/art/ui/land.webp" alt="" draggable={false} className="size-12 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
+          <img src="/art/ui/land.webp" alt="" draggable={false} className="size-11 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
         </button>
         <button
           type="button"
           onClick={() => setMenuOpen(true)}
-          className="flex size-12 shrink-0 cursor-pointer items-center justify-center active:scale-90"
+          className="flex size-11 shrink-0 cursor-pointer items-center justify-center active:scale-90"
           aria-label={t("設定")}
           data-testid="menu"
         >
-          <img src="/art/ui/gear.webp" alt="" draggable={false} className="size-11 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
+          <img src="/art/ui/gear.webp" alt="" draggable={false} className="size-10 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
         </button>
         </div>
       </header>
@@ -616,38 +651,6 @@ export function DailyGame() {
       {/* Bottom bar: building sits to the side; the dice clock in the middle. */}
       {/* The footer lets taps through to the board (the GO stone sits just above it); only its buttons take taps. */}
       <footer className="pointer-events-none relative z-30 flex items-end justify-center px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-2">
-        <button
-          type="button"
-          onClick={onBuild}
-          disabled={pending?.running === true}
-          className="pointer-events-auto absolute bottom-[max(env(safe-area-inset-bottom),1rem)] left-5 flex cursor-pointer flex-col items-center disabled:cursor-default"
-          aria-label={t("你個城")}
-          data-testid="raise"
-        >
-          <img
-            src="/art/ui/crane.webp"
-            alt=""
-            draggable={false}
-            className={cn(
-              "size-20 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)] active:scale-90",
-              buildable && "animate-[icon-glow_1.8s_ease-in-out_infinite]",
-            )}
-          />
-          {buildable && !pending?.running && state.levels.every((level) => level === 0) ? (
-            <TipHand className="-top-11 left-1/2 -translate-x-1/2" />
-          ) : null}
-          {buildCost === null ? null : (
-            <span
-              className={cn(
-                "-mt-2 rounded-full bg-white px-2 text-xs font-black tabular-nums text-[#1E3A8A] shadow",
-                !buildable && "opacity-60",
-              )}
-            >
-              <img src="/art/ui/coin.webp" alt="" className="mr-0.5 inline size-4 align-[-3px]" />
-              {buildCost}
-            </span>
-          )}
-        </button>
 
         <div className="relative flex min-h-14 flex-col items-center justify-end gap-1">
           {/* GO is carved into the middle stone now (tap it); this button is for keyboards and screen readers. */}
