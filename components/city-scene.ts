@@ -168,7 +168,7 @@ export function createCityScene(
     if (art.lamp?.name === name && level >= 4) {
       const [lu, lv] = art.lamp.at[level - 4];
       const glow = new T.Sprite(new T.SpriteMaterial({ map: lampTex, transparent: true, depthWrite: false, blending: T.AdditiveBlending, color: 0xfff0b0 }));
-      glow.position.set((lu - 0.5) * w * ART_UNIT, (1 - lv - 0.04) * h * ART_UNIT, 0.05);
+      glow.userData.off = [(lu - 0.5) * w * ART_UNIT, (1 - lv - 0.04) * h * ART_UNIT];
       glow.userData.lamp = true;
       g.add(glow);
       lamps.push(glow);
@@ -183,7 +183,7 @@ export function createCityScene(
       }
       const sails = new T.Sprite(new T.SpriteMaterial({ map: bt, transparent: true, alphaTest: 0.2 }));
       sails.renderOrder = 1;
-      sails.position.set((su - 0.5) * w * ART_UNIT, (1 - sv - 0.04) * h * ART_UNIT, 0.05);
+      sails.userData.off = [(su - 0.5) * w * ART_UNIT, (1 - sv - 0.04) * h * ART_UNIT];
       sails.scale.setScalar(sd * k * ART_UNIT);
       sails.userData.spin = true;
       g.add(sails);
@@ -192,6 +192,28 @@ export function createCityScene(
     return g;
   }
   const spinners: any[] = [];
+  // The building pictures always face the camera, so a windmill's sails or a lighthouse lamp have to be pinned
+  // to the picture on screen (camera right / up), not to the plot: pinned to the plot they slid off the hub as
+  // the island turned (Sky: 風葉唔啱位置).
+  const camRight = new T.Vector3(), camUp = new T.Vector3(), camBack = new T.Vector3(), pinAt = new T.Vector3(), pinScale = new T.Vector3();
+  function pinToPicture() {
+    camera.updateMatrixWorld();
+    camRight.setFromMatrixColumn(camera.matrixWorld, 0);
+    camUp.setFromMatrixColumn(camera.matrixWorld, 1);
+    camBack.setFromMatrixColumn(camera.matrixWorld, 2);
+    for (const o of [...spinners, ...lamps]) {
+      const [dx, dy] = o.userData.off as [number, number];
+      const parent = o.parent;
+      if (!parent) continue;
+      parent.updateMatrixWorld();
+      parent.getWorldScale(pinScale);
+      pinAt.setFromMatrixPosition(parent.matrixWorld)
+        .addScaledVector(camRight, dx * pinScale.x)
+        .addScaledVector(camUp, dy * pinScale.y)
+        .addScaledVector(camBack, 0.08 * pinScale.x);
+      o.position.copy(parent.worldToLocal(pinAt));
+    }
+  }
   const lampTex = soft("rgba(255,255,255,1)", "rgba(255,255,255,0)");
   const lamps: any[] = [];
 
@@ -869,6 +891,7 @@ export function createCityScene(
     camera.position.set(Math.sin(yaw) * flatD, AIM_Y + Math.sin(view.elev) * view.dist, Math.cos(yaw) * flatD);
     camera.lookAt(0, AIM_Y, 0);
     far.rotation.y = yaw * 0.5;
+    pinToPicture();
     renderer.render(scene, camera);
     frameId = requestAnimationFrame(frame);
   }

@@ -44,6 +44,12 @@ const R = (SIDE * PITCH) / Math.SQRT2;
 const TOP = 0.34;
 /** Words floating up over the hero are switched off (Sky). */
 const NO_FLOATS = true;
+/** The GO stone is twice the size of a square's stone. */
+const GO_SIZE = 2.4;
+/** Only left and right: the board keeps this tilt (about 50°). */
+const BOARD_ELEV = 0.9;
+/** How far down the screen the GO stone sits (0 = middle, 1 = bottom edge). */
+const GO_LOW = 0.72;
 /** Looking at the diamond from a corner turns it into a square on screen, which fills a phone better. */
 const HOME_YAW = Math.PI / 4;
 /** How much closer than the whole-board view the camera sits (the edges run off a phone; the camera follows the balloon). */
@@ -261,7 +267,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   let dieMats: any[] = [];
   const rune = { ready: false, level: 0, pressAt: -1e9 };
   let stone: any = null;
-  let runeLight: any, runeRing: any;
+  let runeLight: any, runeRing: any, goStone: any, goGlow: any;
   {
     // A stone top (Sky 2026-09-28: stone like the squares round it, instead of the lawn).
     const big = islandMesh(6, 977, 0x9a958c);
@@ -324,16 +330,34 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       return m;
     };
     void plate;
-    void carve;
-    // No carving and no GO sign on the lawn (Sky 2026-09-27): the two dice sit in the middle and glow
-    // and hop when it's your go — tap them (or the lawn) to roll.
+    // The GO stone (Sky 2026-09-30): a floating stone twice the size of a square, between the board and the
+    // bottom of the screen, with GO carved on it — tap it to roll, and the dice fly from it onto the middle stone.
+    // It hangs off the camera, so turning or zooming the board never moves it.
+    const go = islandMesh(GO_SIZE, 311, 0x9a958c);
+    go.top.material = new T.MeshStandardMaterial({ color: new T.Color(0x96918a).convertSRGBToLinear(), roughness: 0.95, flatShading: true });
+    const goPlate = (glow: boolean) => {
+      const m = new T.Mesh(
+        new T.PlaneGeometry(GO_SIZE * 0.98, GO_SIZE * 0.98),
+        new T.MeshBasicMaterial({ map: carve(glow), transparent: true, depthWrite: false, ...(glow ? { blending: T.AdditiveBlending, opacity: 0 } : {}) }),
+      );
+      m.rotation.x = -Math.PI / 2;
+      m.position.y = TOP + (glow ? 0.03 : 0.02);
+      go.group.add(m);
+      return m;
+    };
+    goPlate(false);
+    goGlow = goPlate(true);
+    goStone = new T.Group();
+    goStone.add(go.group);
+    camera.add(goStone);
+    scene.add(camera);
     runeRing = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0xffc860, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
-    runeRing.scale.set(5, 2.2, 1);
-    runeRing.position.y = TOP + 0.4;
-    big.group.add(runeRing);
-    runeLight = new T.PointLight(0xffc060, 0, 7, 2);
-    runeLight.position.y = TOP + 1;
-    big.group.add(runeLight);
+    runeRing.scale.set(GO_SIZE * 1.6, GO_SIZE * 0.7, 1);
+    runeRing.position.y = TOP + 0.2;
+    go.group.add(runeRing);
+    runeLight = new T.PointLight(0xffc060, 0, 5, 2);
+    runeLight.position.y = TOP + 0.8;
+    go.group.add(runeLight);
     // Two small dice that land on the front edge of the stone, clear of the rune.
     const pipTex = (v: number) => {
       const c = document.createElement("canvas");
@@ -376,7 +400,8 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       // Waiting spot: side by side in the middle of the lawn, across the camera's view.
       const side = k ? 1 : -1;
       const home = new T.Vector3(Math.cos(HOME_YAW) * 0.5 * side, TOP + 0.35, -Math.sin(HOME_YAW) * 0.5 * side);
-      const d = { mesh: die, rest: new T.Vector3(Math.cos(a) * 2.35, TOP + 0.25, Math.sin(a) * 2.35), from: new T.Vector3(), q: faceUp(k ? 5 : 6), spin: new T.Vector3(), born: -1e9, fade: -1e9, idle: true, home, back: -1e9 };
+      void a;
+      const d = { mesh: die, rest: new T.Vector3(Math.cos(HOME_YAW) * 0.6 * side, TOP + 0.25, -Math.sin(HOME_YAW) * 0.6 * side), from: new T.Vector3(), q: faceUp(k ? 5 : 6), spin: new T.Vector3(), born: -1e9, fade: -1e9, idle: true, home, back: -1e9 };
       die.position.copy(home);
       die.quaternion.copy(d.q);
       die.scale.setScalar(1.4);
@@ -520,7 +545,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
   shipAt.to.copy(ship.position);
 
   // ---------- Camera: drag to turn and tilt, pinch to zoom, sway when left alone ----------
-  const view = { yaw: HOME_YAW, elev: 0.9, goalYaw: HOME_YAW, goalElev: 0.9, dist: 20, goalDist: 20, idle: 0 };
+  const view = { yaw: HOME_YAW, elev: BOARD_ELEV, goalYaw: HOME_YAW, goalElev: BOARD_ELEV, dist: 20, goalDist: 20, idle: 0 };
   const target = new T.Vector3();
   const canvas = renderer.domElement;
   const pointers = new Map<number, { x: number; y: number }>();
@@ -542,12 +567,12 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     view.idle = 0;
     if (pts.length === 1) {
       view.goalYaw -= (e.clientX - before.x) * 0.006;
-      view.goalElev = Math.max(0.35, Math.min(1.35, view.goalElev + (e.clientY - before.y) * 0.004));
+      // Left and right only; the tilt stays put (Sky 2026-09-30).
     } else {
       const other = pts.find((p) => p !== before)!;
       const was = Math.hypot(before.x - other.x, before.y - other.y);
       const is = Math.hypot(e.clientX - other.x, e.clientY - other.y);
-      if (was > 1 && is > 1) view.goalDist = Math.max(6, Math.min(45, view.goalDist * (was / is)));
+      if (was > 1 && is > 1) view.goalDist = Math.max(fitDist * 0.7, Math.min(fitDist * 1.25, view.goalDist * (was / is)));
     }
   };
   const onUp = (e: PointerEvent) => {
@@ -564,13 +589,13 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       else eggTap();
       return;
     }
-    if (ray.intersectObject(bigRock, true).length === 0) return;
+    if (ray.intersectObject(goStone, true).length === 0) return;
     rune.pressAt = performance.now();
     if (rune.ready) onGo();
   };
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
-    view.goalDist = Math.max(6, Math.min(45, view.goalDist * Math.exp(e.deltaY * 0.0012)));
+    view.goalDist = Math.max(fitDist * 0.7, Math.min(fitDist * 1.25, view.goalDist * Math.exp(e.deltaY * 0.0012)));
   };
   canvas.addEventListener("pointerdown", onDown);
   canvas.addEventListener("pointermove", onMove);
@@ -591,6 +616,10 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const half = Math.atan(Math.tan((38 * Math.PI) / 360) * Math.min(1, camera.aspect));
     fitDist = Math.max(9, ((R / Math.SQRT2) * 1.45) / Math.tan(half) / ZOOM);
     view.goalDist = view.dist = fitDist;
+    // Between the board's front corner and the bottom bar: GO_LOW of the way down from the middle of the view.
+    const halfH = Math.tan((38 * Math.PI) / 360) * fitDist;
+    goStone.position.set(0, -halfH * GO_LOW - TOP, -fitDist);
+    goStone.rotation.set(BOARD_ELEV, 0, 0);
   }
   const watch = new ResizeObserver(resize);
   watch.observe(container);
@@ -877,40 +906,41 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const pulse = rune.level * (0.75 + 0.25 * Math.sin(now / 420));
     // The waiting dice glow gold with the pulse.
     for (const m of dieMats) m.emissiveIntensity = pulse * 0.55;
-    runeRing.material.opacity = pulse * 0.18;
-    runeLight.intensity = pulse * 0.45;
+    runeRing.material.opacity = pulse * 0.22;
+    runeLight.intensity = pulse * 0.6;
+    goGlow.material.opacity = pulse;
     const press = Math.max(0, 1 - (now - rune.pressAt) / 260);
-    bigRock.position.y = -Math.sin(press * Math.PI) * 0.18;
+    goStone.children[0].position.y = -Math.sin(press * Math.PI) * 0.2 + (reduceMotion ? 0 : Math.sin(now / 1500) * 0.08);
     // Dice: drop from above the rune, bounce twice while spinning down to their faces, then sit.
     updatePet(now, dt);
     for (const d of dice) {
       if (d.idle) {
-        // Waiting in the middle: hop and turn a little while it's your go; pop back in after a walk.
-        const pop = Math.min(1, Math.max(0, (now - d.back) / 350));
-        const hop = rune.level * Math.abs(Math.sin(now / 380 + (d.home.x > 0 ? 0.6 : 0))) * 0.3;
-        d.mesh.visible = true;
-        d.mesh.position.set(d.home.x, d.home.y + hop, d.home.z);
-        d.mesh.quaternion.copy(d.q);
-        d.mesh.rotateY(Math.sin(now / 900 + d.home.x) * 0.25 * rune.level);
-        d.mesh.scale.setScalar(1.4 * (pop < 1 ? pop * (1 + Math.sin(pop * Math.PI) * 0.3) : 1));
+        // No dice on the board until you roll (Sky 2026-09-30).
+        d.mesh.visible = false;
         continue;
       }
       if (!d.mesh.visible) {
-        // Faded out after the walk: back to the middle.
         d.idle = true;
         d.back = now;
         continue;
       }
-      const t = Math.max(0, Math.min(1, (now - d.born) / 900));
-      const k = 1 - Math.pow(1 - t, 2);
-      d.mesh.position.lerpVectors(d.from, d.rest, k);
-      const hop = t < 0.45 ? 2.6 * (1 - t / 0.45) * (1 - t / 0.45) : t < 0.75 ? 0.45 * Math.sin(((t - 0.45) / 0.3) * Math.PI) : 0.12 * Math.sin(((t - 0.75) / 0.25) * Math.PI);
-      d.mesh.position.y = d.rest.y + hop;
-      const left = Math.pow(1 - t, 2) * 9;
+      // Up out of the GO stone in a high arc, down onto the middle stone, then two little bounces.
+      const t = Math.max(0, Math.min(1, (now - d.born) / 1300));
+      const FLY = 0.6;
+      if (t < FLY) {
+        const f = t / FLY;
+        d.mesh.position.lerpVectors(d.from, d.rest, f);
+        d.mesh.position.y += Math.sin(f * Math.PI) * 4.5 + (1 - f) * 0;
+      } else {
+        d.mesh.position.copy(d.rest);
+        const b = (t - FLY) / (1 - FLY);
+        d.mesh.position.y += b < 0.55 ? 0.6 * Math.sin((b / 0.55) * Math.PI) : 0.15 * Math.sin(((b - 0.55) / 0.45) * Math.PI);
+      }
+      const left = Math.pow(1 - t, 2) * 12;
       d.mesh.quaternion.copy(d.q);
       if (left > 0) d.mesh.quaternion.premultiply(new T.Quaternion().setFromAxisAngle(d.spin, left));
       const out = d.fade > 0 ? Math.min(1, (now - d.fade) / 400) : 0;
-      d.mesh.scale.setScalar(1 + 0.4 * (1 - t) - out);
+      d.mesh.scale.setScalar(Math.max(0, Math.min(1, (now - d.born) / 120)) * (1.3 + 0.3 * (1 - t)) - out);
       if (out >= 1) d.mesh.visible = false;
     }
     renderer.render(scene, camera);
@@ -943,8 +973,11 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
         // Turn the face showing the roll to the top, then a random turn about the up axis.
         d.q.copy(faceUp(faces[k])).premultiply(new T.Quaternion().setFromAxisAngle(up, (Math.random() - 0.5) * 0.8));
         d.spin.set(Math.random() - 0.5, Math.random() * 0.3, Math.random() - 0.5).normalize();
-        // They leap up from where they wait in the middle and land on the front edge.
-        d.from.set(d.home.x, TOP + 0.25, d.home.z);
+        // They leap out of the GO stone and land in the middle of the board.
+        goStone.updateMatrixWorld(true);
+        d.from.copy(goStone.children[0].localToWorld(new T.Vector3((k ? 0.45 : -0.45), TOP + 0.4, 0)));
+        stone.updateMatrixWorld(true);
+        stone.worldToLocal(d.from);
         d.born = now + k * 90;
         d.fade = -1e9;
         d.idle = false;
@@ -1014,7 +1047,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     },
     recentre() {
       view.goalYaw = HOME_YAW;
-      view.goalElev = 0.9;
+      view.goalElev = BOARD_ELEV;
       view.goalDist = fitDist;
     },
     dispose() {
