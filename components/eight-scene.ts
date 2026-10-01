@@ -492,6 +492,8 @@ export function createBoardScene(
   /** The outer-space backdrop (八字 board). */
   let space: Backdrop | null = null;
   /** The two monsters, one in the middle of each diamond (八字 board only). */
+  /** The crystal gate in the top notch (lightning plays round it). */
+  let gate: any = null;
   const monsters: Partial<Record<"left" | "right", { group: any; head: any; mouth: any; phase: number; flat?: boolean }>> = {};
   if (island) {
     const water = new T.Mesh(new T.CircleGeometry(80, 64), mat(0x2bb3c9, 0.25, { metalness: 0.2 }));
@@ -862,6 +864,7 @@ export function createBoardScene(
     castlePic.children[0].visible = false;
     castlePic.position.set(0, TOP - 0.05, 0);
     castleIsle.group.add(castlePic);
+    gate = castlePic;
     // Little gold stars circle the castle (Sky 2026-10-01: no black bats).
     const starShape = new T.Shape();
     for (let k = 0; k < 10; k++) {
@@ -1203,6 +1206,59 @@ export function createBoardScene(
   resize();
 
   let frameId = 0;
+  // ---------- 水晶門 lightning (Sky 2026-10-01): white bolts crackle round the crystal ring and across it ----------
+  const bolts: { mesh: any; glow: any; born: number; life: number }[] = [];
+  let nextBolt = 0;
+  const boltMat = () => new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, blending: T.AdditiveBlending });
+  function strike(now: number) {
+    if (!gate) return;
+    // The ring: about 1.15 across from its middle, which stands 1.45 above the island (the gate is 3.4 tall).
+    const R = 1.15, CY = 1.45;
+    const ring = (a: number, r = R) => new T.Vector3(Math.cos(a) * r, CY + Math.sin(a) * r * 1.15, (Math.random() - 0.5) * 0.3);
+    const a0 = Math.random() * Math.PI * 2;
+    const across = Math.random() < 0.35;
+    const from = ring(a0, R * (0.9 + Math.random() * 0.25));
+    const to = across ? ring(a0 + Math.PI + (Math.random() - 0.5) * 1.2, R * 0.9) : ring(a0 + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.9), R * (0.95 + Math.random() * 0.3));
+    // A jagged path: the straight line with random kinks, a little branch now and then.
+    const points: any[] = [];
+    const steps = across ? 9 : 7;
+    for (let k = 0; k <= steps; k++) {
+      const p = from.clone().lerp(to, k / steps);
+      if (k > 0 && k < steps) p.add(new T.Vector3((Math.random() - 0.5) * 0.35, (Math.random() - 0.5) * 0.35, (Math.random() - 0.5) * 0.2));
+      points.push(p);
+    }
+    const path = new T.CurvePath();
+    for (let k = 0; k < points.length - 1; k++) path.add(new T.LineCurve3(points[k], points[k + 1]));
+    const mesh = new T.Mesh(new T.TubeGeometry(path, points.length * 2, 0.035, 4, false), boltMat());
+    gate.add(mesh);
+    const glow = new T.Mesh(new T.TubeGeometry(path, points.length * 2, 0.12, 6, false), new T.MeshBasicMaterial({ color: 0xc9b6ff, transparent: true, opacity: 0.35, depthWrite: false, blending: T.AdditiveBlending }));
+    gate.add(glow);
+    bolts.push({ mesh, glow, born: now, life: 140 + Math.random() * 160 });
+  }
+  function crackle(now: number) {
+    if (!gate || reduceMotion) return;
+    if (now > nextBolt) {
+      strike(now);
+      if (Math.random() < 0.4) strike(now);
+      // Bursts: quick flickers, then a pause.
+      nextBolt = now + (Math.random() < 0.6 ? 60 + Math.random() * 120 : 600 + Math.random() * 1400);
+    }
+    for (let n = bolts.length - 1; n >= 0; n--) {
+      const b = bolts[n];
+      const k = (now - b.born) / b.life;
+      const flick = k < 1 ? (Math.random() < 0.25 ? 0.3 : 1) * (1 - k) : 0;
+      b.mesh.material.opacity = flick;
+      b.glow.material.opacity = 0.35 * flick;
+      if (k >= 1) {
+        gate.remove(b.mesh, b.glow);
+        b.mesh.geometry.dispose();
+        b.glow.geometry.dispose();
+        b.mesh.material.dispose();
+        b.glow.material.dispose();
+        bolts.splice(n, 1);
+      }
+    }
+  }
   let last = performance.now();
   function frame(now: number) {
     const dt = Math.min(0.05, (now - last) / 1000);
@@ -1250,6 +1306,7 @@ export function createBoardScene(
         p.needsUpdate = true;
       }
     }
+    crackle(now);
     // The monsters breathe and look about.
     for (const m of Object.values(monsters)) {
       if (!m || reduceMotion) continue;
