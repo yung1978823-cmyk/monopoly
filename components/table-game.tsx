@@ -30,6 +30,7 @@ import { LAND_TAX, hostReport, tableReward, type Realm, type Stock } from "@/lib
 import { addStock } from "@/lib/realm";
 import { loadWallet, saveWallet } from "@/components/wallet-store";
 import { useLang } from "@/lib/i18n";
+import { setTrack } from "@/lib/music";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -307,6 +308,11 @@ export function EightBoard({
   /** Playing on someone else's land: the ticket you paid to get in. */
   guestTicket?: number;
 }) {
+  // The public table plays its own faster music while the board is up (Sky 2026-10-01).
+  useEffect(() => {
+    setTrack("table");
+    return () => setTrack("home");
+  }, []);
   const [table, setTable] = useState<TableState>(() => newTable(players, rules, board));
   const publicTable = !realm && guestTicket === undefined;
   const [reward, setReward] = useState<Stock | null>(null);

@@ -3,7 +3,12 @@
  * sound effects. Browsers only let sound start after a tap, so it waits for the first one; it pauses while the
  * game is in the background. On or off is remembered on this device, and on by default.
  */
-const TRACK = "https://cdn.acedata2.cloud/suno/37a666a8-9141-4425-b634-46195251ed59.mp3";
+const TRACKS = {
+  home: "https://cdn.acedata2.cloud/suno/37a666a8-9141-4425-b634-46195251ed59.mp3",
+  table: "https://cdn.acedata2.cloud/suno/3b9aa83a-15bc-41e7-8192-fbb32e2edd6e.mp3",
+} as const;
+export type Track = keyof typeof TRACKS;
+let current: Track = "home";
 const KEY = "boolionaire-music";
 const VOLUME = 0.32;
 
@@ -36,7 +41,7 @@ export function setMusicOn(on: boolean): void {
 /** Call once when the game starts: the music begins at the first tap. */
 export function initMusic(): void {
   if (typeof window === "undefined" || player) return;
-  player = new Audio(TRACK);
+  player = new Audio(TRACKS[current]);
   player.loop = true;
   player.volume = VOLUME;
   player.preload = "auto";
@@ -64,4 +69,22 @@ export function setCalm(on: boolean): void {
   } catch {
     // Not remembered on this device.
   }
+}
+
+/** Swap the music (the public table has its own, faster track), fading the old one out quickly. */
+export function setTrack(track: Track): void {
+  if (track === current) return;
+  current = track;
+  if (!player) return;
+  const p = player;
+  let v = p.volume;
+  const fade = window.setInterval(() => {
+    v = Math.max(0, v - VOLUME / 6);
+    p.volume = v;
+    if (v > 0) return;
+    window.clearInterval(fade);
+    p.src = TRACKS[current];
+    p.volume = VOLUME;
+    sync();
+  }, 40);
 }
