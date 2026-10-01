@@ -152,8 +152,8 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
   return (
     <main
       className="relative flex h-dvh w-full flex-col overflow-hidden bg-[#2A1A5E] bg-cover bg-center text-[#1E3A8A]"
-      // Same outer-space world as the public table (Sky 2026-10-01), not a flat purple page.
-      style={{ backgroundImage: "linear-gradient(rgba(20,10,50,0.35), rgba(20,10,50,0.55)), url(/art/table-lobby.webp)" }}
+      // Sky's silver galaxy (2026-10-01), the same sky as the island board in a game.
+      style={{ backgroundImage: "linear-gradient(rgba(5,5,20,0.15), rgba(5,5,20,0.35)), url(/art/galaxy.webp)" }}
       data-testid="realm"
     >
       <header className="z-10 mx-auto flex w-full max-w-xl flex-col gap-2 px-3 pt-[max(env(safe-area-inset-top),0.6rem)]">
@@ -394,7 +394,10 @@ function RealmEditor({
 
   /** One building to choose: picture, what it does, what it costs. Builds into `slot`. */
   const option = (kind: BuildingKind, slot: number | null, after?: () => void) => {
-    const fits = canPlace(realm, kind);
+    // Swapping (Sky 2026-10-01): a spot that already has a building is cleared first, then built again.
+    const base = slot !== null && slot >= 0 && realm.slots[slot] ? demolish(realm, slot) : realm;
+    const same = slot !== null && slot >= 0 && realm.slots[slot] === kind;
+    const fits = canPlace(base, kind) && !same;
     const enough = hasStock(wallet.stock, RECIPES[kind]);
     const ok = fits && enough && slot !== null && slot >= 0;
     return (
@@ -406,7 +409,7 @@ function RealmEditor({
           if (!ok) return;
           play("build");
           juice("medium");
-          onChange(build(realm, wallet, slot, kind));
+          onChange(build(base, wallet, slot, kind));
           after?.();
         }}
         className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border-[3px] border-[#FBD000] bg-[#FFF8D6] px-3 py-1.5 text-left disabled:cursor-default disabled:border-[#E5EAF2] disabled:bg-[#F4F6FA] disabled:opacity-70"
@@ -416,7 +419,7 @@ function RealmEditor({
         <span className="flex flex-1 flex-col">
           <span className="font-black">{t(NAMES[kind])}</span>
           <span className="text-xs font-bold text-[#3B5BA9]">
-            {!fits ? t("已經到上限") : !enough ? t("材料唔夠") : slot === null || slot < 0 ? t("冇空位，拆走一間先") : describe(kind)}
+            {same ? t("而家起緊呢款") : !fits ? t("已經到上限") : !enough ? t("材料唔夠") : slot === null || slot < 0 ? t("冇空位，拆走一間先") : describe(kind)}
           </span>
         </span>
         <span className="text-right text-xs font-black text-[#B45309]">{recipe(kind)}</span>
@@ -449,37 +452,39 @@ function RealmEditor({
             {loaded === "loading" ? t("載入立體棋盤⋯") : t("立體畫面載入唔到，請檢查網絡再試。")}
           </p>
         ) : null}
-        {/* Build spots, floating over the bottom of the island. */}
-        <div className="absolute inset-x-0 bottom-2 flex justify-center gap-2 px-3" data-testid="slots">
-          {realm.slots.map((kind, slot) =>
-            kind ? (
-              <button
-                key={slot}
-                type="button"
-                onClick={() => onChange({ realm: demolish(realm, slot) })}
-                className="relative flex size-16 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-[#FBD000] bg-white/85 shadow-[0_4px_12px_rgba(0,0,0,0.35)] backdrop-blur"
-                aria-label={t("拆咗{b}", { b: t(NAMES[kind]) })}
-                data-testid={`slot-${slot}`}
-              >
-                {pic(ICONS[kind], "size-11")}
-                <span className="text-[10px] font-black leading-none">{t(NAMES[kind])}</span>
-                <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-white text-[10px] font-black shadow">✕</span>
-              </button>
-            ) : (
-              <button
-                key={slot}
-                type="button"
-                onClick={() => setPicking(slot)}
-                className="flex size-16 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/80 bg-[#7C3AED]/55 font-black text-white shadow-[0_4px_12px_rgba(0,0,0,0.35)] backdrop-blur animate-[breathe_3s_ease-in-out_infinite]"
-                aria-label={t("喺第 {n} 個位起嘢", { n: slot + 1 })}
-                data-testid={`slot-${slot}`}
-              >
-                <img src="/art/ui/build.webp" alt="" className="size-9 object-contain" />
-                <span className="text-xs leading-none">{t("起樓")}</span>
-              </button>
-            ),
-          )}
-        </div>
+        {/* Build spots down the left and right edges (Sky 2026-10-01), so the island in the middle stays clear. */}
+        {[realm.slots.slice(0, Math.ceil(realm.slots.length / 2)), realm.slots.slice(Math.ceil(realm.slots.length / 2))].map((side, s) => (
+          <div key={s} className={cn("absolute top-1/2 flex -translate-y-1/2 flex-col gap-2", s ? "right-2" : "left-2")} data-testid={s ? "slots-right" : "slots-left"}>
+            {side.map((kind, k) => {
+              const slot = s ? Math.ceil(realm.slots.length / 2) + k : k;
+              return kind ? (
+                <button
+                  key={slot}
+                  type="button"
+                  onClick={() => setPicking(slot)}
+                  className="flex size-16 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-[#FBD000] bg-white/85 shadow-[0_4px_12px_rgba(0,0,0,0.35)] backdrop-blur"
+                  aria-label={t("換走或者拆咗{b}", { b: t(NAMES[kind]) })}
+                  data-testid={`slot-${slot}`}
+                >
+                  {pic(ICONS[kind], "size-11")}
+                  <span className="text-[10px] font-black leading-none">{t(NAMES[kind])}</span>
+                </button>
+              ) : (
+                <button
+                  key={slot}
+                  type="button"
+                  onClick={() => setPicking(slot)}
+                  className="flex size-16 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/80 bg-[#7C3AED]/55 font-black text-white shadow-[0_4px_12px_rgba(0,0,0,0.35)] backdrop-blur animate-[breathe_3s_ease-in-out_infinite]"
+                  aria-label={t("喺第 {n} 個位起嘢", { n: slot + 1 })}
+                  data-testid={`slot-${slot}`}
+                >
+                  <img src="/art/ui/build.webp" alt="" className="size-9 object-contain" />
+                  <span className="text-xs leading-none">{t("起樓")}</span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       <div className="mx-auto flex w-full max-w-xl shrink-0 flex-col gap-2 rounded-t-[32px] bg-white/95 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
@@ -509,7 +514,7 @@ function RealmEditor({
           {panel === "build" ? (
             <>
               {BUILDING_KINDS.map((kind) => option(kind, firstEmpty))}
-              <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("撳上面已起嘅建築可以拆走（材料唔退返）")}</p>
+              <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("撳兩邊已起嘅建築可以換款或者拆走")}</p>
             </>
           ) : panel === "shop" ? (
             <>
@@ -610,7 +615,21 @@ function RealmEditor({
             onClick={(event: { stopPropagation: () => void }) => event.stopPropagation()}
             data-testid="build-picker"
           >
+            <p className="text-center font-black">{realm.slots[picking] ? t("換做第二款") : t("揀要起邊款")}</p>
             {BUILDING_KINDS.map((kind) => option(kind, picking, () => setPicking(null)))}
+            {realm.slots[picking] ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onChange({ realm: demolish(realm, picking) });
+                  setPicking(null);
+                }}
+                className="w-full cursor-pointer rounded-full border-2 border-[#E52521] py-2 text-sm font-black text-[#E52521]"
+                data-testid="demolish"
+              >
+                {t("拆走（材料唔退返）")}
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}

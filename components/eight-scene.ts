@@ -11,7 +11,7 @@
  * functions to play back the events a move produced.
  */
 import { BOARDS, EDGE_STEPS, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
-import { TABLE_SPACE, createSpace, type Backdrop } from "@/components/backdrop";
+import { GALAXY_SPACE, TABLE_SPACE, createSpace, type Backdrop } from "@/components/backdrop";
 
 const THREE_URL = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
 let loading: Promise<any> | null = null;
@@ -183,7 +183,7 @@ function layoutFor(board: BoardId): Layout {
       spotPoint: (spot) => islandPoint(spot.on === "loop" ? spot.i : 0),
       hub: [0, 3, 0],
       stations: [[R, 1.5], [-R, 1.5], [R * 0.7, -R * 0.7], [-R * 0.7, -R * 0.7], [2.2, R], [-2.2, R]],
-      wide: [34, 24, 19],
+      wide: [44, 24, 19],
       wideTarget: [0, 0.3],
     };
   }
@@ -500,21 +500,16 @@ export function createBoardScene(
   let gate: any = null;
   const monsters: Partial<Record<"left" | "right", { group: any; head: any; mouth: any; phase: number; flat?: boolean }>> = {};
   if (island) {
-    if (seeThrough) {
-      // Floating in space (Sky 2026-10-01): a thin ring of sea round the sand, and rock hanging underneath.
-      const sea = new T.Mesh(new T.CylinderGeometry(ISLAND_R + 3.1, ISLAND_R + 2.9, 0.5, 48), mat(0x2bb3c9, 0.25, { metalness: 0.2 }));
-      sea.position.y = -0.95;
-      scene.add(sea);
-      const rock = new T.Mesh(new T.ConeGeometry(ISLAND_R + 3, 5.5, 12, 3), new T.MeshStandardMaterial({ color: 0x8a8378, roughness: 0.95, flatShading: true }));
-      rock.rotation.x = Math.PI;
-      rock.position.y = -1.2 - 2.75;
-      scene.add(rock);
-    } else {
-      const water = new T.Mesh(new T.CircleGeometry(80, 64), mat(0x2bb3c9, 0.25, { metalness: 0.2 }));
-      water.rotation.x = -Math.PI / 2;
-      water.position.y = -0.9;
-      scene.add(water);
-    }
+    // Floating in space (Sky 2026-10-01): a thin ring of sea round the sand, and rock hanging underneath. In a
+    // game the galaxy picture fills the sky; in the 領地 preview the page's own background shows through.
+    if (!seeThrough) space = createSpace(T, scene, camera, { reduceMotion, picture: GALAXY_SPACE, extras: false, far: 180, meteor: true });
+    const sea = new T.Mesh(new T.CylinderGeometry(ISLAND_R + 3.1, ISLAND_R + 2.9, 0.5, 48), mat(0x2bb3c9, 0.25, { metalness: 0.2 }));
+    sea.position.y = -0.95;
+    scene.add(sea);
+    const rock = new T.Mesh(new T.ConeGeometry(ISLAND_R + 3, 5.5, 12, 3), new T.MeshStandardMaterial({ color: 0x8a8378, roughness: 0.95, flatShading: true }));
+    rock.rotation.x = Math.PI;
+    rock.position.y = -1.2 - 2.75;
+    scene.add(rock);
     const deck = shadowy(new T.Mesh(new T.CylinderGeometry(ISLAND_R + 1.7, ISLAND_R + 2.3, 1, 48), mat(0xf2d9a0, 0.9)));
     deck.position.y = -0.5;
     deckMat = deck.material;
