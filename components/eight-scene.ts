@@ -859,18 +859,23 @@ export function createBoardScene(
     const castlePic = makePictureMonster("/art/fx/castle.webp", 3.6, [0.5, 0.5]).group;
     castlePic.position.set(0, TOP - 0.05, 0);
     castleIsle.group.add(castlePic);
+    // Little gold stars circle the castle (Sky 2026-10-01: no black bats).
+    const starShape = new T.Shape();
+    for (let k = 0; k < 10; k++) {
+      const r = k % 2 ? 0.09 : 0.22, t = (k / 10) * Math.PI * 2 + Math.PI / 2;
+      if (k === 0) starShape.moveTo(Math.cos(t) * r, Math.sin(t) * r);
+      else starShape.lineTo(Math.cos(t) * r, Math.sin(t) * r);
+    }
+    const starGeo = new T.ExtrudeGeometry(starShape, { depth: 0.06, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 1 });
+    starGeo.center();
+    const starMat = mat(0xffd23f, 0.3, { emissive: 0x8a5a00, metalness: 0.2 });
     for (let n = 0; n < 5; n++) {
       const bat = new T.Group();
-      const wingGeo = new T.ConeGeometry(0.18, 0.5, 3);
-      wingGeo.rotateZ(Math.PI / 2);
-      const l = new T.Mesh(wingGeo, mat(0x1f1235, 0.6));
-      l.position.x = -0.22;
-      bat.add(l);
-      const r = new T.Mesh(wingGeo, mat(0x1f1235, 0.6));
-      r.rotation.z = Math.PI;
-      r.position.x = 0.22;
-      bat.add(r);
-      bat.add(new T.Mesh(new T.SphereGeometry(0.1, 10, 8), mat(0x1f1235, 0.6)));
+      const star = new T.Mesh(starGeo, starMat);
+      bat.add(star);
+      const shine = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0xffe27a, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.6 }));
+      shine.scale.setScalar(0.7);
+      bat.add(shine);
       scene.add(bat);
       floaters.push({ obj: bat, bat: n });
     }
@@ -897,11 +902,8 @@ export function createBoardScene(
     pileIsle.group.position.set(0, -0.15, D - 0.7);
     scene.add(pileIsle.group);
     breathers.push({ obj: pileIsle.group, base: -0.15, phase: 1, period: 4.6 });
-    // Sky's drawn treasure chest (2026-10-01) in place of the shape-built pile.
     void pile;
-    const chestPic = makePictureMonster("/art/fx/treasure.webp", 1.9, [0.5, 0.5]).group;
-    chestPic.position.set(0, TOP - 0.1, 0.45);
-    pileIsle.group.add(chestPic);
+    // The chest is gone (Sky 2026-10-01); the island waits for something new.
   }
 
   // ---------- Tokens ----------
