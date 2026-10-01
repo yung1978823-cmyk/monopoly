@@ -404,7 +404,8 @@ export function createBoardScene(
           const k = model.height / (box.max.y - box.min.y);
           body.scale.setScalar(k);
           body.position.set(-((box.min.x + box.max.x) / 2) * k, -box.min.y * k, -((box.min.z + box.max.z) / 2) * k);
-          group.add(body);
+          // The model lives inside `head`, so the idle moves (look about, hop, roar) turn and lift the whole body.
+          head.add(body);
           sprite.visible = false;
           spot.position.set(0, model.height * model.mouth[0], ((box.max.z - box.min.z) / 2) * k * model.mouth[1]);
           made.flat = false;
@@ -1253,7 +1254,17 @@ export function createBoardScene(
     for (const m of Object.values(monsters)) {
       if (!m || reduceMotion) continue;
       m.group.scale.y = 1 + Math.sin(now / 900 + m.phase) * 0.025;
-      m.head.rotation.y = Math.sin(now / 2300 + m.phase) * 0.35;
+      // Idle moves (Sky 2026-10-01): turn to look round, and every few seconds a little stomp —
+      // a crouch, a hop, a wobble on landing. The two monsters take turns (half a cycle apart).
+      const cycle = 7000, t = (now + (m === monsters.right ? cycle / 2 : 0)) % cycle;
+      let hop = 0, squash = 0, tilt = 0;
+      if (t < 250) squash = Math.sin((t / 250) * Math.PI) * 0.08;
+      else if (t < 750) hop = Math.sin(((t - 250) / 500) * Math.PI) * 0.45;
+      else if (t < 1300) tilt = Math.sin(((t - 750) / 550) * Math.PI * 3) * 0.12 * (1 - (t - 750) / 550);
+      m.head.position.y = hop;
+      m.head.scale.set(1 + squash, 1 - squash, 1 + squash);
+      m.head.rotation.z = tilt;
+      m.head.rotation.y = Math.sin(now / 2300 + m.phase + (m === monsters.right ? 2 : 0)) * 0.5;
     }
     // Parallax: the far scenery follows the camera part of the way, so it seems to drift slower.
     far.position.x = camera.position.x * 0.45;
@@ -1306,10 +1317,11 @@ export function createBoardScene(
 
   function house(color: number, w: number, h: number) {
     const g = new T.Group();
-    const body = shadowy(new T.Mesh(new T.BoxGeometry(w, h, w), mat(0xfff1d6)));
+    // Walls in a light shade of the owner's colour, roof in a deep one (Sky 2026-10-01: easy to tell whose it is).
+    const body = shadowy(new T.Mesh(new T.BoxGeometry(w, h, w), mat(new T.Color(color).lerp(new T.Color(0xffffff), 0.45).getHex())));
     body.position.y = h / 2;
     g.add(body);
-    const roof = shadowy(new T.Mesh(new T.ConeGeometry(w * 0.85, w * 0.7, 4), mat(color)));
+    const roof = shadowy(new T.Mesh(new T.ConeGeometry(w * 0.85, w * 0.7, 4), mat(new T.Color(color).multiplyScalar(0.7).getHex())));
     roof.position.y = h + w * 0.35;
     roof.rotation.y = Math.PI / 4;
     g.add(roof);
@@ -1330,7 +1342,7 @@ export function createBoardScene(
       g.add(b);
     }
     if (level === 3) {
-      const tower = shadowy(new T.Mesh(new T.BoxGeometry(0.42, 0.9, 0.42), mat(0xe8eef8, 0.3)));
+      const tower = shadowy(new T.Mesh(new T.BoxGeometry(0.42, 0.9, 0.42), mat(new T.Color(color).lerp(new T.Color(0xffffff), 0.45).getHex(), 0.3)));
       tower.position.y = 0.45;
       g.add(tower);
       for (let r = 0; r < 4; r++) {
@@ -1340,15 +1352,15 @@ export function createBoardScene(
           g.add(w);
         }
       }
-      const cap = shadowy(new T.Mesh(new T.BoxGeometry(0.48, 0.08, 0.48), mat(color)));
+      const cap = shadowy(new T.Mesh(new T.BoxGeometry(0.48, 0.08, 0.48), mat(new T.Color(color).multiplyScalar(0.7).getHex())));
       cap.position.y = 0.94;
       g.add(cap);
     }
     if (level >= 4) {
-      const base = shadowy(new T.Mesh(new T.CylinderGeometry(0.3, 0.36, 0.5, 20), mat(0xfff1d6)));
+      const base = shadowy(new T.Mesh(new T.CylinderGeometry(0.3, 0.36, 0.5, 20), mat(new T.Color(color).lerp(new T.Color(0xffffff), 0.45).getHex())));
       base.position.y = 0.25;
       g.add(base);
-      const mid = shadowy(new T.Mesh(new T.CylinderGeometry(0.2, 0.26, 0.5, 20), mat(color)));
+      const mid = shadowy(new T.Mesh(new T.CylinderGeometry(0.2, 0.26, 0.5, 20), mat(new T.Color(color).multiplyScalar(0.7).getHex())));
       mid.position.y = 0.75;
       g.add(mid);
       const dome = shadowy(new T.Mesh(new T.SphereGeometry(0.22, 20, 14, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xfbd000, 0.15, { metalness: 0.7, emissive: 0x5a3d00 })));
@@ -1530,7 +1542,7 @@ export function createBoardScene(
       const tile = tiles[key];
       if (!tile) return;
       const color = hex(colours[seat]);
-      const m = tile.body.material, from = m.color.clone(), to = new T.Color(color).lerp(new T.Color(0xffffff), 0.35);
+      const m = tile.body.material, from = m.color.clone(), to = new T.Color(color).multiplyScalar(0.85); // the land in the owner's own deep colour
       if (tile.house) tile.group.remove(tile.house);
       const g = buildingFor(level, color);
       g.position.copy(tile.inward).setY(TOP + 0.03);
