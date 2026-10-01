@@ -1,11 +1,11 @@
 /**
- * 背景音樂 (Sky 2026-10-01): one looping track (her Suno "Ghostly Board Night", version A), quiet under the
+ * 背景音樂 (Sky 2026-10-01): one looping track (her Suno "Ghostly Board Night", version A, kept in public/music so it never depends on Suno links; the public table plays "Ghostly Showdown" version B), quiet under the
  * sound effects. Browsers only let sound start after a tap, so it waits for the first one; it pauses while the
  * game is in the background. On or off is remembered on this device, and on by default.
  */
 const TRACKS = {
-  home: "https://cdn.acedata2.cloud/suno/37a666a8-9141-4425-b634-46195251ed59.mp3",
-  table: "https://cdn.acedata2.cloud/suno/3b9aa83a-15bc-41e7-8192-fbb32e2edd6e.mp3",
+  home: "/music/home.mp3",
+  table: "/music/table.mp3",
 } as const;
 export type Track = keyof typeof TRACKS;
 let current: Track = "home";
