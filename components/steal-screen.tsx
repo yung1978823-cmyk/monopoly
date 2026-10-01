@@ -1,7 +1,7 @@
 "use client";
 
 import { CHARACTERS } from "@/lib/characters";
-import { JACKPOT, STEAL_PICKS, stealDone, type GameState, type StealBox, type StealKind } from "@/lib/game";
+import { JACKPOT, STEAL_DANGERS, STEAL_PICKS, stealDone, stealPicksLeft, type GameState, type StealBox, type StealKind } from "@/lib/game";
 import { useLang } from "@/lib/i18n";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
@@ -17,7 +17,7 @@ const PIC: Partial<Record<StealKind, string>> = {
   jackpot: "/art/icons/chest.webp",
   trap: "/art/ui/trap.webp",
 };
-const SYMBOL: Record<StealKind, string> = { juice: "💎", meat: "🍖", coins: "🪙", dice: "🎲", jackpot: "🎁", trap: "🪤" };
+const SYMBOL: Record<StealKind, string> = { juice: "💎", meat: "🍖", coins: "🪙", dice: "🎲", jackpot: "🎁", trap: "🪤", bomb: "💣", alarm: "⏰" };
 /** How long after the raid ends before heading back to the board by itself. */
 const BACK_MS = 3200;
 
@@ -32,7 +32,7 @@ function Loot({ box, big = false }: { box: StealBox; big?: boolean }) {
 }
 
 function amountOf(box: StealBox): string {
-  if (box.kind === "trap") return "";
+  if (STEAL_DANGERS.includes(box.kind)) return "";
   if (box.kind === "jackpot") return `+${JACKPOT.coins}🪙 +${JACKPOT.juice}💎`;
   return `+${box.amount}`;
 }
@@ -50,7 +50,12 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
   const done = stealDone(state);
   const last = opened.length ? boxes[opened[opened.length - 1]] : null;
   const trapped = last?.kind === "trap";
-  const triple = opened.length === STEAL_PICKS && opened.every((i) => boxes[i]?.kind === boxes[opened[0]]?.kind) && !trapped;
+  const bombed = last?.kind === "bomb";
+  const rang = last?.kind === "alarm";
+  const hurt = trapped || bombed || rang;
+  const left = stealPicksLeft(state);
+  const triple =
+    opened.length === STEAL_PICKS && opened.every((i) => boxes[i]?.kind === boxes[opened[0]]?.kind) && !STEAL_DANGERS.includes(boxes[opened[0]]?.kind);
   // Arriving from the raccoon's puff of smoke: it clears to show the store.
   const [smoke, setSmoke] = useState(true);
   useEffect(() => {
@@ -72,12 +77,12 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
   function open(i: number) {
     if (done || opened.includes(i)) return;
     const box = boxes[i];
-    play(box.kind === "trap" ? "bad" : box.kind === "jackpot" ? "chest" : box.kind === "juice" ? "lucky" : "coin");
+    play(STEAL_DANGERS.includes(box.kind) ? "bad" : box.kind === "jackpot" ? "chest" : box.kind === "juice" ? "lucky" : "coin");
     onPick(i);
   }
 
   // The raccoon reacts to the last crate: a hop for loot, a jolt for the trap.
-  const mood = trapped ? "animate-[thief-jolt_0.5s_ease-out]" : last ? "animate-[thief-hop_0.5s_ease-out]" : "animate-[thief-idle_2.4s_ease-in-out_infinite]";
+  const mood = hurt ? "animate-[thief-jolt_0.5s_ease-out]" : last ? "animate-[thief-hop_0.5s_ease-out]" : "animate-[thief-idle_2.4s_ease-in-out_infinite]";
 
   return (
     <main
@@ -101,16 +106,16 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
             key={k}
             className={cn(
               "size-4 rounded-full border-2 border-[#FBD000] transition",
-              k < STEAL_PICKS - opened.length && !done ? "bg-[#FBD000] shadow-[0_0_10px_#FBD000]" : "bg-transparent opacity-50",
+              k < left && !done ? "bg-[#FBD000] shadow-[0_0_10px_#FBD000]" : "bg-transparent opacity-50",
             )}
           />
         ))}
       </div>
 
-      <p className="mt-2 text-sm font-bold text-white/80">{done ? (trapped ? t("中咗老鼠夾！") : t("得手！快啲走！")) : t("開三個箱，小心老鼠夾")}</p>
+      <p className="mt-2 text-sm font-bold text-white/80">{done ? (trapped ? t("中咗老鼠夾！") : bombed ? t("炸彈！偷到嘅全部冇晒！") : t("得手！快啲走！")) : rang ? t("鬧鐘響！少咗一次機會") : t("開三個箱，小心機關")}</p>
 
-      {/* Six crates on two shelves. */}
-      <div className="mt-6 grid w-full grid-cols-3 gap-x-3 gap-y-8 px-1">
+      {/* Nine crates on three shelves. */}
+      <div className="mt-4 grid w-full grid-cols-3 gap-x-4 gap-y-6 px-4">
         {boxes.map((box, i) => {
           const isOpen = opened.includes(i);
           const shown = isOpen || reveal;
@@ -124,7 +129,7 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
                   "relative flex aspect-square w-full cursor-pointer items-center justify-center rounded-2xl border-4 transition disabled:cursor-default",
                   shown
                     ? isOpen
-                      ? box.kind === "trap"
+                      ? STEAL_DANGERS.includes(box.kind)
                         ? "border-[#ef4444] bg-[#4a1d1d] animate-[smash_0.5s_ease-out]"
                         : "border-[#FBD000] bg-[#5a3a1c] shadow-[0_0_24px_rgba(251,208,0,0.6)]"
                       : "border-[#6b4a2b] bg-[#3a2616] opacity-45"
@@ -148,6 +153,9 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
                 ) : (
                   <span className="text-3xl font-black text-[#FBD000] drop-shadow-[0_2px_0_#5a3a1c]">?</span>
                 )}
+                {isOpen && box.kind === "bomb" ? (
+                  <img src="/art/fx/boom.webp" alt="" draggable={false} className="pointer-events-none absolute inset-[-60%] max-w-none animate-[pop_0.5s_ease-out] object-contain opacity-90" />
+                ) : null}
                 {isOpen && box.kind === "jackpot" ? (
                   <span className="pointer-events-none absolute inset-[-40%] animate-[siren_2600ms_linear_infinite] rounded-full opacity-60" style={{ background: "conic-gradient(from 0deg, rgba(251,208,0,0.6) 0 20deg, transparent 20deg 60deg, rgba(251,208,0,0.6) 60deg 80deg, transparent 80deg 120deg, rgba(251,208,0,0.6) 120deg 140deg, transparent 140deg 180deg, rgba(251,208,0,0.6) 180deg 200deg, transparent 200deg 240deg, rgba(251,208,0,0.6) 240deg 260deg, transparent 260deg 300deg, rgba(251,208,0,0.6) 300deg 320deg, transparent 320deg)" }} />
                 ) : null}
@@ -156,7 +164,7 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
                 <span className={cn("mt-1 text-sm font-black tabular-nums", isOpen ? "text-[#FBD000]" : "text-white/50")}>{amountOf(box)}</span>
               ) : null}
               {/* The shelf under each row. */}
-              {i % 3 === 0 ? <span className="pointer-events-none absolute -bottom-3 left-0 h-2 w-[calc(300%+1.5rem)] rounded bg-[#5a3a1c] shadow-[0_4px_0_#2a1a0c]" /> : null}
+              {i % 3 === 0 ? <span className="pointer-events-none absolute -bottom-3 left-0 h-2 w-[calc(300%+2rem)] rounded bg-[#5a3a1c] shadow-[0_4px_0_#2a1a0c]" /> : null}
             </div>
           );
         })}

@@ -299,3 +299,30 @@
 @keyframes thief-idle { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-4px) rotate(-2deg); } }
 @keyframes thief-hop { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(-26px) scale(1.06) rotate(-4deg); } 100% { transform: translateY(0) scale(1); } }
 @keyframes thief-jolt { 0% { transform: translate(0, 0); } 20% { transform: translate(-8px, -14px) rotate(-8deg); } 40% { transform: translate(8px, -6px) rotate(6deg); } 60% { transform: translate(-6px, 0) rotate(-4deg); } 100% { transform: translate(0, 0); } }
+/* 孵化 (Sky 2026-10-01): egg drops, wobbles, cracks, flash, the dragon pops out. Timeline over 3.4s. */
+@keyframes hatch-dim { 0% { opacity: 0; } 8% { opacity: 0.78; } 88% { opacity: 0.78; } 100% { opacity: 0; } }
+@keyframes hatch-egg {
+  0% { transform: translateY(-80vh) rotate(0); opacity: 1; }
+  10% { transform: translateY(0) scale(1.08, 0.9); }
+  14% { transform: translateY(0) scale(1); }
+  20% { transform: rotate(-8deg); } 24% { transform: rotate(8deg); } 28% { transform: rotate(-6deg); } 32% { transform: rotate(0); }
+  38% { transform: rotate(-12deg); } 41% { transform: rotate(12deg); } 44% { transform: rotate(-14deg); } 47% { transform: rotate(14deg); } 50% { transform: rotate(-10deg); }
+  52% { transform: rotate(10deg) scale(1.05); } 54% { transform: rotate(-10deg) scale(1.08); } 56% { transform: rotate(0) scale(1.12); opacity: 1; }
+  58% { transform: scale(1.5); opacity: 0; } 100% { transform: scale(1.5); opacity: 0; }
+}
+@keyframes hatch-crack { 0%, 40% { opacity: 0; } 44% { opacity: 1; } 56% { opacity: 1; } 58%, 100% { opacity: 0; } }
+@keyframes hatch-flash { 0%, 55% { opacity: 0; } 58% { opacity: 0.95; } 70% { opacity: 0; } 100% { opacity: 0; } }
+@keyframes hatch-shell { 0%, 56% { opacity: 0; transform: translate(-50%, -50%); } 58% { opacity: 1; } 80% { opacity: 1; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(220deg); } 90%, 100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy) + 8vmin)) rotate(300deg); } }
+@keyframes hatch-rays { 0%, 56% { opacity: 0; transform: translate(-50%, -50%) rotate(0); } 62% { opacity: 0.85; } 88% { opacity: 0.85; } 100% { opacity: 0; transform: translate(-50%, -50%) rotate(140deg); } }
+@keyframes hatch-halo { 0%, 56% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); } 64% { opacity: 0.9; transform: translate(-50%, -50%) scale(1.1); } 88% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; } }
+@keyframes hatch-dragon {
+  0%, 57% { opacity: 0; transform: translate(-50%, -40%) scale(0.1); }
+  64% { opacity: 1; transform: translate(-50%, -58%) scale(1.25); }
+  70% { transform: translate(-50%, -48%) scale(0.95); }
+  75% { transform: translate(-50%, -52%) scale(1.04); }
+  80% { transform: translate(-50%, -50%) scale(1); }
+  84% { transform: translate(-50%, -56%) scale(1) rotate(-3deg); } 88% { transform: translate(-50%, -50%) scale(1) rotate(0); opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
+}
+@keyframes hatch-twinkle { 0%, 58% { opacity: 0; transform: rotate(45deg) scale(0); } 66% { opacity: 1; transform: rotate(45deg) scale(1.3); } 80% { opacity: 0.8; transform: rotate(135deg) scale(0.8); } 92%, 100% { opacity: 0; transform: rotate(225deg) scale(0); } }
+@media (prefers-reduced-motion: reduce) { [data-testid="hatched"] * { animation-duration: 1ms !important; } }

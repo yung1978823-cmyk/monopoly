@@ -410,7 +410,7 @@ describe("daily board", () => {
     assert.equal(next.dayKey, "2026-09-25");
   });
 
-  it("steals from a rival's store on 偷嘢: open three of six crates", () => {
+  it("steals from a rival's store on 偷嘢: open three of nine crates", () => {
     const boxes = [
       { kind: "juice", amount: 3 },
       { kind: "meat", amount: 4 },
@@ -418,6 +418,9 @@ describe("daily board", () => {
       { kind: "dice", amount: 1 },
       { kind: "jackpot", amount: 1 },
       { kind: "trap", amount: 1 },
+      { kind: "bomb", amount: 1 },
+      { kind: "alarm", amount: 1 },
+      { kind: "meat", amount: 3 },
     ] as const;
     const state = reduce({ ...start(), dice: 2 }, { type: "move", faces: [3, 3], stealBoxes: [...boxes], now: NOW });
     assert.equal(TILES[6]?.kind, "steal");
@@ -437,6 +440,19 @@ describe("daily board", () => {
     const trapped = reduce(reduce(state, { type: "steal-pick", index: 5 }), { type: "steal-pick", index: 0 });
     assert.deepEqual(trapped.stealOpened, [5], "the trap ends the raid");
 
+    // 炸彈: what was taken is gone, and the raid ends.
+    const one = reduce(state, { type: "steal-pick", index: 2 });
+    assert.equal(one.points, state.points + 5);
+    const bombed = reduce(one, { type: "steal-pick", index: 6 });
+    assert.equal(bombed.points, state.points, "the coins are blown away");
+    assert.equal(reduce(bombed, { type: "steal-pick", index: 0 }), bombed, "the bomb ends the raid");
+
+    // 鬧鐘: costs an extra pick, so only one more crate after it.
+    const rang = reduce(state, { type: "steal-pick", index: 7 });
+    const after = reduce(rang, { type: "steal-pick", index: 0 });
+    assert.deepEqual(after.stealOpened, [7, 0]);
+    assert.equal(reduce(after, { type: "steal-pick", index: 1 }), after, "the alarm cost a pick");
+
     const back = reduce(took, { type: "return-walk" });
     assert.equal(back.phase, "walk");
     assert.equal(back.stealBoxes, null);
@@ -450,6 +466,9 @@ describe("daily board", () => {
       { kind: "juice", amount: 1 },
       { kind: "coins", amount: 6 },
       { kind: "trap", amount: 1 },
+      { kind: "bomb", amount: 1 },
+      { kind: "alarm", amount: 1 },
+      { kind: "juice", amount: 2 },
     ] as const;
     let state = reduce({ ...start(), dice: 2 }, { type: "move", faces: [3, 3], stealBoxes: [...boxes], now: NOW });
     const meat = state.meat;

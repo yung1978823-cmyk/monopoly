@@ -44,12 +44,15 @@ export type DiePair = [number, number];
 export type Phase = "walk" | "search" | "steal";
 
 /**
- * One of the six crates in a rival's store on 🦝 偷嘢 (Sky 2026-10-01): you open three. Mostly 💎 水晶 or 🍖,
- * a rarer bag of coins or a die, now and then the 大寶箱 jackpot — and one 老鼠夾 that ends the raid at once.
+ * One of the nine crates in a rival's store on 偷嘢 (Sky 2026-10-01): you open three. Mostly 💎 水晶 or 🍖,
+ * a rarer bag of coins or a die, now and then the 大寶箱 jackpot — and three dangers: the 老鼠夾 ends the raid
+ * (you keep what you took), the 炸彈 ends it and blows up everything taken so far, the 鬧鐘 costs a pick.
  */
-export type StealKind = "juice" | "meat" | "coins" | "dice" | "jackpot" | "trap";
+export type StealKind = "juice" | "meat" | "coins" | "dice" | "jackpot" | "trap" | "bomb" | "alarm";
 export type StealBox = { kind: StealKind; amount: number };
-export const STEAL_CRATES = 6;
+export const STEAL_CRATES = 9;
+/** Crates that hurt instead of paying. */
+export const STEAL_DANGERS: StealKind[] = ["trap", "bomb", "alarm"];
 export const STEAL_PICKS = 3;
 /** The 大寶箱 jackpot: this many coins and 💎 at once. */
 export const JACKPOT = { coins: 20, juice: 3 } as const;
@@ -332,30 +335,43 @@ function readLevels(value: unknown, length: number): number[] | null {
   return [...value, ...Array.from({ length: length - value.length }, () => 0)];
 }
 
-/** Six crates for 偷嘢 (from the screen's dice); anything malformed falls back to a plain store. */
+/** Nine crates for 偷嘢 (from the screen's dice); anything malformed falls back to a plain store. */
 function readBoxes(value: unknown): StealBox[] {
   const fallback: StealBox[] = [
     { kind: "juice", amount: 2 },
     { kind: "meat", amount: 3 },
     { kind: "trap", amount: 1 },
     { kind: "juice", amount: 1 },
+    { kind: "bomb", amount: 1 },
     { kind: "coins", amount: 6 },
     { kind: "meat", amount: 3 },
+    { kind: "alarm", amount: 1 },
+    { kind: "juice", amount: 2 },
   ];
   if (!Array.isArray(value) || value.length !== STEAL_CRATES) return fallback;
   const ok = value.every(
     (box) =>
-      box && typeof box === "object" && ["juice", "meat", "coins", "dice", "jackpot", "trap"].includes(box.kind) && inRange(box.amount, 1, 20),
+      box &&
+      typeof box === "object" &&
+      ["juice", "meat", "coins", "dice", "jackpot", "trap", "bomb", "alarm"].includes(box.kind) &&
+      inRange(box.amount, 1, 20),
   );
   return ok ? value.map((box) => ({ kind: box.kind, amount: box.amount })) : fallback;
 }
 
-const STEAL_NAMES: Record<StealKind, string> = { juice: "💎 水晶", meat: "🍖 肉", coins: "金幣", dice: "骰仔", jackpot: "大寶箱", trap: "老鼠夾" };
+const STEAL_NAMES: Record<StealKind, string> = { juice: "💎 水晶", meat: "🍖 肉", coins: "金幣", dice: "骰仔", jackpot: "大寶箱", trap: "老鼠夾", bomb: "炸彈", alarm: "鬧鐘" };
 
-/** The raid is over: three crates open, or the trap went off. */
+/** Picks still to come on 偷嘢: three, less one for each crate opened and one more for each 鬧鐘. */
+export function stealPicksLeft(state: Pick<GameState, "stealBoxes" | "stealOpened">): number {
+  if (!state.stealBoxes) return 0;
+  const alarms = state.stealOpened.filter((i) => state.stealBoxes![i]?.kind === "alarm").length;
+  return Math.max(0, STEAL_PICKS - state.stealOpened.length - alarms);
+}
+
+/** The raid is over: no picks left, or the trap or the bomb went off. */
 export function stealDone(state: Pick<GameState, "stealBoxes" | "stealOpened">): boolean {
   if (!state.stealBoxes) return true;
-  return state.stealOpened.length >= STEAL_PICKS || state.stealOpened.some((i) => state.stealBoxes![i]?.kind === "trap");
+  return stealPicksLeft(state) <= 0 || state.stealOpened.some((i) => ["trap", "bomb"].includes(state.stealBoxes![i]?.kind));
 }
 
 /** What one crate adds (`times` = 1, or again for three of a kind). */
@@ -782,13 +798,34 @@ export function reduce(state: GameState, action: Action): GameState {
       const box = state.stealBoxes[action.index];
       if (!box || state.stealOpened.includes(action.index)) return state;
       const opened = [...state.stealOpened, action.index];
+      if (box.kind === "bomb") {
+        // 炸彈: everything taken on this raid is blown away, and the raid ends.
+        let lost: GameState = { ...state, stealOpened: opened };
+        for (const i of state.stealOpened) {
+          const took = state.stealBoxes[i];
+          const back = gain({ ...lost, juice: 0, meat: 0, points: 0, dice: 0 }, took, 1);
+          lost = {
+            ...lost,
+            juice: Math.max(0, lost.juice - back.juice),
+            meat: Math.max(0, lost.meat - back.meat),
+            points: Math.max(0, lost.points - back.points),
+            dice: Math.max(0, lost.dice - back.dice),
+          };
+        }
+        return pushLog(lost, "you", "中咗炸彈！偷到嘅嘢全部炸冇咗。");
+      }
       let next: GameState = { ...state, stealOpened: opened, ...gain(state, box, 1) };
       // Three of a kind: the whole haul again.
       const three = opened.length === STEAL_PICKS ? opened.map((i) => state.stealBoxes![i]) : null;
-      const triple = !!three && three.every((b) => b.kind === three[0].kind && b.kind !== "trap");
+      const triple = !!three && three.every((b) => b.kind === three[0].kind && !STEAL_DANGERS.includes(b.kind));
       if (triple) for (const b of three!) next = { ...next, ...gain(next, b, 1) };
       const what = STEAL_NAMES[box.kind];
-      const text = box.kind === "trap" ? "中咗老鼠夾！今次偷嘢完。" : `偷到 ${what}。${triple ? "三個一樣，雙倍！" : ""}`;
+      const text =
+        box.kind === "trap"
+          ? "中咗老鼠夾！今次偷嘢完。"
+          : box.kind === "alarm"
+            ? "鬧鐘響！少咗一次機會。"
+            : `偷到 ${what}。${triple ? "三個一樣，雙倍！" : ""}`;
       return pushLog(next, "you", text);
     }
     case "pick-pet": {

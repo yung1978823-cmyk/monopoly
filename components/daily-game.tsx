@@ -4,6 +4,7 @@ import { AttackScreen } from "@/components/attack-screen";
 import { PetScreen } from "@/components/pet-screen";
 import { StealScreen } from "@/components/steal-screen";
 import { AttackIntro, ATTACK_INTRO_MS } from "@/components/attack-intro";
+import { HatchIntro, HATCH_MS } from "@/components/hatch-intro";
 import { StealIntro, STEAL_INTRO_MS } from "@/components/steal-intro";
 import { MyCity } from "@/components/my-city";
 import { RealmScreen } from "@/components/realm-screen";
@@ -16,7 +17,7 @@ import { TipHand } from "@/components/tip-hand";
 import { Button } from "@/components/ui/button";
 import { TILES, TILE_INFO } from "@/lib/board";
 import { THEMES } from "@/lib/themes";
-import { ELEMENTS, HATCH_ROLLS, growNeed, petName, rollElement } from "@/lib/pet";
+import { HATCH_ROLLS, growNeed, rollElement } from "@/lib/pet";
 import {
   STORAGE_KEY,
   attackPower,
@@ -198,7 +199,7 @@ export function DailyGame() {
       setHatchedNow(element);
       play("chest");
     }, 400);
-    const hide = window.setTimeout(() => setHatchedNow(null), 3600);
+    const hide = window.setTimeout(() => setHatchedNow(null), 400 + HATCH_MS);
     return () => {
       window.clearTimeout(show);
       window.clearTimeout(hide);
@@ -397,13 +398,18 @@ export function DailyGame() {
     const rivalNfts = 1 + Math.floor(Math.random() * 5);
     // A chest holds 🍖 half the time.
     const chestMeat = Math.random() < 0.5;
-    // A rival's store (偷嘢): six crates — one 老鼠夾, one rarer prize (a bag of coins or a die), and 💎 and 🍖;
-    // now and then one of those is the 大寶箱 jackpot. Shuffled.
+    // A rival's store (偷嘢): nine crates — the three dangers (老鼠夾, 炸彈, 鬧鐘), one rarer prize (a bag of coins
+    // or a die), and 💎 and 🍖; now and then one of those is the 大寶箱 jackpot. Shuffled.
     const common = (): StealBox => (Math.random() < 0.6 ? { kind: "juice", amount: 1 + Math.floor(Math.random() * 3) } : { kind: "meat", amount: 3 });
-    const commons = [common(), common(), common(), common()];
+    const commons = [common(), common(), common(), common(), common()];
     if (Math.random() < 0.15) commons[0] = { kind: "jackpot", amount: 1 };
     const rare: StealBox = Math.random() < 0.6 ? { kind: "coins", amount: 6 + Math.floor(Math.random() * 5) } : { kind: "dice", amount: 1 };
-    const stealBoxes: StealBox[] = [{ kind: "trap", amount: 1 } as StealBox, rare, ...commons].sort(() => Math.random() - 0.5);
+    const dangers: StealBox[] = [
+      { kind: "trap", amount: 1 },
+      { kind: "bomb", amount: 1 },
+      { kind: "alarm", amount: 1 },
+    ];
+    const stealBoxes: StealBox[] = [...dangers, rare, ...commons].sort(() => Math.random() - 0.5);
     setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalFace, rivalElement, rivalNfts, chest, chestMeat, stealBoxes, tornado, running: true, committed: false });
   }
 
@@ -555,14 +561,8 @@ export function DailyGame() {
           ) : null}
         </div>
       ) : null}
-      {hatchedNow !== null ? (
-        <div className="pointer-events-none absolute inset-x-0 top-[22%] z-40 flex flex-col items-center animate-[pop_0.45s_ease-out]" data-testid="hatched">
-          <p className="rounded-3xl border-4 border-[#FBD000] bg-[#1E3A8A] px-6 py-2 text-3xl font-black text-white shadow-2xl">{t("🐉 孵化咗！")}</p>
-          <p className="mt-2 rounded-full px-4 py-1 text-xl font-black text-white shadow-lg" style={{ background: ELEMENTS[hatchedNow].colour }}>
-            {t("你隻係{name}", { name: t(petName({ element: hatchedNow, stage: 1, hungry: 0, rolls: 0 }, holdsNft(state))) })}
-          </p>
-        </div>
-      ) : null}
+      {/* 孵化: a wordless full-screen show (Sky 2026-10-01). */}
+      {hatchedNow !== null ? <HatchIntro element={hatchedNow} /> : null}
       {/* First time: point at the GO stone in the middle. */}
       {state.rollCount === 0 && !pending ? <TipHand className="left-1/2 top-[42%] z-20 -translate-x-1/2" /> : null}
       {/* Top bar: dice and points only; everything else lives behind the menu. */}
