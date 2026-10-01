@@ -856,7 +856,9 @@ export function createBoardScene(
     breathers.push({ obj: castleIsle.group, base: -0.2, phase: 4, period: 6 });
     // Sky's drawn castle (2026-10-01) stands on the island instead of the shape-built one.
     void c;
-    const castlePic = makePictureMonster("/art/fx/castle.webp", 3.6, [0.5, 0.5]).group;
+    // Sky's 3D crystal gate (2026-10-01) stands where the castle was; nothing shows until it has loaded.
+    const castlePic = makePictureMonster("/art/fx/castle.webp", 3.6, [0.5, 0.5], { url: "/models/crystal-gate.glb", height: 3.4, mouth: [0.5, 0] }).group;
+    castlePic.children[0].visible = false;
     castlePic.position.set(0, TOP - 0.05, 0);
     castleIsle.group.add(castlePic);
     // Little gold stars circle the castle (Sky 2026-10-01: no black bats).
