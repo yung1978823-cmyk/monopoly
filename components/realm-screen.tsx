@@ -505,7 +505,7 @@ function RealmEditor({
           ))}
         </div>
 
-        <div className="h-[40dvh] max-h-80 min-h-52 space-y-2 overflow-y-auto">
+        <div className="h-[30dvh] max-h-72 min-h-44 space-y-2 overflow-y-auto">
           {panel === "build" ? (
             <>
               {BUILDING_KINDS.map((kind) => option(kind, firstEmpty))}
