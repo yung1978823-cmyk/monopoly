@@ -47,16 +47,18 @@ import { play } from "@/lib/sfx";
 import { cn } from "cn";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-const ICONS: Record<BuildingKind, string> = { facade: "🎨", table: "🪑", rent: "🏠", station: "🚉", chance: "❓" };
+/** Sky's drawn pictures (2026-10-01) for lands, materials and buildings, in place of emoji. */
+const pic = (name: string, className: string) => <img src={`/art/realm/${name}.webp`} alt="" draggable={false} className={cn("inline-block object-contain", className)} />;
+const ICONS: Record<BuildingKind, string> = { facade: "facade", table: "table", rent: "rent", station: "station", chance: "chance" };
 const NAMES: Record<BuildingKind, string> = { facade: "門面", table: "加枱", rent: "租金屋", station: "車站", chance: "機會屋" };
-const LAND_ICONS: Record<LandKind, string> = { island: "🏝️", mountain: "⛰️", volcano: "🌋" };
+const LAND_ICONS: Record<LandKind, string> = { island: "island", mountain: "mountain", volcano: "volcano" };
 const LAND_NAMES: Record<LandKind, string> = { island: "海島", mountain: "山城", volcano: "火山" };
 const LAND_NOTES: Record<LandKind, string> = {
   island: "圓形小島，中間有燈塔，碼頭可以坐船",
   mountain: "之字山路，上山落山，有纜車",
   volcano: "外圈加內圈兩層，用橋連接",
 };
-const MATERIAL_ICONS: Record<Material, string> = { wood: "🪵", stone: "🧱", gold: "🪙" };
+const MATERIAL_ICONS: Record<Material, string> = { wood: "wood", stone: "stone", gold: "gold" };
 const MATERIAL_NAMES: Record<Material, string> = { wood: "木材", stone: "石磚", gold: "金塊" };
 const DECK_NAMES: Record<DeckId, string> = { standard: "標準", wild: "大起大落", calm: "平穩" };
 
@@ -211,7 +213,7 @@ function WalletBar({ wallet }: { wallet: Wallet }) {
       </span>
       {MATERIALS.map((m) => (
         <span key={m}>
-          {MATERIAL_ICONS[m]} {wallet.stock[m]}
+          {pic(MATERIAL_ICONS[m], "size-5 align-[-5px]")} {wallet.stock[m]}
         </span>
       ))}
     </div>
@@ -234,7 +236,7 @@ function EmptyLand({ wallet, onBuy }: { wallet: Wallet; onBuy: (land: LandKind) 
         const afford = wallet.points >= info.price;
         return (
           <div key={land} className="flex items-center gap-3 rounded-3xl border-4 border-[#FBD000] bg-white p-3" data-testid={`land-${land}`}>
-            <span className="text-5xl">{LAND_ICONS[land]}</span>
+            {pic(LAND_ICONS[land], "size-20 shrink-0")}
             <span className="flex flex-1 flex-col">
               <span className="text-lg font-black">{t(LAND_NAMES[land])}</span>
               <span className="text-xs font-bold text-[#3B5BA9]">{t(LAND_NOTES[land])}</span>
@@ -274,13 +276,13 @@ function RealmList({ realm, wallet, onJoin, onMine }: { realm: Realm; wallet: Wa
   const { t } = useLang();
   const card = (key: string, owner: string, land: Realm, action: ReactNode, mine = false) => (
     <div key={key} className={cn("flex items-center gap-3 rounded-3xl border-4 bg-white p-3", mine ? "border-[#8B5CF6]" : "border-[#FBD000]")}>
-      <span className="text-4xl">{land.land ? LAND_ICONS[land.land] : "🌱"}</span>
+      {land.land ? pic(LAND_ICONS[land.land], "size-16 shrink-0") : <span className="text-4xl">🌱</span>}
       <span className="flex flex-1 flex-col">
         <span className="font-black">{t("{owner} 嘅{land}", { owner: t(owner), land: land.land ? t(LAND_NAMES[land.land]) : "" })}</span>
         <span className="text-xs font-bold text-[#3B5BA9]">
           {land.ticket === 0 ? t("免費入場") : t("門票 {n}", { n: land.ticket })} · {t("最少 {n} 人開局", { n: land.minPlayers })}
         </span>
-        <span className="text-sm">{land.slots.map((kind, i) => (kind ? <span key={i}>{ICONS[kind]}</span> : null))}</span>
+        <span className="text-sm">{land.slots.map((kind, i) => (kind ? <span key={i}>{pic(ICONS[kind], "size-6")}</span> : null))}</span>
       </span>
       {action}
     </div>
@@ -375,7 +377,12 @@ function RealmEditor({
       chance: t("揀用邊套機會卡"),
     })[kind];
   const recipe = (kind: BuildingKind) =>
-    MATERIALS.filter((m) => RECIPES[kind][m] > 0).map((m) => `${MATERIAL_ICONS[m]}${RECIPES[kind][m]}`).join(" ");
+    MATERIALS.filter((m) => RECIPES[kind][m] > 0).map((m) => (
+      <span key={m} className="mr-1.5 inline-flex items-center">
+        {pic(MATERIAL_ICONS[m], "size-5")}
+        {RECIPES[kind][m]}
+      </span>
+    ));
   const land = realm.land!;
   const fingers = useRef(new Set<number>());
   const affordable = BUILDING_KINDS.filter((kind) => canPlace(realm, kind) && hasStock(wallet.stock, RECIPES[kind])).length;
@@ -407,7 +414,7 @@ function RealmEditor({
       </div>
       <div className="mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col gap-3 overflow-y-auto rounded-t-[32px] bg-white/95 p-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
         <p className="text-center text-lg font-black">
-          {LAND_ICONS[land]} {t("我嘅{land}", { land: t(LAND_NAMES[land]) })}
+          {pic(LAND_ICONS[land], "size-9 align-middle")} {t("我嘅{land}", { land: t(LAND_NAMES[land]) })}
         </p>
 
         {/* Build slots. */}
@@ -422,7 +429,7 @@ function RealmEditor({
                 aria-label={t("拆咗{b}", { b: t(NAMES[kind]) })}
                 data-testid={`slot-${slot}`}
               >
-                {ICONS[kind]}
+                {pic(ICONS[kind], "size-[62%]")}
                 <span className="text-[10px] font-black leading-tight">{t(NAMES[kind])}</span>
                 <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-white text-[10px] font-black shadow">✕</span>
               </button>
@@ -463,7 +470,7 @@ function RealmEditor({
                 aria-label={t("買一件{m}，{n} 分", { m: t(MATERIAL_NAMES[m]), n: MATERIAL_PRICE[m] })}
                 data-testid={`shop-${m}`}
               >
-                <span className="text-2xl">{MATERIAL_ICONS[m]}</span>
+                {pic(MATERIAL_ICONS[m], "size-10")}
                 <span className="text-xs">{t(MATERIAL_NAMES[m])}</span>
                 <span className="text-xs text-[#B45309]">
                   <img src="/art/ui/coin.webp" alt="" className="inline size-4 align-[-3px]" /> {MATERIAL_PRICE[m]}
@@ -553,7 +560,7 @@ function RealmEditor({
                   }}
                   className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border-[3px] border-[#FBD000] bg-[#FFF8D6] px-3 py-2 text-left disabled:cursor-default disabled:border-[#E5EAF2] disabled:bg-[#F4F6FA] disabled:opacity-70"
                 >
-                  <span className="text-3xl">{ICONS[kind]}</span>
+                  {pic(ICONS[kind], "size-12 shrink-0")}
                   <span className="flex flex-1 flex-col">
                     <span className="font-black">{t(NAMES[kind])}</span>
                     <span className="text-xs font-bold text-[#3B5BA9]">

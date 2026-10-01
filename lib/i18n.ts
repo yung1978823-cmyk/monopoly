@@ -364,7 +364,7 @@ const DICT: Record<string, { hans: string; en: string }> = {
   石磚: { hans: "石砖", en: "Stone" },
   金塊: { hans: "金块", en: "Gold" },
   "你入場付咗門票 {n}": { hans: "你入场付了门票 {n}", en: "You paid a {n} ticket to get in" },
-  "材料獎勵：🪵{w} 🧱{s} 🪙{g}": { hans: "材料奖励：🪵{w} 🧱{s} 🪙{g}", en: "Materials won: 🪵{w} 🧱{s} 🪙{g}" },
+  "材料獎勵：": { hans: "材料奖励：", en: "Materials won:" },
   阿狼: { hans: "阿狼", en: "Wolfie" },
   阿鬼: { hans: "阿鬼", en: "Ghosty" },
   阿蝠: { hans: "阿蝠", en: "Batty" },

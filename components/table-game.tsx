@@ -1001,8 +1001,14 @@ export function EightBoard({
               <p className="mt-3 text-center text-sm font-black text-[#4C1D95]">{t("你入場付咗門票 {n}", { n: guestTicket })}</p>
             ) : null}
             {reward ? (
-              <p className="mt-3 rounded-2xl bg-[#FFF8D6] p-2 text-center text-sm font-black" data-testid="table-reward">
-                {t("材料獎勵：🪵{w} 🧱{s} 🪙{g}", { w: reward.wood, s: reward.stone, g: reward.gold })}
+              <p className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-[#FFF8D6] p-2 text-sm font-black" data-testid="table-reward">
+                {t("材料獎勵：")}
+                {(["wood", "stone", "gold"] as const).map((m) => (
+                  <span key={m} className="inline-flex items-center">
+                    <img src={`/art/realm/${m}.webp`} alt="" className="size-7 object-contain" />
+                    {reward[m]}
+                  </span>
+                ))}
               </p>
             ) : null}
             <div className="mt-4 grid grid-cols-2 gap-2">
