@@ -258,6 +258,7 @@ const DICT: Record<string, { hans: string; en: string }> = {
   跟住睇: { hans: "跟随", en: "Follow" },
   近: { hans: "近", en: "N" },
   遠: { hans: "远", en: "F" },
+  揀對手: { hans: "选对手", en: "Opponents" },
   鏡頭距離: { hans: "镜头距离", en: "Camera distance" },
   "{n} 秒後自動擲骰": { hans: "{n} 秒后自动掷骰", en: "Auto roll in {n}s" },
   "🏆 結果": { hans: "🏆 结果", en: "🏆 Results" },

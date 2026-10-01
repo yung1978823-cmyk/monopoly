@@ -159,25 +159,25 @@ function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onEx
         <span className="size-11" />
       </header>
 
-      {/* Entry: 20 in, the house keeps 2 as the ticket, 18 goes on the table. */}
-      <section className="w-full rounded-3xl border-4 border-[#FBD000] bg-white/95 p-4 shadow-lg" data-testid="entry">
+      {/* Entry: 20 in, the house keeps 2 as the ticket, 18 goes on the table. No card round it (Sky 2026-10-01): straight on the picture. */}
+      <section className="w-full px-2 text-white [text-shadow:0_2px_4px_rgba(30,20,80,0.9)]" data-testid="entry">
         <div className="flex items-center justify-between text-center font-black">
           <div className="flex flex-col items-center">
-            <span className="text-xs text-[#3B5BA9]">{t("入場")}</span>
-            <span className="text-2xl tabular-nums">{ENTRY_FEE}</span>
+            <span className="text-xs text-white/85">{t("入場")}</span>
+            <span className="text-3xl tabular-nums">{ENTRY_FEE}</span>
           </div>
-          <span className="text-xl text-[#3B5BA9]">→</span>
-          <div className="flex flex-col items-center text-[#E52521]">
-            <span className="text-xs">{t("門票")}</span>
-            <span className="text-2xl tabular-nums">−{HOUSE_CUT}</span>
+          <span className="text-xl text-white/70">→</span>
+          <div className="flex flex-col items-center">
+            <span className="text-xs text-white/85">{t("門票")}</span>
+            <span className="text-3xl tabular-nums text-[#FF9AA8]">−{HOUSE_CUT}</span>
           </div>
-          <span className="text-xl text-[#3B5BA9]">→</span>
-          <div className="flex flex-col items-center text-[#22A447]">
-            <span className="text-xs">{t("落場")}</span>
-            <span className="text-3xl tabular-nums">{STAKE}</span>
+          <span className="text-xl text-white/70">→</span>
+          <div className="flex flex-col items-center">
+            <span className="text-xs text-white/85">{t("落場")}</span>
+            <span className="text-4xl tabular-nums text-[#FFE066]">{STAKE}</span>
           </div>
         </div>
-        <p className="mt-2 text-center text-xs font-bold text-[#3B5BA9]">{t("練習局：用分數代替 DST，打完清零")}</p>
+        <p className="mt-1 text-center text-xs font-bold text-white/85">{t("練習局：用分數代替 DST，打完清零")}</p>
       </section>
 
       {/* Your character: first come, first served; the computer players get the rest. */}
@@ -192,14 +192,25 @@ function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onEx
               onClick={() => choose(i)}
               aria-pressed={pick === i}
               className={cn(
-                "flex cursor-pointer flex-col items-center rounded-2xl border-[3px] p-1.5 transition",
-                pick === i ? "scale-105 border-[#FBD000] bg-[#FFF8D6] shadow-md" : "border-transparent opacity-85",
+                "flex cursor-pointer flex-col items-center p-1.5 transition duration-200",
+                pick === i ? "scale-110" : "scale-90 opacity-60",
               )}
               data-testid={`character-${i}`}
             >
-              <Face seat={c} className="size-12 border-[3px]" />
-              <span className={cn("mt-1 text-xs font-black", pick === i ? "" : "text-white [text-shadow:0_1px_3px_rgba(30,58,138,0.9)]")}>{t(c.name)}</span>
-              {pick === i ? <span className="text-[10px] font-black text-[#E52521]">{t("你揀咗")}</span> : null}
+              {/* The one you picked is bigger, with a gold glow round it; no box (Sky 2026-10-01). */}
+              <Face
+                seat={c}
+                className={cn("size-14 border-[3px]", pick === i && "shadow-[0_0_0_3px_#FBD000,0_0_22px_8px_rgba(251,208,0,0.7)]")}
+              />
+              <span
+                className={cn(
+                  "mt-1.5 text-xs font-black [text-shadow:0_1px_3px_rgba(30,20,80,0.95)]",
+                  pick === i ? "text-[#FFE066]" : "text-white",
+                )}
+              >
+                {t(c.name)}
+              </span>
+              {pick === i ? <span className="text-[10px] font-black text-[#FFE066] [text-shadow:0_1px_3px_rgba(30,20,80,0.95)]">{t("你揀咗")}</span> : null}
             </button>
           ))}
         </div>
@@ -207,21 +218,23 @@ function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onEx
 
       {/* Opponents: pick 1–3 computer players. */}
       <section className="flex w-full flex-col items-center gap-3">
-        <div className="flex gap-2">
+        <h2 className="text-center text-sm font-black text-white [text-shadow:0_2px_4px_rgba(30,58,138,0.9)]">{t("揀對手")}</h2>
+        <div className="flex gap-4">
           {[1, 2, 3].map((count) => (
             <button
               key={count}
               type="button"
               onClick={() => setOpponents(count)}
               className={cn(
-                "flex cursor-pointer items-center gap-1 rounded-full border-[3px] px-2 py-1.5 shadow-md",
-                opponents === count ? "border-[#FBD000] bg-[#E52521]" : "border-white bg-white/80",
+                // No pill round each choice (Sky 2026-10-01): the chosen group is bigger and glows, the others fade.
+                "flex cursor-pointer items-center -space-x-2 rounded-full p-1 transition duration-200",
+                opponents === count ? "scale-110 shadow-[0_0_20px_6px_rgba(251,208,0,0.55)]" : "scale-90 opacity-55",
               )}
               aria-label={t("{n} 人枱", { n: count + 1 })}
               data-testid={`opponents-${count}`}
             >
               {seatsFor(pick, count).slice(1).map((seat) => (
-                <Face key={seat.name} seat={seat} className="size-8 border-2 border-white" />
+                <Face key={seat.name} seat={seat} className="size-9 border-2 border-white" />
               ))}
             </button>
           ))}
@@ -833,7 +846,7 @@ export function EightBoard({
 
       {/* Your 功能卡: play one before rolling. */}
       {me.powers.length && table.phase !== "over" ? (
-        <div className="absolute inset-x-0 bottom-[8.5rem] z-20 flex justify-center gap-2 px-4" data-testid="power-hand">
+        <div className="absolute inset-x-0 bottom-[calc(max(env(safe-area-inset-bottom),1rem)+10.5rem)] z-20 flex justify-center gap-2 px-4" data-testid="power-hand">
           {me.powers.map((power, index) => {
             const info = POWER_INFO[power];
             const usable = mine && table.phase === "roll" && canPlay(table, 0, power);
