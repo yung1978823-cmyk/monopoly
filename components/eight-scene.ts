@@ -219,21 +219,25 @@ export function createBoardScene(
   decor?: Decor,
   board: BoardId = "eight",
   actors?: (string | null)[],
+  /** see-through: no sky, fog or sea — the island floats over whatever is behind the canvas (領地 preview). */
+  opts: { seeThrough?: boolean } = {},
 ): BoardScene {
   const layout = layoutFor(board);
+  const seeThrough = !!opts.seeThrough;
   const island = board === "island";
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let speed = 1;
   const pace = () => speed * (reduceMotion ? 10 : 1);
 
   // ---------- Renderer, scene, light ----------
-  const renderer = new T.WebGLRenderer({ antialias: true });
+  const renderer = new T.WebGLRenderer({ antialias: true, alpha: seeThrough });
+  if (seeThrough) renderer.setClearColor(0x000000, 0);
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = T.PCFSoftShadowMap;
   renderer.outputEncoding = T.sRGBEncoding;
   renderer.toneMapping = T.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = board === "island" ? 1.1 : 0.85; // the forest board: deeper, richer greens
+  renderer.toneMappingExposure = seeThrough ? 0.9 : board === "island" ? 1.1 : 0.85; // the forest board: deeper, richer greens
   renderer.domElement.style.display = "block";
   renderer.domElement.style.touchAction = "none";
   container.appendChild(renderer.domElement);
@@ -256,8 +260,8 @@ export function createBoardScene(
   sg.fillRect(0, 0, 4, 256);
   const skyTex = new T.CanvasTexture(sky);
   skyTex.encoding = T.sRGBEncoding;
-  scene.background = skyTex;
-  scene.fog = new T.Fog(island ? 0xa9dcf5 : 0x16291c, island ? 50 : 40, island ? 110 : 140);
+  scene.background = seeThrough ? null : skyTex;
+  scene.fog = seeThrough ? null : new T.Fog(island ? 0xa9dcf5 : 0x16291c, island ? 50 : 40, island ? 110 : 140);
 
   const camera = new T.PerspectiveCamera(38, 1, 0.1, 200);
   scene.add(island ? new T.HemisphereLight(0xfff1e0, 0x5b3b7a, 0.85) : new T.HemisphereLight(0xe2f5cf, 0x14240f, 0.7));
@@ -496,10 +500,21 @@ export function createBoardScene(
   let gate: any = null;
   const monsters: Partial<Record<"left" | "right", { group: any; head: any; mouth: any; phase: number; flat?: boolean }>> = {};
   if (island) {
-    const water = new T.Mesh(new T.CircleGeometry(80, 64), mat(0x2bb3c9, 0.25, { metalness: 0.2 }));
-    water.rotation.x = -Math.PI / 2;
-    water.position.y = -0.9;
-    scene.add(water);
+    if (seeThrough) {
+      // Floating in space (Sky 2026-10-01): a thin ring of sea round the sand, and rock hanging underneath.
+      const sea = new T.Mesh(new T.CylinderGeometry(ISLAND_R + 3.1, ISLAND_R + 2.9, 0.5, 48), mat(0x2bb3c9, 0.25, { metalness: 0.2 }));
+      sea.position.y = -0.95;
+      scene.add(sea);
+      const rock = new T.Mesh(new T.ConeGeometry(ISLAND_R + 3, 5.5, 12, 3), new T.MeshStandardMaterial({ color: 0x8a8378, roughness: 0.95, flatShading: true }));
+      rock.rotation.x = Math.PI;
+      rock.position.y = -1.2 - 2.75;
+      scene.add(rock);
+    } else {
+      const water = new T.Mesh(new T.CircleGeometry(80, 64), mat(0x2bb3c9, 0.25, { metalness: 0.2 }));
+      water.rotation.x = -Math.PI / 2;
+      water.position.y = -0.9;
+      scene.add(water);
+    }
     const deck = shadowy(new T.Mesh(new T.CylinderGeometry(ISLAND_R + 1.7, ISLAND_R + 2.3, 1, 48), mat(0xf2d9a0, 0.9)));
     deck.position.y = -0.5;
     deckMat = deck.material;

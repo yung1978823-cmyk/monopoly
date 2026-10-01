@@ -324,7 +324,12 @@ function RealmList({ realm, wallet, onJoin, onMine }: { realm: Realm; wallet: Wa
   );
 }
 
-/** Your land: 3D preview, build slots (paid in materials), the material shop, ticket and players. */
+type Panel = "build" | "shop" | "rules";
+
+/**
+ * Your land (re-laid out with Sky 2026-10-01): the island floats in space with its build spots on a row over
+ * it; underneath, three tabs (起樓 / 材料店 / 開局設定) instead of one long scroll; 開局 always in reach.
+ */
 function RealmEditor({
   realm,
   wallet,
@@ -341,6 +346,7 @@ function RealmEditor({
   const sceneRef = useRef<BoardScene | null>(null);
   const [loaded, setLoaded] = useState<"loading" | "ready" | "failed">("loading");
   const [picking, setPicking] = useState<number | null>(null);
+  const [panel, setPanel] = useState<Panel>("build");
   const realmRef = useRef(realm);
   realmRef.current = realm;
 
@@ -350,7 +356,7 @@ function RealmEditor({
     loadThree()
       .then((T) => {
         if (cancelled || !mount.current) return;
-        scene = createBoardScene(T, mount.current, [], decorOf(realmRef.current), boardOf(realmRef.current));
+        scene = createBoardScene(T, mount.current, [], decorOf(realmRef.current), boardOf(realmRef.current), undefined, { seeThrough: true });
         sceneRef.current = scene;
         scene.focus(null);
         setLoaded("ready");
@@ -383,54 +389,80 @@ function RealmEditor({
         {RECIPES[kind][m]}
       </span>
     ));
-  const land = realm.land!;
   const fingers = useRef(new Set<number>());
-  const affordable = BUILDING_KINDS.filter((kind) => canPlace(realm, kind) && hasStock(wallet.stock, RECIPES[kind])).length;
+  const firstEmpty = realm.slots.findIndex((kind) => !kind);
+
+  /** One building to choose: picture, what it does, what it costs. Builds into `slot`. */
+  const option = (kind: BuildingKind, slot: number | null, after?: () => void) => {
+    const fits = canPlace(realm, kind);
+    const enough = hasStock(wallet.stock, RECIPES[kind]);
+    const ok = fits && enough && slot !== null && slot >= 0;
+    return (
+      <button
+        key={kind}
+        type="button"
+        disabled={!ok}
+        onClick={() => {
+          if (!ok) return;
+          play("build");
+          juice("medium");
+          onChange(build(realm, wallet, slot, kind));
+          after?.();
+        }}
+        className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border-[3px] border-[#FBD000] bg-[#FFF8D6] px-3 py-1.5 text-left disabled:cursor-default disabled:border-[#E5EAF2] disabled:bg-[#F4F6FA] disabled:opacity-70"
+        data-testid={`option-${kind}`}
+      >
+        {pic(ICONS[kind], "size-12 shrink-0")}
+        <span className="flex flex-1 flex-col">
+          <span className="font-black">{t(NAMES[kind])}</span>
+          <span className="text-xs font-bold text-[#3B5BA9]">
+            {!fits ? t("已經到上限") : !enough ? t("材料唔夠") : slot === null || slot < 0 ? t("冇空位，拆走一間先") : describe(kind)}
+          </span>
+        </span>
+        <span className="text-right text-xs font-black text-[#B45309]">{recipe(kind)}</span>
+      </button>
+    );
+  };
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col">
-      {/* A preview to look at, not to zoom: the wheel and two-finger pinch stay out of the 3D board
-          (Sky 2026-10-01: one scroll shrank the island to a dot). Dragging to turn it still works. */}
-      <div
-        ref={mount}
-        className="relative h-[38%] min-h-40 w-full touch-none"
-        aria-label={t("我嘅領地")}
-        onWheelCapture={(event: { stopPropagation: () => void }) => event.stopPropagation()}
-        onPointerDownCapture={(event: { pointerId: number; stopPropagation: () => void }) => {
-          fingers.current.add(event.pointerId);
-          if (fingers.current.size > 1) event.stopPropagation();
-        }}
-        onPointerMoveCapture={(event: { stopPropagation: () => void }) => {
-          if (fingers.current.size > 1) event.stopPropagation();
-        }}
-        onPointerUpCapture={(event: { pointerId: number }) => fingers.current.delete(event.pointerId)}
-        onPointerCancelCapture={(event: { pointerId: number }) => fingers.current.delete(event.pointerId)}
-      >
+      {/* The island, floating in the same space as the page. A preview to look at, not to zoom: the wheel and
+          two-finger pinch stay out of the 3D board (Sky 2026-10-01). Dragging to turn it still works. */}
+      <div className="relative min-h-44 flex-1">
+        <div
+          ref={mount}
+          className="absolute inset-0 touch-none"
+          aria-label={t("我嘅領地")}
+          onWheelCapture={(event: { stopPropagation: () => void }) => event.stopPropagation()}
+          onPointerDownCapture={(event: { pointerId: number; stopPropagation: () => void }) => {
+            fingers.current.add(event.pointerId);
+            if (fingers.current.size > 1) event.stopPropagation();
+          }}
+          onPointerMoveCapture={(event: { stopPropagation: () => void }) => {
+            if (fingers.current.size > 1) event.stopPropagation();
+          }}
+          onPointerUpCapture={(event: { pointerId: number }) => fingers.current.delete(event.pointerId)}
+          onPointerCancelCapture={(event: { pointerId: number }) => fingers.current.delete(event.pointerId)}
+        />
         {loaded !== "ready" ? (
-          <p className="absolute inset-x-0 top-1/3 text-center font-black text-white">
+          <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center font-black text-white">
             {loaded === "loading" ? t("載入立體棋盤⋯") : t("立體畫面載入唔到，請檢查網絡再試。")}
           </p>
         ) : null}
-      </div>
-      <div className="mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col gap-3 overflow-y-auto rounded-t-[32px] bg-white/95 p-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
-        <p className="text-center text-lg font-black">
-          {pic(LAND_ICONS[land], "size-9 align-middle")} {t("我嘅{land}", { land: t(LAND_NAMES[land]) })}
-        </p>
-
-        {/* Build slots. */}
-        <div className={cn("grid gap-2", realm.slots.length > 4 ? "grid-cols-6" : realm.slots.length > 2 ? "grid-cols-4" : "grid-cols-2")}>
+        {/* Build spots, floating over the bottom of the island. */}
+        <div className="absolute inset-x-0 bottom-2 flex justify-center gap-2 px-3" data-testid="slots">
           {realm.slots.map((kind, slot) =>
             kind ? (
               <button
                 key={slot}
                 type="button"
                 onClick={() => onChange({ realm: demolish(realm, slot) })}
-                className="relative flex aspect-square cursor-pointer flex-col items-center justify-center rounded-2xl border-[3px] border-[#FBD000] bg-[#F3EEFF] text-2xl"
+                className="relative flex size-16 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-[#FBD000] bg-white/85 shadow-[0_4px_12px_rgba(0,0,0,0.35)] backdrop-blur"
                 aria-label={t("拆咗{b}", { b: t(NAMES[kind]) })}
                 data-testid={`slot-${slot}`}
               >
-                {pic(ICONS[kind], "size-[62%]")}
-                <span className="text-[10px] font-black leading-tight">{t(NAMES[kind])}</span>
+                {pic(ICONS[kind], "size-11")}
+                <span className="text-[10px] font-black leading-none">{t(NAMES[kind])}</span>
                 <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-white text-[10px] font-black shadow">✕</span>
               </button>
             ) : (
@@ -438,90 +470,124 @@ function RealmEditor({
                 key={slot}
                 type="button"
                 onClick={() => setPicking(slot)}
-                className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-[3px] border-dashed border-[#8B5CF6]/60 bg-[#F3EEFF] font-black text-[#7C3AED] animate-[breathe_3s_ease-in-out_infinite]"
+                className="flex size-16 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/80 bg-[#7C3AED]/55 font-black text-white shadow-[0_4px_12px_rgba(0,0,0,0.35)] backdrop-blur animate-[breathe_3s_ease-in-out_infinite]"
                 aria-label={t("喺第 {n} 個位起嘢", { n: slot + 1 })}
                 data-testid={`slot-${slot}`}
               >
-                {/* Say what the empty spot is for (Sky 2026-10-01): a crane, "起樓", and how many kinds you can afford. */}
-                <img src="/art/ui/build.webp" alt="" className="size-10 object-contain" />
-                <span className="text-sm">{t("起樓")}</span>
-                <span className="text-[11px] text-[#3B5BA9]">{t("有 {n} 款起得", { n: affordable })}</span>
+                <img src="/art/ui/build.webp" alt="" className="size-9 object-contain" />
+                <span className="text-xs leading-none">{t("起樓")}</span>
               </button>
             ),
           )}
         </div>
-        <p className="-mt-1 text-center text-xs font-bold text-[#3B5BA9]">{t("撳已起嘅建築可以拆走（材料唔退返）")}</p>
+      </div>
 
-        {/* Material shop. */}
-        <div className="rounded-2xl bg-[#FFF8D6] p-2">
-          <p className="mb-1 text-center text-sm font-black">{t("材料店")}</p>
-          <div className="grid grid-cols-3 gap-2">
-            {MATERIALS.map((m) => (
-              <button
-                key={m}
-                type="button"
-                disabled={wallet.points < MATERIAL_PRICE[m]}
-                onClick={() => {
-                  play("coin");
-                  juiceAt("small", document.querySelector(`[data-testid="shop-${m}"]`));
-                  onChange({ wallet: buyMaterial(wallet, m) });
-                }}
-                className="flex cursor-pointer flex-col items-center rounded-2xl border-2 border-[#FBD000] bg-white py-1 font-black disabled:opacity-50"
-                aria-label={t("買一件{m}，{n} 分", { m: t(MATERIAL_NAMES[m]), n: MATERIAL_PRICE[m] })}
-                data-testid={`shop-${m}`}
-              >
-                {pic(MATERIAL_ICONS[m], "size-10")}
-                <span className="text-xs">{t(MATERIAL_NAMES[m])}</span>
-                <span className="text-xs text-[#B45309]">
-                  <img src="/art/ui/coin.webp" alt="" className="inline size-4 align-[-3px]" /> {MATERIAL_PRICE[m]}
-                </span>
-              </button>
-            ))}
-          </div>
-          <p className="mt-1 text-center text-xs font-bold text-[#3B5BA9]">{t("玩公開桌，名次越前送越多材料")}</p>
+      <div className="mx-auto flex w-full max-w-xl shrink-0 flex-col gap-2 rounded-t-[32px] bg-white/95 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+        <div className="grid grid-cols-3 gap-1 rounded-full bg-[#EEF2FA] p-1" role="tablist">
+          {(
+            [
+              ["build", "起樓"],
+              ["shop", "材料店"],
+              ["rules", "開局設定"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={panel === id}
+              onClick={() => setPanel(id)}
+              className={cn("cursor-pointer rounded-full py-1.5 text-sm font-black", panel === id ? "bg-[#7C3AED] text-white shadow" : "text-[#3B5BA9]")}
+              data-testid={`panel-${id}`}
+            >
+              {t(label)}
+            </button>
+          ))}
         </div>
 
-        <p className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs font-black" data-testid="realm-summary">
-          <span>{t("同時開 {n} 張枱", { n: tablesOf(realm) })}</span>
-          <span>{t("每人 {n} 轉", { n: turnsOf(realm) })}</span>
-        </p>
-
-        {count(realm, "chance") > 0 ? (
-          <div className="flex items-center justify-center gap-2" role="group" aria-label={t("機會卡")}>
-            {(Object.keys(DECK_NAMES) as DeckId[]).map((id) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => onChange({ realm: { ...realm, deck: id } })}
-                aria-pressed={realm.deck === id}
-                className={cn(
-                  "cursor-pointer rounded-full border-2 px-3 py-1 text-sm font-black",
-                  realm.deck === id ? "border-[#FBD000] bg-[#8B5CF6] text-white" : "border-[#D6DEEA] bg-white",
-                )}
-              >
-                {t(DECK_NAMES[id])}
-              </button>
-            ))}
-          </div>
-        ) : null}
-
-        {/* Ticket and fewest players. */}
-        <Stepper
-          label={t("門票")}
-          value={realm.ticket}
-          note={realm.ticket === 0 ? t("0 = 免費場，分數局") : t("最多 {n}，同公開桌入場一樣", { n: MAX_TICKET })}
-          onDown={() => onChange({ realm: setTicket(realm, realm.ticket - 1) })}
-          onUp={() => onChange({ realm: setTicket(realm, realm.ticket + 1) })}
-          testid="ticket"
-        />
-        <Stepper
-          label={t("最少人數")}
-          value={realm.minPlayers}
-          note={t("{a} 至 {b} 人，夠人先開局", { a: MIN_PLAYERS, b: MAX_PLAYERS })}
-          onDown={() => onChange({ realm: setMinPlayers(realm, realm.minPlayers - 1) })}
-          onUp={() => onChange({ realm: setMinPlayers(realm, realm.minPlayers + 1) })}
-          testid="min-players"
-        />
+        <div className="h-[40dvh] max-h-80 min-h-52 space-y-2 overflow-y-auto">
+          {panel === "build" ? (
+            <>
+              {BUILDING_KINDS.map((kind) => option(kind, firstEmpty))}
+              <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("撳上面已起嘅建築可以拆走（材料唔退返）")}</p>
+            </>
+          ) : panel === "shop" ? (
+            <>
+              <div className="grid grid-cols-3 gap-2">
+                {MATERIALS.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    disabled={wallet.points < MATERIAL_PRICE[m]}
+                    onClick={() => {
+                      play("coin");
+                      juiceAt("small", document.querySelector(`[data-testid="shop-${m}"]`));
+                      onChange({ wallet: buyMaterial(wallet, m) });
+                    }}
+                    className="flex cursor-pointer flex-col items-center rounded-2xl border-2 border-[#FBD000] bg-[#FFF8D6] py-2 font-black disabled:opacity-50"
+                    aria-label={t("買一件{m}，{n} 分", { m: t(MATERIAL_NAMES[m]), n: MATERIAL_PRICE[m] })}
+                    data-testid={`shop-${m}`}
+                  >
+                    {pic(MATERIAL_ICONS[m], "size-14")}
+                    <span className="text-sm">{t(MATERIAL_NAMES[m])}</span>
+                    <span className="text-xs text-[#B45309]">
+                      <img src="/art/ui/coin.webp" alt="" className="inline size-4 align-[-3px]" /> {MATERIAL_PRICE[m]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("玩公開桌，名次越前送越多材料")}</p>
+            </>
+          ) : (
+            <>
+              <p className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm font-black" data-testid="realm-summary">
+                <span>{t("同時開 {n} 張枱", { n: tablesOf(realm) })}</span>
+                <span>{t("每人 {n} 轉", { n: turnsOf(realm) })}</span>
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <Stepper
+                  label={t("門票")}
+                  value={realm.ticket}
+                  note={realm.ticket === 0 ? t("0 = 免費場") : t("最多 {n}", { n: MAX_TICKET })}
+                  onDown={() => onChange({ realm: setTicket(realm, realm.ticket - 1) })}
+                  onUp={() => onChange({ realm: setTicket(realm, realm.ticket + 1) })}
+                  testid="ticket"
+                />
+                <Stepper
+                  label={t("最少人數")}
+                  value={realm.minPlayers}
+                  note={t("{a} 至 {b} 人", { a: MIN_PLAYERS, b: MAX_PLAYERS })}
+                  onDown={() => onChange({ realm: setMinPlayers(realm, realm.minPlayers - 1) })}
+                  onUp={() => onChange({ realm: setMinPlayers(realm, realm.minPlayers + 1) })}
+                  testid="min-players"
+                />
+              </div>
+              {count(realm, "chance") > 0 ? (
+                <div className="space-y-1">
+                  <p className="text-center text-xs font-black">{t("機會卡")}</p>
+                  <div className="flex items-center justify-center gap-2" role="group" aria-label={t("機會卡")}>
+                    {(Object.keys(DECK_NAMES) as DeckId[]).map((id) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => onChange({ realm: { ...realm, deck: id } })}
+                        aria-pressed={realm.deck === id}
+                        className={cn(
+                          "cursor-pointer rounded-full border-2 px-3 py-1 text-sm font-black",
+                          realm.deck === id ? "border-[#FBD000] bg-[#8B5CF6] text-white" : "border-[#D6DEEA] bg-white",
+                        )}
+                      >
+                        {t(DECK_NAMES[id])}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("起咗機會屋就可以揀機會卡")}</p>
+              )}
+            </>
+          )}
+        </div>
 
         <button
           type="button"
@@ -536,7 +602,7 @@ function RealmEditor({
         </button>
       </div>
 
-      {/* Pick what to build: each needs materials. */}
+      {/* Tapping an empty spot: pick what to build there. */}
       {picking !== null ? (
         <div className="absolute inset-0 z-40 flex items-end bg-[#1E3A8A]/50" onClick={() => setPicking(null)}>
           <div
@@ -544,35 +610,7 @@ function RealmEditor({
             onClick={(event: { stopPropagation: () => void }) => event.stopPropagation()}
             data-testid="build-picker"
           >
-            {BUILDING_KINDS.map((kind) => {
-              const fits = canPlace(realm, kind);
-              const enough = hasStock(wallet.stock, RECIPES[kind]);
-              return (
-                <button
-                  key={kind}
-                  type="button"
-                  disabled={!fits || !enough}
-                  onClick={() => {
-                    play("build");
-                    juice("medium");
-                    onChange(build(realm, wallet, picking, kind));
-                    setPicking(null);
-                  }}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border-[3px] border-[#FBD000] bg-[#FFF8D6] px-3 py-2 text-left disabled:cursor-default disabled:border-[#E5EAF2] disabled:bg-[#F4F6FA] disabled:opacity-70"
-                >
-                  {pic(ICONS[kind], "size-12 shrink-0")}
-                  <span className="flex flex-1 flex-col">
-                    <span className="font-black">{t(NAMES[kind])}</span>
-                    <span className="text-xs font-bold text-[#3B5BA9]">
-                      {!fits ? t("已經到上限") : !enough ? t("材料唔夠") : describe(kind)}
-                    </span>
-                  </span>
-                  <span className="text-right text-xs font-black text-[#B45309]">
-                    {recipe(kind)}
-                  </span>
-                </button>
-              );
-            })}
+            {BUILDING_KINDS.map((kind) => option(kind, picking, () => setPicking(null)))}
           </div>
         </div>
       ) : null}
@@ -597,20 +635,20 @@ function Stepper({
 }) {
   const { t } = useLang();
   return (
-    <div>
-      <div className="flex items-center gap-3 rounded-2xl bg-[#EAF4FF] px-3 py-2 font-black">
-        <span className="flex-1 text-sm">{label}</span>
-        <button type="button" onClick={onDown} className="size-9 cursor-pointer rounded-full border-2 border-[#FBD000] bg-white text-xl" aria-label={t("{x}減一", { x: label })}>
+    <div className="rounded-2xl bg-[#EAF4FF] px-2 py-1.5 text-center font-black">
+      <p className="text-xs">{label}</p>
+      <div className="mt-0.5 flex items-center justify-center gap-2">
+        <button type="button" onClick={onDown} className="size-8 cursor-pointer rounded-full border-2 border-[#FBD000] bg-white text-lg leading-none" aria-label={t("{x}減一", { x: label })}>
           −
         </button>
-        <span className="w-8 text-center text-xl tabular-nums" data-testid={testid}>
+        <span className="w-7 text-xl tabular-nums" data-testid={testid}>
           {value}
         </span>
-        <button type="button" onClick={onUp} className="size-9 cursor-pointer rounded-full border-2 border-[#FBD000] bg-white text-xl" aria-label={t("{x}加一", { x: label })}>
+        <button type="button" onClick={onUp} className="size-8 cursor-pointer rounded-full border-2 border-[#FBD000] bg-white text-lg leading-none" aria-label={t("{x}加一", { x: label })}>
           +
         </button>
       </div>
-      <p className="mt-0.5 text-center text-[11px] font-bold text-[#3B5BA9]">{note}</p>
+      <p className="text-[10px] font-bold text-[#3B5BA9]">{note}</p>
     </div>
   );
 }
