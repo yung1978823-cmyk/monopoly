@@ -1254,17 +1254,43 @@ export function createBoardScene(
     for (const m of Object.values(monsters)) {
       if (!m || reduceMotion) continue;
       m.group.scale.y = 1 + Math.sin(now / 900 + m.phase) * 0.025;
-      // Idle moves (Sky 2026-10-01): turn to look round, and every few seconds a little stomp —
-      // a crouch, a hop, a wobble on landing. The two monsters take turns (half a cycle apart).
-      const cycle = 7000, t = (now + (m === monsters.right ? cycle / 2 : 0)) % cycle;
-      let hop = 0, squash = 0, tilt = 0;
-      if (t < 250) squash = Math.sin((t / 250) * Math.PI) * 0.08;
-      else if (t < 750) hop = Math.sin(((t - 250) / 500) * Math.PI) * 0.45;
-      else if (t < 1300) tilt = Math.sin(((t - 750) / 550) * Math.PI * 3) * 0.12 * (1 - (t - 750) / 550);
-      m.head.position.y = hop;
+      // Idle moves (Sky 2026-10-01), taking turns between the two monsters (half a cycle apart), one move per
+      // cycle in rotation: a hop, a roar (stretch up tall and shake), a stomp (two heavy foot-falls).
+      const cycle = 6000, clock = now + (m === monsters.right ? cycle / 2 : 0);
+      const t = clock % cycle, move = Math.floor(clock / cycle) % 3;
+      let lift = 0, squash = 0, tilt = 0, shake = 0;
+      if (move === 0) {
+        if (t < 250) squash = Math.sin((t / 250) * Math.PI) * 0.08;
+        else if (t < 750) lift = Math.sin(((t - 250) / 500) * Math.PI) * 0.45;
+        else if (t < 1300) tilt = Math.sin(((t - 750) / 550) * Math.PI * 3) * 0.12 * (1 - (t - 750) / 550);
+      } else if (move === 1) {
+        if (t < 300) squash = Math.sin((t / 300) * Math.PI) * 0.06;
+        else if (t < 1400) {
+          const k = (t - 300) / 1100;
+          squash = -Math.sin(k * Math.PI) * 0.12;
+          shake = Math.sin(t / 25) * 0.05 * Math.sin(k * Math.PI);
+        }
+      } else if (t < 1200) {
+        const step = (t % 600) / 600;
+        tilt = Math.sin(step * Math.PI) * 0.14 * (t < 600 ? 1 : -1);
+        lift = Math.sin(step * Math.PI) * 0.12;
+        if (step > 0.85) squash = 0.06;
+      }
+      m.head.position.set(shake, lift, 0);
       m.head.scale.set(1 + squash, 1 - squash, 1 + squash);
       m.head.rotation.z = tilt;
-      m.head.rotation.y = Math.sin(now / 2300 + m.phase + (m === monsters.right ? 2 : 0)) * 0.5;
+      // Keep an eye on the players: turn towards whoever moved last (Sky 2026-10-01).
+      let watch = -1;
+      lastMoved.forEach((when, seat) => {
+        if (!gone.has(seat) && (watch < 0 || when > lastMoved[watch])) watch = seat;
+      });
+      if (watch >= 0 && tokens[watch]) {
+        const at = m.group.getWorldPosition(new T.Vector3());
+        const to = tokens[watch].position;
+        const want = Math.atan2(to.x - at.x, to.z - at.z) - m.group.rotation.y;
+        const delta = ((want - m.head.rotation.y + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        m.head.rotation.y += delta * Math.min(1, dt * 2.5);
+      }
     }
     // Parallax: the far scenery follows the camera part of the way, so it seems to drift slower.
     far.position.x = camera.position.x * 0.45;
