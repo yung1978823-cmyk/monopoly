@@ -254,10 +254,12 @@ function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onEx
       <button
         type="button"
         onClick={() => onStart(seats)}
-        className="mt-auto h-16 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-3xl font-black tracking-[0.2em] text-white shadow-[0_6px_0_#8E1210] active:translate-y-1 active:shadow-[0_2px_0_#8E1210]"
+        // Same look as the title screen's START button (Sky 2026-10-01): glossy red pill, no yellow ring.
+        className="relative mt-auto h-14 w-4/5 cursor-pointer animate-[bob_2.4s_ease-in-out_infinite] overflow-hidden rounded-full bg-gradient-to-b from-[#FF5A4E] to-[#D91F1A] font-display text-xl font-extrabold text-white shadow-[0_5px_0_#9E1512,0_12px_24px_rgba(15,42,107,0.45)] transition-transform active:translate-y-1 active:shadow-[0_1px_0_#9E1512]"
         data-testid="table-start"
       >
-        {t("開枱")}
+        <span className="absolute inset-x-3 top-1 h-[42%] rounded-full bg-white/30" aria-hidden="true" />
+        <span className="relative text-2xl tracking-[0.2em]">{t("開枱")}</span>
       </button>
     </main>
   );
