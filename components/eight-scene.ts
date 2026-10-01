@@ -871,7 +871,8 @@ export function createBoardScene(
     const starGeo = new T.ExtrudeGeometry(starShape, { depth: 0.06, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 1 });
     starGeo.center();
     const starMat = mat(0xffd23f, 0.3, { emissive: 0x8a5a00, metalness: 0.2 });
-    for (let n = 0; n < 5; n++) {
+    // No stars round the gate any more (Sky 2026-10-01).
+    for (let n = 0; n < 0; n++) {
       const bat = new T.Group();
       const star = new T.Mesh(starGeo, starMat);
       bat.add(star);
