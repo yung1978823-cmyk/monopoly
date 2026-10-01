@@ -57,7 +57,7 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
   const left = stealPicksLeft(state);
   const triple =
     opened.length === STEAL_PICKS && opened.every((i) => boxes[i]?.kind === boxes[opened[0]]?.kind) && !STEAL_DANGERS.includes(boxes[opened[0]]?.kind);
-  // Arriving from the raccoon's puff of smoke: it clears to show the store.
+  // Arriving from the ghost's puff of smoke: it clears to show the store.
   const [smoke, setSmoke] = useState(true);
   useEffect(() => {
     const id = window.setTimeout(() => setSmoke(false), 1100);
@@ -85,7 +85,7 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
     onPick(i);
   }
 
-  // The raccoon reacts to the last crate: a hop for loot, a jolt for the trap.
+  // The ghost reacts to the last crate: a hop for loot, a jolt for the trap.
   const mood = hurt ? "animate-[thief-jolt_0.5s_ease-out]" : last ? "animate-[thief-hop_0.5s_ease-out]" : "animate-[thief-idle_2.4s_ease-in-out_infinite]";
 
   return (
@@ -180,7 +180,7 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
         </p>
       ) : null}
 
-      {/* The raccoon, bottom left, reacting to each crate. */}
+      {/* The ghost thief, bottom left, reacting to each crate. */}
       <img
         src="/art/fx/thief.webp"
         alt=""

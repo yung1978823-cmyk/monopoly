@@ -341,7 +341,7 @@ export function DailyGame() {
     return () => window.clearTimeout(id);
   }, [state.phase, state.rollCount, introSeen]);
 
-  // Landing on 偷嘢 plays the raccoon's sneak-in, then opens the rival's store.
+  // Landing on 偷嘢 plays the ghost's float-in, then opens the rival's store.
   useEffect(() => {
     if (state.phase !== "steal" || stealSeen === state.rollCount) return;
     const roll = state.rollCount;

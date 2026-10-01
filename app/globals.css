@@ -278,25 +278,38 @@
   72%, 100% { transform: translateX(-50%) rotate(8deg); opacity: 0; }
 }
 @keyframes paw-print { 0% { opacity: 0; transform: scale(1.6); } 15% { opacity: 1; transform: scale(1); } 70% { opacity: 1; } 100% { opacity: 0; } }
-@keyframes thief-sneak {
-  0%, 12% { transform: translate(-190%, -50%) rotate(-4deg); opacity: 0; }
-  16% { opacity: 1; }
-  22% { transform: translate(-150%, -54%) rotate(4deg); }
-  28% { transform: translate(-125%, -50%) rotate(-4deg); }
-  34% { transform: translate(-100%, -54%) rotate(4deg); }
-  40% { transform: translate(-78%, -50%) rotate(-4deg); }
-  46% { transform: translate(-60%, -54%) rotate(3deg); }
-  52% { transform: translate(-50%, -50%) rotate(0deg); }
-  56% { transform: translate(-50%, -50%) scale(1.08); }
-  60%, 66% { transform: translate(-50%, -50%) scale(1); }
-  72% { transform: translate(-50%, -75%) scale(1.05) rotate(-8deg); opacity: 1; }
-  80%, 100% { transform: translate(-50%, -40%) scale(0.2) rotate(20deg); opacity: 0; }
+@keyframes ghost-float {
+  0%, 10% { transform: translate(-190%, -50%) rotate(-6deg); opacity: 0; filter: blur(6px); }
+  14% { opacity: 0.5; }
+  16% { opacity: 0.15; }
+  19% { opacity: 0.8; filter: blur(0); }
+  22% { transform: translate(-150%, -58%) rotate(6deg); opacity: 1; }
+  30% { transform: translate(-118%, -46%) rotate(-5deg); }
+  38% { transform: translate(-88%, -58%) rotate(5deg); }
+  46% { transform: translate(-64%, -46%) rotate(-3deg); }
+  52% { transform: translate(-50%, -52%) rotate(0deg); }
+  56% { transform: translate(-50%, -50%) scale(1.08, 0.93); }
+  59% { transform: translate(-50%, -54%) scale(0.95, 1.06); }
+  62% { transform: translate(-50%, -50%) scale(1.06, 0.95); }
+  66% { transform: translate(-50%, -52%) scale(1); }
+  71% { transform: translate(-50%, -60%) scale(1.05) rotate(-20deg); opacity: 1; filter: blur(0); }
+  80%, 100% { transform: translate(-50%, -50%) scale(0.15) rotate(340deg); opacity: 0; filter: blur(8px); }
 }
-@keyframes smoke-in { 0% { transform: scale(0.1); opacity: 0; } 60% { opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
-@keyframes smoke-out { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+@keyframes ghost-wisp { 0% { opacity: 0; transform: scale(0.4); } 20% { opacity: 1; transform: scale(1.2); } 100% { opacity: 0; transform: translateY(-6vmin) scale(0.3); } }
+@keyframes smoke-haze-in { 0% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes smoke-haze-out { 0% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes smoke-in {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--r)) scale(0.15); }
+  55% { opacity: 0.9; }
+  100% { opacity: 0.9; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(calc(var(--r) + 45deg)) scale(1); }
+}
+@keyframes smoke-out {
+  0% { opacity: 0.9; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(calc(var(--r) + 45deg)) scale(1); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx) * 5), calc(-50% + var(--dy) * 5)) rotate(calc(var(--r) + 110deg)) scale(1.5); }
+}
 
-/* 偷嘢 store: the raccoon's moods. */
-@keyframes thief-idle { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-4px) rotate(-2deg); } }
+/* 偷嘢 store: the ghost thief's moods (pet-screen dragons breathe with thief-idle too). */
+@keyframes thief-idle { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-9px) rotate(-3deg); } }
 @keyframes thief-hop { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(-26px) scale(1.06) rotate(-4deg); } 100% { transform: translateY(0) scale(1); } }
 @keyframes thief-jolt { 0% { transform: translate(0, 0); } 20% { transform: translate(-8px, -14px) rotate(-8deg); } 40% { transform: translate(8px, -6px) rotate(6deg); } 60% { transform: translate(-6px, 0) rotate(-4deg); } 100% { transform: translate(0, 0); } }
 /* 孵化 (Sky 2026-10-01): egg drops, wobbles, cracks, flash, the dragon pops out. Timeline over 3.4s. */
