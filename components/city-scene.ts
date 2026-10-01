@@ -207,7 +207,8 @@ export function createCityScene(
     camRight.setFromMatrixColumn(camera.matrixWorld, 0);
     camUp.setFromMatrixColumn(camera.matrixWorld, 1);
     camBack.setFromMatrixColumn(camera.matrixWorld, 2);
-    for (const o of [...spinners, ...lamps]) {
+    const workers = [...crews.values()].flatMap((crew) => crew.men.map((w) => w.s));
+    for (const o of [...spinners, ...lamps, ...workers]) {
       const [dx, dy] = o.userData.off as [number, number];
       const parent = o.parent;
       if (!parent) continue;
@@ -787,6 +788,53 @@ export function createCityScene(
     return tex;
   })();
   const CLOUD_SWAP = 420, CLOUD_END = 1400;
+  // 起樓工人 (Sky 2026-10-01): two little builders either side of the plot, hammering (two pictures swapped)
+  // while the cloud covers the building, then they hop away.
+  const workerUp = new T.TextureLoader().load("/art/fx/worker-up.webp");
+  const workerDown = new T.TextureLoader().load("/art/fx/worker-down.webp");
+  workerUp.encoding = workerDown.encoding = T.sRGBEncoding;
+  const WORK_MS = CLOUD_END + 500;
+  type Worker = { s: any; side: number; phase: number };
+  const crews = new Map<number, { at: number; men: Worker[] }>();
+  function hireCrew(i: number) {
+    const p = plots[i];
+    const old = crews.get(i);
+    if (old) for (const w of old.men) p.holder.remove(w.s);
+    const men = [-1, 1].map((side, k) => {
+      const s = new T.Sprite(new T.SpriteMaterial({ map: workerUp, transparent: true, depthWrite: false, depthTest: false, opacity: 0 }));
+      s.center.set(0.5, 0.05);
+      s.renderOrder = 9;
+      s.userData.off = [side * 0.9, 0.02];
+      p.holder.add(s);
+      return { s, side, phase: k * 0.5 };
+    });
+    crews.set(i, { at: performance.now(), men });
+  }
+  function crewStep(i: number, now: number) {
+    const crew = crews.get(i);
+    if (!crew) return;
+    const p = plots[i];
+    const age = now - crew.at;
+    if (age > WORK_MS) {
+      for (const w of crew.men) {
+        p.holder.remove(w.s);
+        w.s.material.dispose();
+      }
+      crews.delete(i);
+      return;
+    }
+    const inn = Math.min(1, age / 200), out = age > WORK_MS - 300 ? (WORK_MS - age) / 300 : 1;
+    for (const w of crew.men) {
+      const beat = Math.floor(age / 170 + w.phase * 2) % 2;
+      w.s.material.map = beat ? workerDown : workerUp;
+      w.s.material.opacity = Math.min(inn, out);
+      // Facing in towards the building: the pictures face right, so the right-hand worker is flipped.
+      const size = 1.3;
+      w.s.scale.set(size * (w.side > 0 ? -1 : 1), size, 1);
+      // Either side of the picture on screen (pinned like the sails, so turning the island never hides them).
+      w.s.userData.off = [w.side * 0.9, 0.02 + (beat ? 0 : 0.04) + (1 - out) * 0.4];
+    }
+  }
   function cloudOver(i: number, next: number) {
     const p = plots[i];
     for (const puff of p.puffs) p.holder.remove(puff.s);
@@ -800,6 +848,7 @@ export function createCityScene(
     });
     p.pending = next;
     p.cloudAt = performance.now();
+    if (next > Math.max(0, p.level)) hireCrew(i);
   }
   function cloudStep(i: number, now: number) {
     const p = plots[i];
@@ -1122,7 +1171,10 @@ export function createCityScene(
     island.position.y = bob;
     const quake = Math.max(0, 1 - (now - shakeAll) / 500);
     island.position.x = quake ? Math.sin(now / 18) * 0.08 * quake : 0;
-    plots.forEach((_, i) => cloudStep(i, now));
+    plots.forEach((_, i) => {
+      cloudStep(i, now);
+      crewStep(i, now);
+    });
     for (const p of plots) {
       const k = Math.min(1, (now - p.popAt) / 450);
       const s = k < 1 ? 0.5 + 0.5 * k + Math.sin(k * Math.PI) * 0.25 : 1;

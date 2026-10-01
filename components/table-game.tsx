@@ -734,8 +734,10 @@ export function EightBoard({
               </span>
               {seat.jailed ? <span className="text-xs">🔒</span> : null}
               {seat.powers.length ? (
-                <span className="text-[13px] leading-none" aria-label={t("功能卡 {n} 張", { n: seat.powers.length })}>
-                  {seat.powers.map((power) => POWER_INFO[power].icon).join("")}
+                <span className="flex gap-0.5" aria-label={t("功能卡 {n} 張", { n: seat.powers.length })}>
+                  {seat.powers.map((power, k) => (
+                    <img key={k} src={`/art/cards/${power}.webp`} alt="" draggable={false} className="size-5 object-contain" />
+                  ))}
                 </span>
               ) : null}
               {gotCard?.seat === index ? (
@@ -744,7 +746,7 @@ export function EightBoard({
                   className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 flex -translate-x-1/2 animate-[pop_0.35s_ease-out] flex-col items-center whitespace-nowrap rounded-xl border-[3px] border-[#FBD000] bg-[#7C3AED] px-2 py-1 text-white shadow-xl"
                   data-testid="got-card"
                 >
-                  <span className="text-2xl leading-none">{POWER_INFO[gotCard.power].icon}</span>
+                  <img src={`/art/cards/${gotCard.power}.webp`} alt="" draggable={false} className="size-12 object-contain drop-shadow" />
                   <span className="text-[11px] font-black">{t(POWER_INFO[gotCard.power].name)}</span>
                 </span>
               ) : null}
@@ -834,7 +836,7 @@ export function EightBoard({
                 className="flex w-28 cursor-pointer flex-col items-center rounded-2xl border-[3px] border-[#7C3AED] bg-white/95 px-2 py-1 text-[#1E3A8A] shadow-[0_4px_0_#4C1D95] disabled:cursor-default disabled:opacity-60 enabled:animate-[glow_1.8s_ease-in-out_infinite]"
                 data-testid={`power-${power}`}
               >
-                <span className="text-2xl leading-none">{info.icon}</span>
+                <img src={`/art/cards/${power}.webp`} alt="" draggable={false} className="size-12 object-contain drop-shadow" />
                 <span className="text-sm font-black">{t(info.name)}</span>
                 <span className="text-[10px] font-bold leading-tight">{t(info.what)}</span>
               </button>
