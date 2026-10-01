@@ -33,6 +33,14 @@ import { play } from "@/lib/sfx";
 import { cn } from "cn";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+/** Camera distance on the table: close on the player, a little back, or the whole board. */
+type View = "near" | "mid" | "far";
+const VIEWS: [View, string][] = [
+  ["near", "近"],
+  ["mid", "中"],
+  ["far", "遠"],
+];
+
 /** You and the three computer players, in seat order. */
 const CAST = [
   { name: "你", avatar: "/art/avatars/vampire.jpg", colour: "#7C3AED", bot: false },
@@ -287,13 +295,13 @@ export function EightBoard({
   const [busy, setBusy] = useState(true);
   const [fast, setFast] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
-  const [wide, setWide] = useState(false);
+  const [view, setView] = useState<View>("near");
   const [picking, setPicking] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const { t } = useLang();
   const tRef = useRef(t);
   tRef.current = t;
-  const wideRef = useRef(false);
+  const viewRef = useRef<View>("near");
   const mount = useRef<HTMLDivElement>(null);
   const decorRef = useRef(decor);
   const sceneRef = useRef<BoardScene | null>(null);
@@ -317,8 +325,11 @@ export function EightBoard({
     setToast({ key: toastKey.current, text: tRef.current(text, vars) });
   }, []);
 
-  /** Close in on a seat, unless 睇全枱 is on: then the camera stays wide for the rest of the game. */
-  const aim = useCallback((scene: BoardScene, seat: number) => scene.focus(wideRef.current ? null : seat), []);
+  /** Point the camera at a seat from the distance the player picked: 近, 中, or 遠 (the whole board). */
+  const aim = useCallback(
+    (scene: BoardScene, seat: number) => (viewRef.current === "far" ? scene.focus(null) : scene.focus(seat, viewRef.current)),
+    [],
+  );
 
   // Each pop-up fades after a moment; a newer one restarts the clock.
   useEffect(() => {
@@ -619,10 +630,10 @@ export function EightBoard({
     return () => window.clearTimeout(id);
   }, [loaded, busy, table, run]);
 
-  /** 睇全枱 keeps the camera wide for the rest of the game; 跟住睇 goes back to following. */
-  const toggleWide = () => {
-    wideRef.current = !wideRef.current;
-    setWide(wideRef.current);
+  /** 近 / 中 / 遠 (Sky 2026-10-01): the camera keeps that distance for the rest of the game. */
+  const pickView = (next: View) => {
+    viewRef.current = next;
+    setView(next);
     const scene = sceneRef.current;
     if (scene) aim(scene, stateRef.current.current);
   };
@@ -902,14 +913,19 @@ export function EightBoard({
             {countdown !== null && table.phase === "roll" ? <span className="mt-1 text-base tabular-nums">{countdown}</span> : null}
           </span>
         </button>
-        <button
-          type="button"
-          onClick={toggleWide}
-          aria-pressed={wide}
-          className="pointer-events-auto cursor-pointer rounded-full border-[3px] border-[#FBD000] bg-[#1E3A8A] px-4 py-2 text-sm font-black text-white shadow-[0_4px_0_#0F1F4D]"
-        >
-          {wide ? t("跟住睇") : t("睇全枱")}
-        </button>
+        <div className="pointer-events-auto flex overflow-hidden rounded-full border-[3px] border-[#FBD000] bg-[#1E3A8A] shadow-[0_4px_0_#0F1F4D]" role="group" aria-label={t("鏡頭距離")} data-testid="table-view">
+          {VIEWS.map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => pickView(id)}
+              aria-pressed={view === id}
+              className={cn("cursor-pointer px-3 py-2 text-sm font-black transition", view === id ? "bg-[#FBD000] text-[#1E3A8A]" : "text-white")}
+            >
+              {t(label)}
+            </button>
+          ))}
+        </div>
       </footer>
 
       {/* Final standings. */}

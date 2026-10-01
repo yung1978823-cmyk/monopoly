@@ -73,7 +73,8 @@ const FIREWORK_COLOURS = [0xfbd000, 0xe52521, 0x22c55e, 0x3b82f6, 0xec4899, 0xf9
 
 export type BoardScene = {
   /** Fly in close to a seat, or null to pull back and see the whole board. */
-  focus(seat: number | null): void;
+  /** Follow a seat close up ("near") or from a little further back ("mid"); null shows the whole board. */
+  focus(seat: number | null, level?: "near" | "mid"): void;
   /** Speed up (e.g. 3 while computer players move with 快轉 on). */
   setSpeed(speed: number): void;
   /** Throw one die beside a seat: die 0 clears the table first; die 1 lands next to it. */
@@ -1373,7 +1374,7 @@ export function createBoardScene(
   if (decor) applyDecor(decor);
 
   const api: BoardScene = {
-    focus(seat) {
+    focus(seat, level = "near") {
       dragged = false;
       if (seat === null) {
         goal.follow = -1;
@@ -1381,7 +1382,8 @@ export function createBoardScene(
         goal.dist = WIDE.dist;
       } else {
         goal.follow = seat;
-        goal.dist = CLOSE;
+        // 中距離 (Sky 2026-10-01): still following the player, halfway out towards the whole board.
+        goal.dist = level === "mid" ? (CLOSE + WIDE.dist) / 2 : CLOSE;
       }
     },
     setSpeed(value) {
