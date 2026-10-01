@@ -324,6 +324,27 @@
   84% { transform: translate(-50%, -56%) scale(1) rotate(-3deg); } 88% { transform: translate(-50%, -50%) scale(1) rotate(0); opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
 }
+@keyframes grow-old {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); filter: brightness(1); }
+  8% { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: brightness(1) drop-shadow(0 0 0 var(--glow)); }
+  20% { transform: translate(calc(-50% - 0.6vmin), -50%) scale(1.01); }
+  24% { transform: translate(calc(-50% + 0.6vmin), -50%) scale(1.01); }
+  30% { transform: translate(calc(-50% - 1.2vmin), -50%) scale(1.03); filter: brightness(1.3) drop-shadow(0 0 3vmin var(--glow)); }
+  33% { transform: translate(calc(-50% + 1.2vmin), -50%) scale(1.03); }
+  38% { transform: translate(calc(-50% - 1.8vmin), calc(-50% - 0.6vmin)) scale(1.06); }
+  41% { transform: translate(calc(-50% + 1.8vmin), calc(-50% + 0.6vmin)) scale(1.06); filter: brightness(1.8) drop-shadow(0 0 5vmin var(--glow)); }
+  45% { transform: translate(calc(-50% - 2.4vmin), -50%) scale(1.09); }
+  48% { transform: translate(calc(-50% + 2.4vmin), -50%) scale(1.09); }
+  51% { transform: translate(calc(-50% - 2.4vmin), -50%) scale(1.12); }
+  54% { transform: translate(-50%, -50%) scale(1.18); filter: brightness(3.5) drop-shadow(0 0 8vmin var(--glow)); opacity: 1; }
+  58%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.3); filter: brightness(4); }
+}
+@keyframes grow-charge {
+  0%, 10% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.4); }
+  14% { opacity: 1; }
+  40% { opacity: 1; transform: translate(-50%, -50%) scale(0.4); }
+  42%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0); }
+}
 @keyframes hatch-twinkle { 0%, 58% { opacity: 0; transform: rotate(45deg) scale(0); } 66% { opacity: 1; transform: rotate(45deg) scale(1.3); } 80% { opacity: 0.8; transform: rotate(135deg) scale(0.8); } 92%, 100% { opacity: 0; transform: rotate(225deg) scale(0); } }
 @media (prefers-reduced-motion: reduce) { [data-testid="hatched"] * { animation-duration: 1ms !important; } }
 /* 手感三級 (Sky 2026-10-01): shared sparkles, ring, flash and screen nudge. */

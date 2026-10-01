@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+
+import { GrowIntro, HATCH_MS } from "@/components/hatch-intro";
 import { juice } from "@/components/juice";
 import { PetView } from "@/components/pet-view";
 
@@ -40,7 +43,11 @@ export function PetScreen({
   const legend = holdsNft(state);
   const pet = state.pet;
   const need = pet ? growNeed(pet) : null;
-  const canGrow = !!need && state.meat >= need[0] && state.juice >= need[1];
+  // 升級 show (Sky 2026-10-01): the stage really changes at the white flash, so the picture behind swaps then.
+  const [growing, setGrowing] = useState<{ element: number; from: number; to: number } | null>(null);
+  const timers = useRef<number[]>([]);
+  useEffect(() => () => timers.current.forEach((id) => window.clearTimeout(id)), []);
+  const canGrow = !!need && state.meat >= need[0] && state.juice >= need[1] && !growing;
 
   return (
     <main className="relative mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-gradient-to-b from-[#3d6fb0] via-[#1d3560] to-[#0b1428] text-white" data-testid="pet-screen">
@@ -149,9 +156,16 @@ export function PetScreen({
                   type="button"
                   disabled={!canGrow}
                   onClick={() => {
+                    if (!pet || growing) return;
                     play("chest");
-                    juice("large");
-                    onGrow();
+                    setGrowing({ element: pet.element, from: pet.stage, to: pet.stage + 1 });
+                    timers.current.push(
+                      window.setTimeout(() => {
+                        juice("large", undefined, undefined, ELEMENTS[pet.element].colour);
+                        onGrow();
+                      }, HATCH_MS * 0.57),
+                      window.setTimeout(() => setGrowing(null), HATCH_MS + 100),
+                    );
                   }}
                   className={cn(
                     "h-14 w-full cursor-pointer rounded-full border-4 border-[#FBD000] text-xl font-black text-white disabled:cursor-default",
@@ -202,6 +216,7 @@ export function PetScreen({
           </section>
         </>
       )}
+      {growing ? <GrowIntro element={growing.element} from={growing.from} to={growing.to} /> : null}
     </main>
   );
 }

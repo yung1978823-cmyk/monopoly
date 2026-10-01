@@ -87,3 +87,77 @@ export function HatchIntro({ element }: { element: number }) {
     </div>
   );
 }
+
+/**
+ * 升級 (Sky 2026-10-01): the same wordless show for growing up. The current dragon glows and shakes harder
+ * and harder while sparks of its colour rush into it, a white flash, then the bigger dragon pops out of the
+ * rays. Runs on HATCH_MS so both share the burst keyframes.
+ */
+export function GrowIntro({ element, from, to }: { element: number; from: number; to: number }) {
+  const colour = ELEMENTS[element]?.colour ?? "#E8B420";
+  const id = ELEMENTS[element]?.id ?? "light";
+  return (
+    <div className="fixed inset-0 z-50 overflow-hidden" data-testid="grown">
+      <div className="absolute inset-0 bg-[#0b0820] animate-[hatch-dim_3400ms_ease-out_forwards]" />
+      <div
+        className="absolute left-1/2 top-1/2 size-[160vmax] -translate-x-1/2 -translate-y-1/2 animate-[hatch-rays_3400ms_linear_forwards] rounded-full opacity-0"
+        style={{
+          background: `repeating-conic-gradient(from 0deg, ${colour}cc 0deg 10deg, transparent 10deg 24deg)`,
+          maskImage: "radial-gradient(circle, black 8%, transparent 55%)",
+          WebkitMaskImage: "radial-gradient(circle, black 8%, transparent 55%)",
+        }}
+      />
+      <div
+        className="absolute left-1/2 top-1/2 size-[70vmin] -translate-x-1/2 -translate-y-1/2 animate-[hatch-halo_3400ms_ease-out_forwards] rounded-full opacity-0"
+        style={{ background: `radial-gradient(circle, ${colour} 0%, ${colour}66 35%, transparent 70%)` }}
+      />
+      {/* The dragon as it is now: charges up, glowing and shaking. */}
+      <img
+        src={`/art/dragons/${id}-${from}.webp`}
+        alt=""
+        draggable={false}
+        className="absolute left-1/2 top-1/2 w-[52vmin] max-w-none opacity-0 animate-[grow-old_3400ms_ease-in_forwards]"
+        style={{ "--glow": colour } as CSSProperties}
+      />
+      {/* Sparks rushing in from all round. */}
+      {Array.from({ length: 14 }, (_, k) => {
+        const a = (k / 14) * Math.PI * 2;
+        return (
+          <span
+            key={k}
+            className="absolute left-1/2 top-1/2 size-[2.6vmin] rounded-full opacity-0 animate-[grow-charge_3400ms_ease-in_forwards]"
+            style={
+              {
+                background: "white",
+                boxShadow: `0 0 2.5vmin 0.8vmin ${colour}`,
+                animationDelay: `${(k % 4) * 180}ms`,
+                "--dx": `${Math.cos(a) * 48}vmin`,
+                "--dy": `${Math.sin(a) * 48}vmin`,
+              } as CSSProperties
+            }
+          />
+        );
+      })}
+      <div className="absolute inset-0 bg-white opacity-0 animate-[hatch-flash_3400ms_linear_forwards]" />
+      {/* The grown dragon pops out. */}
+      <img
+        src={`/art/dragons/${id}-${to}.webp`}
+        alt=""
+        draggable={false}
+        className="absolute left-1/2 top-1/2 w-[70vmin] max-w-none -translate-x-1/2 -translate-y-1/2 opacity-0 animate-[hatch-dragon_3400ms_ease-out_forwards] drop-shadow-[0_2vmin_3vmin_rgba(0,0,0,0.5)]"
+      />
+      {Array.from({ length: 12 }, (_, k) => (
+        <span
+          key={k}
+          className="absolute size-[2.4vmin] rotate-45 bg-white opacity-0 animate-[hatch-twinkle_3400ms_ease-out_forwards]"
+          style={{
+            left: `${50 + Math.cos(k * 2.4) * (22 + (k % 3) * 9)}%`,
+            top: `${50 + Math.sin(k * 2.4) * (16 + (k % 4) * 6)}%`,
+            animationDelay: `${(k % 5) * 70}ms`,
+            boxShadow: `0 0 2vmin ${colour}`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
