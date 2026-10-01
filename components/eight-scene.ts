@@ -368,7 +368,7 @@ export function createBoardScene(
    * Sky's drawn monsters (2026-10-01) in place of the shape-built ones: a picture standing on its island that
    * always faces the camera. `mouth` is where the shot leaves the picture (0–1 across, 0–1 down).
    */
-  function makePictureMonster(url: string, size: number, mouth: [number, number]) {
+  function makePictureMonster(url: string, size: number, mouth: [number, number], model?: { url: string; height: number; mouth: [number, number] }) {
     const group = new T.Group();
     const tex = new T.TextureLoader().load(url);
     tex.encoding = T.sRGBEncoding;
@@ -386,7 +386,34 @@ export function createBoardScene(
     const spot = new T.Object3D();
     spot.position.set((mouth[0] - 0.5) * size, (1 - mouth[1]) * size, 0.2);
     group.add(spot);
-    return { group, head, mouth: spot, phase: 0, flat: true };
+    const made = { group, head, mouth: spot, phase: 0, flat: true };
+    // The real 3D model (Meshy, from Sky's picture) takes over once it has loaded; the picture stands in till then.
+    if (model) {
+      loadGltfLoader(T)
+        .then((Loader) => new Promise<any>((resolve, reject) => new Loader().load(model.url, resolve, undefined, reject)))
+        .then((gltf) => {
+          const body = gltf.scene;
+          body.traverse((o: any) => {
+            if (!o.isMesh) return;
+            o.castShadow = true;
+            o.receiveShadow = true;
+            o.material.metalness = 0;
+            o.material.roughness = Math.max(0.6, o.material.roughness ?? 0.6);
+          });
+          const box = new T.Box3().setFromObject(body);
+          const k = model.height / (box.max.y - box.min.y);
+          body.scale.setScalar(k);
+          body.position.set(-((box.min.x + box.max.x) / 2) * k, -box.min.y * k, -((box.min.z + box.max.z) / 2) * k);
+          group.add(body);
+          sprite.visible = false;
+          spot.position.set(0, model.height * model.mouth[0], ((box.max.z - box.min.z) / 2) * k * model.mouth[1]);
+          made.flat = false;
+        })
+        .catch(() => {
+          // Keep the picture.
+        });
+    }
+    return made;
   }
   /** 炮石怪: the right diamond's monster, a mossy stone golem with a cannon in its chest. */
   function makeGolem() {
@@ -509,8 +536,8 @@ export function createBoardScene(
       const side = x < 0 ? "left" : "right";
       const m =
         side === "left"
-          ? makePictureMonster("/art/fx/monster-dragon.webp", 3.4, [0.6, 0.38])
-          : makePictureMonster("/art/fx/monster-golem.webp", 3.4, [0.73, 0.36]);
+          ? makePictureMonster("/art/fx/monster-dragon.webp", 3.4, [0.6, 0.38], { url: "/models/monster-dragon.glb", height: 2.7, mouth: [0.72, 0.9] })
+          : makePictureMonster("/art/fx/monster-golem.webp", 3.4, [0.73, 0.36], { url: "/models/monster-golem.glb", height: 2.8, mouth: [0.6, 1.1] });
       void makeDragon;
       void makeGolem;
       m.group.position.set(0, TOP, 0.35);
