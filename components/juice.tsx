@@ -1,5 +1,6 @@
 "use client";
 
+import { isCalm } from "@/lib/music";
 import { useEffect, useState, type CSSProperties } from "react";
 
 /**
@@ -33,11 +34,7 @@ export function juiceAt(tier: Tier, element: Element | null, colour?: string) {
 
 /** Players who asked for less motion get no shake and no flash (the sparkles stay, gently). */
 function calm(): boolean {
-  try {
-    if (localStorage.getItem("boolionaire-reduce-motion") === "1") return true;
-  } catch {
-    // No storage: fall back to the system setting.
-  }
+  if (isCalm()) return true;
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 

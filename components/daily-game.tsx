@@ -1,6 +1,7 @@
 "use client";
 
 import { juice } from "@/components/juice";
+import { isCalm, isMusicOn, setCalm, setMusicOn } from "@/lib/music";
 import { AttackScreen } from "@/components/attack-screen";
 import { PetScreen } from "@/components/pet-screen";
 import { StealScreen } from "@/components/steal-screen";
@@ -162,6 +163,15 @@ export function DailyGame() {
   const [saveNote, setSaveNote] = useState<string | null>(null);
   const [now, setNow] = useState(0);
   const [resetArmed, setResetArmed] = useState(false);
+  const [music, setMusic] = useState(true);
+  const [calmOn, setCalmOn] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setMusic(isMusicOn());
+      setCalmOn(isCalm());
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, []);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mute, setMute] = useState(false);
   useEffect(() => {
@@ -704,22 +714,48 @@ export function DailyGame() {
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-black">{t("設定")}</h2>
               <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  className="flex size-10 cursor-pointer items-center justify-center rounded-full bg-[#EAF4FF] text-xl"
-                  onClick={() => {
-                    setMuted(!mute);
-                    setMute(!mute);
-                  }}
-                  aria-label={mute ? t("開聲") : t("靜音")}
-                  data-testid="mute"
-                >
-                  {mute ? "🔇" : "🔊"}
-                </button>
+
                 <button type="button" className="cursor-pointer text-2xl" onClick={() => setMenuOpen(false)} aria-label={t("關閉")}>
                   ✕
                 </button>
               </div>
+            </div>
+            {/* Sound and comfort (Sky 2026-10-01): music, sound effects, and less shaking and flashing. */}
+            <div className="grid grid-cols-3 gap-2" data-testid="comfort">
+              {(
+                [
+                  ["music", music, "背景音樂", "🎵"],
+                  ["sfx", !mute, "音效", "🔊"],
+                  ["calm", calmOn, "少啲震同閃", "🌙"],
+                ] as const
+              ).map(([id, on, label, icon]) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => {
+                    if (id === "music") {
+                      setMusicOn(!music);
+                      setMusic(!music);
+                    } else if (id === "sfx") {
+                      setMuted(!mute);
+                      setMute(!mute);
+                    } else {
+                      setCalm(!calmOn);
+                      setCalmOn(!calmOn);
+                    }
+                  }}
+                  className={cn(
+                    "flex cursor-pointer flex-col items-center gap-0.5 rounded-2xl border-[3px] py-2 text-sm font-black transition",
+                    on ? "border-[#FBD000] bg-[#FFF8D6] text-[#1E3A8A]" : "border-[#D6DEEA] bg-[#F4F6FA] text-[#94A3B8]",
+                  )}
+                  data-testid={id === "sfx" ? "mute" : `toggle-${id}`}
+                >
+                  <span className={cn("text-2xl", !on && "grayscale")}>{icon}</span>
+                  {t(label)}
+                  <span className="text-[11px]">{on ? t("開") : t("關")}</span>
+                </button>
+              ))}
             </div>
             <LangPicker />
             <div className="grid grid-cols-4 gap-2" data-testid="daily-character-pick">
