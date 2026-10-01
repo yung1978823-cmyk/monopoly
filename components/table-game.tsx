@@ -904,14 +904,17 @@ export function EightBoard({
           type="button"
           disabled={!mine || table.phase !== "roll"}
           onClick={() => void run({ type: "roll", dice: [rollFace(), rollFace()], card: Math.floor(Math.random() * 1000), fly: Math.floor(Math.random() * 1000), power: Math.floor(Math.random() * 1000) })}
-          className="pointer-events-auto size-24 cursor-pointer rounded-full border-[6px] border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-2xl font-black text-white shadow-[0_6px_0_#8E1210] active:translate-y-1 disabled:cursor-default disabled:opacity-50 enabled:animate-[glow_1.8s_ease-in-out_infinite]"
+          className="pointer-events-auto relative size-24 cursor-pointer rounded-full border-[6px] border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-2xl font-black text-white shadow-[0_6px_0_#8E1210] active:translate-y-1 disabled:cursor-default disabled:opacity-50 enabled:animate-[glow_1.8s_ease-in-out_infinite]"
           aria-label={countdown !== null ? t("{n} 秒後自動擲骰", { n: countdown }) : t("擲骰")}
           data-testid="table-roll"
         >
-          <span className="flex flex-col items-center leading-none">
-            {t("擲骰")}
-            {countdown !== null && table.phase === "roll" ? <span className="mt-1 text-base tabular-nums">{countdown}</span> : null}
-          </span>
+          {/* A die picture instead of words (Sky 2026-10-01); the countdown sits on it as a badge. */}
+          <img src="/art/ui/dice.webp" alt="" draggable={false} className="mx-auto size-14 object-contain drop-shadow-[0_3px_3px_rgba(0,0,0,0.4)]" />
+          {countdown !== null && table.phase === "roll" ? (
+            <span className="absolute -top-2 -right-2 flex size-8 items-center justify-center rounded-full border-[3px] border-[#FBD000] bg-[#1E3A8A] text-base font-black tabular-nums">
+              {countdown}
+            </span>
+          ) : null}
         </button>
         <div className="pointer-events-auto flex overflow-hidden rounded-full border-[3px] border-[#FBD000] bg-[#1E3A8A] shadow-[0_4px_0_#0F1F4D]" role="group" aria-label={t("鏡頭距離")} data-testid="table-view">
           {VIEWS.map(([id, label]) => (
