@@ -792,6 +792,16 @@ export function createCityScene(
   // while the cloud covers the building, then they hop away.
   const workerUp = new T.TextureLoader().load("/art/fx/worker-up.webp");
   const workerDown = new T.TextureLoader().load("/art/fx/worker-down.webp");
+  // Mirror copies for the right-hand worker: a sprite ignores a negative scale, so the picture itself is flipped.
+  const mirrored = (url: string) => {
+    const m = new T.TextureLoader().load(url);
+    m.wrapS = T.RepeatWrapping;
+    m.repeat.x = -1;
+    m.offset.x = 1;
+    return m;
+  };
+  const workerUpFlip = mirrored("/art/fx/worker-up.webp");
+  const workerDownFlip = mirrored("/art/fx/worker-down.webp");
   workerUp.encoding = workerDown.encoding = T.sRGBEncoding;
   const WORK_MS = CLOUD_END + 500;
   type Worker = { s: any; side: number; phase: number };
@@ -826,13 +836,14 @@ export function createCityScene(
     const inn = Math.min(1, age / 200), out = age > WORK_MS - 300 ? (WORK_MS - age) / 300 : 1;
     for (const w of crew.men) {
       const beat = Math.floor(age / 170 + w.phase * 2) % 2;
-      w.s.material.map = beat ? workerDown : workerUp;
+      w.s.material.map = w.side > 0 ? (beat ? workerDownFlip : workerUpFlip) : beat ? workerDown : workerUp;
       w.s.material.opacity = Math.min(inn, out);
       // Facing in towards the building: the pictures face right, so the right-hand worker is flipped.
-      const size = 1.3;
-      w.s.scale.set(size * (w.side > 0 ? -1 : 1), size, 1);
+      // Smaller workers (Sky 2026-10-01), closer in to the building.
+      const size = 0.85;
+      w.s.scale.set(size, size, 1);
       // Either side of the picture on screen (pinned like the sails, so turning the island never hides them).
-      w.s.userData.off = [w.side * 0.9, 0.02 + (beat ? 0 : 0.04) + (1 - out) * 0.4];
+      w.s.userData.off = [w.side * 0.62, 0.02 + (beat ? 0 : 0.04) + (1 - out) * 0.4];
     }
   }
   function cloudOver(i: number, next: number) {
