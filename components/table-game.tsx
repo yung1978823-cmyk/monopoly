@@ -181,8 +181,9 @@ function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onEx
       </section>
 
       {/* Your character: first come, first served; the computer players get the rest. */}
-      <section className="w-full rounded-3xl bg-white/90 p-3 shadow-lg" data-testid="character-pick">
-        <h2 className="mb-2 text-center text-sm font-black">{t("揀你嘅角色")}</h2>
+      {/* No white card behind the characters (Sky 2026-10-01): they stand straight on the picture. */}
+      <section className="w-full p-1" data-testid="character-pick">
+        <h2 className="mb-2 text-center text-sm font-black text-white [text-shadow:0_2px_4px_rgba(30,58,138,0.9)]">{t("揀你嘅角色")}</h2>
         <div className="grid grid-cols-4 gap-2">
           {CHARACTERS.map((c, i) => (
             <button
@@ -192,12 +193,12 @@ function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onEx
               aria-pressed={pick === i}
               className={cn(
                 "flex cursor-pointer flex-col items-center rounded-2xl border-[3px] p-1.5 transition",
-                pick === i ? "scale-105 border-[#FBD000] bg-[#FFF8D6] shadow-md" : "border-transparent opacity-70",
+                pick === i ? "scale-105 border-[#FBD000] bg-[#FFF8D6] shadow-md" : "border-transparent opacity-85",
               )}
               data-testid={`character-${i}`}
             >
               <Face seat={c} className="size-12 border-[3px]" />
-              <span className="mt-1 text-xs font-black">{t(c.name)}</span>
+              <span className={cn("mt-1 text-xs font-black", pick === i ? "" : "text-white [text-shadow:0_1px_3px_rgba(30,58,138,0.9)]")}>{t(c.name)}</span>
               {pick === i ? <span className="text-[10px] font-black text-[#E52521]">{t("你揀咗")}</span> : null}
             </button>
           ))}

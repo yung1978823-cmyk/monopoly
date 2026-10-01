@@ -376,6 +376,11 @@ export function createBoardScene(
     sprite.center.set(0.5, 0);
     sprite.scale.set(size, size, 1);
     group.add(sprite);
+    // A soft shadow on the ground under its feet, so it stands on the island instead of floating over it.
+    const foot = new T.Mesh(new T.PlaneGeometry(size * 0.75, size * 0.42), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0.85 }));
+    foot.rotation.x = -Math.PI / 2;
+    foot.position.y = 0.02;
+    group.add(foot);
     const head = new T.Object3D();
     group.add(head);
     const spot = new T.Object3D();
@@ -492,7 +497,8 @@ export function createBoardScene(
       big.group.position.set(x, -0.3, 0);
       scene.add(big.group);
       breathers.push({ obj: big.group, base: -0.3, phase: x < 0 ? 0 : 2, period: 5.5 });
-      for (let k = 0; k < 4; k++) {
+      // No trees round the monsters any more (Sky 2026-10-01).
+      for (let k = 0; k < 0; k++) {
         const a = k * 1.6 + (x < 0 ? 0.4 : 2), r = 1.25;
         const trunk = shadowy(new T.Mesh(new T.CylinderGeometry(0.06, 0.09, 0.5, 6), mat(0x6b4423, 0.8)));
         trunk.position.set(Math.cos(a) * r, TOP + 0.22, Math.sin(a) * r);
@@ -503,11 +509,11 @@ export function createBoardScene(
       const side = x < 0 ? "left" : "right";
       const m =
         side === "left"
-          ? makePictureMonster("/art/fx/monster-dragon.webp", 2.9, [0.6, 0.38])
-          : makePictureMonster("/art/fx/monster-golem.webp", 2.9, [0.73, 0.36]);
+          ? makePictureMonster("/art/fx/monster-dragon.webp", 3.4, [0.6, 0.38])
+          : makePictureMonster("/art/fx/monster-golem.webp", 3.4, [0.73, 0.36]);
       void makeDragon;
       void makeGolem;
-      m.group.position.set(0, TOP, 0.1);
+      m.group.position.set(0, TOP, 0.35);
       big.group.add(m.group);
       monsters[side] = m;
     }
