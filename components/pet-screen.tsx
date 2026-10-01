@@ -7,6 +7,9 @@ const DRAGON_ART: Record<string, string> = {
   "light-1": "/art/dragons/light-1.webp",
   "dark-1": "/art/dragons/dark-1.webp",
   "chaos-1": "/art/dragons/chaos-1.webp",
+  "light-2": "/art/dragons/light-2.webp",
+  "dark-2": "/art/dragons/dark-2.webp",
+  "chaos-2": "/art/dragons/chaos-2.webp",
 };
 import { holdsNft, type GameState } from "@/lib/game";
 import { useLang } from "@/lib/i18n";
