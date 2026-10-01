@@ -303,6 +303,15 @@ export function EightBoard({
   const toastKey = useRef(0);
 
   /** Show a line, translated into the current language. */
+  /** Someone just got a 功能卡: their seat glows and the card pops up over it (Sky: show who got it). */
+  const [gotCard, setGotCard] = useState<{ seat: number; power: Power; key: number } | null>(null);
+  const cardKey = useRef(0);
+  const showCard = useCallback((seat: number, power: Power) => {
+    cardKey.current += 1;
+    const key = cardKey.current;
+    setGotCard({ seat, power, key });
+    window.setTimeout(() => setGotCard((now) => (now?.key === key ? null : now)), 2200);
+  }, []);
   const say = useCallback((text: string, vars?: Record<string, string | number>) => {
     toastKey.current += 1;
     setToast({ key: toastKey.current, text: tRef.current(text, vars) });
@@ -447,6 +456,7 @@ export function EightBoard({
           case "power":
             play("lucky");
             say("{name} 抽到功能卡：{card}", { name: who(event.seat), card: tRef.current(POWER_INFO[event.power].name) });
+            showCard(event.seat, event.power);
             void scene.floatText(event.seat, POWER_INFO[event.power].icon, "#7C3AED");
             await scene.sparkle(event.seat);
             break;
@@ -523,6 +533,7 @@ export function EightBoard({
           case "pickup":
             play("lucky");
             say("{name} 執到功能卡：{card}", { name: who(event.seat), card: tRef.current(POWER_INFO[event.power].name) });
+            showCard(event.seat, event.power);
             await scene.takePickup(event.seat, event.key);
             void scene.floatText(event.seat, POWER_INFO[event.power].icon, "#7C3AED");
             await scene.sparkle(event.seat);
@@ -662,6 +673,12 @@ export function EightBoard({
   const turnsEach = table.rules.turnsEach;
   const round = Math.min(turnsEach, Math.max(...table.seats.map((seat) => seat.turnsTaken)) + 1);
   const lastRound = table.seats.every((seat) => seat.bankrupt || seat.turnsTaken >= turnsEach - 1);
+  const order = standings(table);
+  const rankOf = table.seats.map((_, seat) => order.indexOf(seat));
+  const holdings = table.seats.map((_, seat) => {
+    const mine = Object.values(table.deeds).filter((deed) => deed.owner === seat);
+    return { lots: mine.length, levels: mine.reduce((sum, deed) => sum + Math.max(0, deed.level - 1), 0) };
+  });
 
   return (
     <main className="relative h-dvh w-full touch-none select-none overflow-hidden bg-[#3B1D6E] text-[#1E3A8A]" data-testid="table">
@@ -688,22 +705,47 @@ export function EightBoard({
             <div
               key={seat.name}
               className={cn(
-                "flex min-w-0 flex-1 flex-col items-center rounded-2xl border-[3px] bg-white/90 py-1 shadow-md transition-transform",
+                "relative flex min-w-0 flex-1 flex-col items-center rounded-2xl border-[3px] bg-white/90 py-1 shadow-md transition-transform",
                 table.current === index && table.phase !== "over" ? "scale-105 border-[#FBD000]" : "border-transparent",
                 seat.bankrupt && "opacity-40 grayscale",
+                gotCard?.seat === index && "animate-[icon-glow_0.9s_ease-in-out_2]",
               )}
               data-testid={`seat-${index}`}
             >
+              {/* Rank by what each player is worth (cash, land and buildings): gold, silver, bronze. */}
+              <span
+                className={cn(
+                  "absolute -left-1 -top-1 flex size-5 items-center justify-center rounded-full border-2 border-white text-[11px] font-black text-white shadow",
+                  ["bg-[#E8B400]", "bg-[#9AA4B2]", "bg-[#C47A3A]"][rankOf[index]] ?? "bg-[#64748B]",
+                )}
+                data-testid={`rank-${index}`}
+              >
+                {rankOf[index] + 1}
+              </span>
               <Face seat={seat} className="size-9 border-[3px] text-lg" />
               <span className="text-[11px] font-black leading-tight">{t(seat.name)}</span>
               <span key={seat.cash} className="flex items-center gap-0.5 text-sm font-black tabular-nums animate-[bump_0.35s_ease-out]">
                 <Coin />
                 {seat.cash}
               </span>
+              {/* How much land and how many building levels they hold. */}
+              <span className="text-[10px] font-black leading-tight text-[#3B5BA9] tabular-nums" data-testid={`holdings-${index}`}>
+                {t("地 {l}・樓 {b}", { l: holdings[index].lots, b: holdings[index].levels })}
+              </span>
               {seat.jailed ? <span className="text-xs">🔒</span> : null}
               {seat.powers.length ? (
-                <span className="text-[11px] font-black leading-none" aria-label={t("功能卡 {n} 張", { n: seat.powers.length })}>
-                  {"🃏".repeat(seat.powers.length)}
+                <span className="text-[13px] leading-none" aria-label={t("功能卡 {n} 張", { n: seat.powers.length })}>
+                  {seat.powers.map((power) => POWER_INFO[power].icon).join("")}
+                </span>
+              ) : null}
+              {gotCard?.seat === index ? (
+                <span
+                  key={gotCard.key}
+                  className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 flex -translate-x-1/2 animate-[pop_0.35s_ease-out] flex-col items-center whitespace-nowrap rounded-xl border-[3px] border-[#FBD000] bg-[#7C3AED] px-2 py-1 text-white shadow-xl"
+                  data-testid="got-card"
+                >
+                  <span className="text-2xl leading-none">{POWER_INFO[gotCard.power].icon}</span>
+                  <span className="text-[11px] font-black">{t(POWER_INFO[gotCard.power].name)}</span>
                 </span>
               ) : null}
             </div>

@@ -117,6 +117,7 @@ const DICT: Record<string, { hans: string; en: string }> = {
   監獄: { hans: "监狱", en: "Jail" },
   龍捲風: { hans: "龙卷风", en: "Tornado" },
   "三個一樣！雙倍！": { hans: "三个一样！双倍！", en: "Three of a kind! Double!" },
+  "地 {l}・樓 {b}": { hans: "地 {l}・楼 {b}", en: "Land {l} · Floors {b}" },
   "開三個箱，小心老鼠夾": { hans: "开三个箱子，小心老鼠夹", en: "Open three crates — mind the trap" },
   "中咗老鼠夾！": { hans: "中了老鼠夹！", en: "Snap! A mousetrap!" },
   稅局: { hans: "税局", en: "Tax Office" },
