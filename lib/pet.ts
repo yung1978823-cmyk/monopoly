@@ -22,7 +22,7 @@ export const HATCH_ROLLS = 60;
 export const ELEMENTS = [
   { id: "light", name: "光", beast: "光龍", legend: "聖光龍", colour: "#E8B420", chance: 0.35 },
   { id: "dark", name: "暗", beast: "暗龍", legend: "深淵龍", colour: "#6D3FC0", chance: 0.35 },
-  { id: "chaos", name: "混濁", beast: "混濁龍", legend: "混沌龍", colour: "#3E8E7E", chance: 0.3 },
+  { id: "chaos", name: "混濁", beast: "混濁龍", legend: "混沌龍", colour: "#C0392B", chance: 0.3 },
 ] as const;
 
 /** 光 beats 暗, 暗 beats 混濁, 混濁 beats 光: the attribute each one beats. */
