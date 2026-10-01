@@ -5,6 +5,7 @@
  * Drag left and right to turn the island; the tilt and distance stay fixed.
  */
 import { createBackdrop, createSea } from "@/components/backdrop";
+import { ACTORS, loadGltfLoader } from "@/components/eight-scene";
 import { buildMonster, type Monster } from "@/components/monster";
 import { themeOf, type Theme } from "@/lib/themes";
 
@@ -407,7 +408,7 @@ export function createCityScene(
   }
   // ---------- 島面小擺設 (Sky, option A): paving, lamps, trees, planters and people walking, so the
   // island reads as a lived-in plaza rather than an empty plate. Picture pages only.
-  const walkers: { g: any; a: number; speed: number; r: number; phase: number }[] = [];
+  const walkers: { g: any; a: number; speed: number; r: number; phase: number; mixer?: any }[] = [];
   if (theme.art) {
     const id = theme.id;
     const style = {
@@ -522,7 +523,7 @@ export function createCityScene(
     });
     // A few people strolling round the edge of the plaza.
     const shirts = [0xe53935, 0x1e88e5, 0xfbc02d, 0x43a047, 0x8e24aa];
-    for (let k2 = 0; k2 < 5; k2++) {
+    for (let k2 = 0; k2 < 4; k2++) {
       const g = new T.Group();
       const body = shadowy(new T.Mesh(new T.CylinderGeometry(0.055, 0.07, 0.22, 8), mat(shirts[k2], 0.7)));
       body.position.y = 0.17;
@@ -534,7 +535,39 @@ export function createCityScene(
       head.position.y = 0.34;
       g.add(head);
       island.add(g);
-      walkers.push({ g, a: (k2 / 5) * Math.PI * 2 + 0.3, speed: (k2 % 2 ? 1 : -1) * (0.07 + k2 * 0.012), r: 3.85 + (k2 % 2) * 0.12, phase: k2 * 1.7 });
+      const walker: (typeof walkers)[number] = { g, a: (k2 / 4) * Math.PI * 2 + 0.3, speed: (k2 % 2 ? 1 : -1) * (0.07 + k2 * 0.012), r: 3.85 + (k2 % 2) * 0.12, phase: k2 * 1.7 };
+      walkers.push(walker);
+      // Real little people walking (Sky 2026-10-01): the game's 3D characters with their own walk, in place of
+      // the pegs. The peg stands in until the model has loaded.
+      const actor = ACTORS[["vampire", "jiangshi", "mummy", "zombie"][k2]];
+      if (actor && !reduceMotion) {
+        loadGltfLoader(T)
+          .then((Loader) => new Promise<any>((resolve, reject) => new Loader().load(actor.url, resolve, undefined, reject)))
+          .then((gltf) => {
+            const model = gltf.scene;
+            model.traverse((o: any) => {
+              if (!o.isMesh) return;
+              o.castShadow = true;
+              o.frustumCulled = false;
+              o.material.metalness = 0;
+              o.material.roughness = Math.max(0.6, o.material.roughness ?? 0.6);
+            });
+            model.scale.setScalar(0.5 / 1.2);
+            g.children.forEach((c: any) => (c.visible = false));
+            g.add(model);
+            const mixer = new T.AnimationMixer(model);
+            const clip = gltf.animations.find((a: any) => a.name === "walk") ?? gltf.animations[0];
+            if (clip) {
+              const walk = mixer.clipAction(clip);
+              walk.timeScale = actor.walkPace * 0.6;
+              walk.play();
+            }
+            walker.mixer = mixer;
+          })
+          .catch(() => {
+            // Keep the peg.
+          });
+      }
     }
   }
   // The town's monster, on a round stone in the middle.
@@ -1215,6 +1248,7 @@ export function createCityScene(
       if (!reduceMotion) w.a += w.speed * dt;
       w.g.position.set(Math.cos(w.a) * w.r, TOP + Math.abs(Math.sin(now / 160 + w.phase)) * 0.03, Math.sin(w.a) * w.r);
       w.g.rotation.y = -w.a + (w.speed > 0 ? 0 : Math.PI);
+      w.mixer?.update(dt);
     }
     for (let n = fxs.length - 1; n >= 0; n--) {
       const f = fxs[n];
