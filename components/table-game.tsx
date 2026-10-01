@@ -141,7 +141,9 @@ function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onEx
   const seats = seatsFor(pick, opponents);
   return (
     <main
-      className="relative mx-auto flex h-dvh w-full max-w-md flex-col items-center gap-5 overflow-hidden bg-gradient-to-b from-[#4AA8F5] via-[#8CC63F] to-[#5E9E2B] px-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-[max(env(safe-area-inset-top),0.75rem)] text-[#1E3A8A]"
+      // Sky's picture (2026-10-01): a castle island floating in space, the same world as the board.
+      style={{ backgroundImage: "url(/art/table-lobby.webp)" }}
+      className="relative mx-auto flex h-dvh w-full max-w-md flex-col items-center gap-5 overflow-hidden bg-[#5B3FA8] bg-cover bg-bottom px-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-[max(env(safe-area-inset-top),0.75rem)] text-[#1E3A8A]"
       data-testid="table-lobby"
     >
       <header className="flex w-full items-center">

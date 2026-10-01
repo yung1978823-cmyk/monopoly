@@ -821,8 +821,11 @@ export function createBoardScene(
     castleIsle.group.position.set(0, -0.2, castleZ);
     scene.add(castleIsle.group);
     breathers.push({ obj: castleIsle.group, base: -0.2, phase: 4, period: 6 });
-    c.position.set(0, TOP, 0);
-    castleIsle.group.add(c);
+    // Sky's drawn castle (2026-10-01) stands on the island instead of the shape-built one.
+    void c;
+    const castlePic = makePictureMonster("/art/fx/castle.webp", 3.6, [0.5, 0.5]).group;
+    castlePic.position.set(0, TOP - 0.05, 0);
+    castleIsle.group.add(castlePic);
     for (let n = 0; n < 5; n++) {
       const bat = new T.Group();
       const wingGeo = new T.ConeGeometry(0.18, 0.5, 3);
@@ -861,8 +864,11 @@ export function createBoardScene(
     pileIsle.group.position.set(0, -0.15, D - 0.7);
     scene.add(pileIsle.group);
     breathers.push({ obj: pileIsle.group, base: -0.15, phase: 1, period: 4.6 });
-    pile.position.set(0, TOP, 0);
-    pileIsle.group.add(pile);
+    // Sky's drawn treasure chest (2026-10-01) in place of the shape-built pile.
+    void pile;
+    const chestPic = makePictureMonster("/art/fx/treasure.webp", 1.9, [0.5, 0.5]).group;
+    chestPic.position.set(0, TOP - 0.1, 0.45);
+    pileIsle.group.add(chestPic);
   }
 
   // ---------- Tokens ----------
