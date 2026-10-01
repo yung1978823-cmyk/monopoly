@@ -130,8 +130,8 @@ export type Decor = { houses: string[]; facade: boolean; stations: number };
 
 // Squares are floating islands now: a little further apart (+10%) so each one reads on its own.
 const PITCH = 1.32;
-/** Islands are 15% bigger than the old flat tiles. */
-const ISLE = 1.15;
+/** Island size: a little smaller than before (Sky 2026-10-01) so there's open air between squares, like the single-player board. */
+const ISLE = 1.0;
 const D = (EDGE_STEPS * PITCH) / Math.SQRT2;
 const TURN = Math.PI / 4;
 const TOP = 0.34;
@@ -303,10 +303,15 @@ export function createBoardScene(
     const dirt = shadowy(new T.Mesh(rough(new T.CylinderGeometry(0.53 * size, 0.44 * size, 0.2, 8), 0.05 * size), flat(0x7a5230)));
     dirt.position.y = TOP - 0.24;
     g.add(dirt);
-    const rock = shadowy(new T.Mesh(rough(new T.ConeGeometry(0.44 * size, 0.7 * size, 7), 0.08 * size), flat(0x5d6168)));
-    rock.rotation.x = Math.PI;
-    rock.position.y = TOP - 0.34 - 0.35 * size;
+    // Like the single-player board (Sky 2026-10-01): a stubby round rock under the soil, not a spike.
+    const rockH = 0.42 * size;
+    const rock = shadowy(new T.Mesh(rough(new T.CylinderGeometry(0.46 * size, 0.38 * size, rockH, 9, 2), 0.06 * size), flat(0x5d6168)));
+    rock.position.y = TOP - 0.34 - rockH / 2;
     g.add(rock);
+    const cap = shadowy(new T.Mesh(rough(new T.SphereGeometry(0.38 * size, 9, 5, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), 0.05 * size), flat(0x565a61)));
+    cap.scale.y = 0.55;
+    cap.position.y = TOP - 0.34 - rockH;
+    g.add(cap);
     return { group: g, top: grass };
   };
   /** 火龍: the left diamond's monster, a fat red dragon that breathes fireballs. */
@@ -617,11 +622,14 @@ export function createBoardScene(
     group.rotation.y = yaw;
     scene.add(group);
     // Grass on top for lots; the special squares keep their colour so they're easy to spot.
-    const base = square.kind === "lot" ? (square.gold ? 0xd6c24a : 0x62b843) : PLAIN[square.kind];
+    // Lots are bare grey stones like the single-player board (Sky 2026-10-01), each a slightly different grey;
+    // the special squares keep their colour so they're easy to spot.
+    const base = square.kind === "lot" ? (square.gold ? 0xd6c24a : [0x9a958c, 0xa39e94, 0x8f8a82, 0xaaa59a][Object.keys(tiles).length % 4]) : PLAIN[square.kind];
     const big = ["start", "jail", "chest", "fly", "dock", "cross"].includes(square.kind);
     const isle = islandMesh((big ? 1.36 : 1.08) * ISLE, 100 + Object.keys(tiles).length * 17, base);
     group.add(isle.group);
     const body = isle.top;
+    body.material = new T.MeshStandardMaterial({ color: base, roughness: 0.95, flatShading: true });
     // Its shadow on the floor far below, and a soft glow under the rock.
     const shadow = new T.Mesh(new T.PlaneGeometry(1.7 * ISLE, 1.7 * ISLE), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
