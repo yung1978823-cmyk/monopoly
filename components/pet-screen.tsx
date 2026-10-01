@@ -1,5 +1,6 @@
 "use client";
 
+import { juice } from "@/components/juice";
 import { PetView } from "@/components/pet-view";
 
 /** Drawn dragons by attribute and stage (1 N … 4 SSR); stages without a picture yet use the 3D model. */
@@ -149,6 +150,7 @@ export function PetScreen({
                   disabled={!canGrow}
                   onClick={() => {
                     play("chest");
+                    juice("large");
                     onGrow();
                   }}
                   className={cn(

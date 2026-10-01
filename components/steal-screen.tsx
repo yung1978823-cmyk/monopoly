@@ -1,5 +1,6 @@
 "use client";
 
+import { juiceAt } from "@/components/juice";
 import { CHARACTERS } from "@/lib/characters";
 import { JACKPOT, STEAL_DANGERS, STEAL_PICKS, stealDone, stealPicksLeft, type GameState, type StealBox, type StealKind } from "@/lib/game";
 import { useLang } from "@/lib/i18n";
@@ -74,9 +75,12 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
     };
   }, [done, onReturn]);
 
-  function open(i: number) {
+  function open(i: number, element?: Element | null) {
     if (done || opened.includes(i)) return;
     const box = boxes[i];
+    // 手感三級: plain loot small, coins or a die medium, the jackpot and the bomb large.
+    const tier = box.kind === "jackpot" || box.kind === "bomb" ? "large" : box.kind === "coins" || box.kind === "dice" || STEAL_DANGERS.includes(box.kind) ? "medium" : "small";
+    juiceAt(tier, element ?? null, STEAL_DANGERS.includes(box.kind) ? "#FF5A4E" : undefined);
     play(STEAL_DANGERS.includes(box.kind) ? "bad" : box.kind === "jackpot" ? "chest" : box.kind === "juice" ? "lucky" : "coin");
     onPick(i);
   }
@@ -124,7 +128,7 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
               <button
                 type="button"
                 disabled={done || isOpen}
-                onClick={() => open(i)}
+                onClick={() => open(i, document.querySelector(`[data-testid="crate-${i}"]`))}
                 className={cn(
                   "relative flex aspect-square w-full cursor-pointer items-center justify-center rounded-2xl border-4 transition disabled:cursor-default",
                   shown

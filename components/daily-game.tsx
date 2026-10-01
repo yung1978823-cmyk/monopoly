@@ -1,5 +1,6 @@
 "use client";
 
+import { juice } from "@/components/juice";
 import { AttackScreen } from "@/components/attack-screen";
 import { PetScreen } from "@/components/pet-screen";
 import { StealScreen } from "@/components/steal-screen";
@@ -17,7 +18,9 @@ import { TipHand } from "@/components/tip-hand";
 import { Button } from "@/components/ui/button";
 import { TILES, TILE_INFO } from "@/lib/board";
 import { THEMES } from "@/lib/themes";
-import { HATCH_ROLLS, growNeed, rollElement } from "@/lib/pet";
+import { ELEMENTS, HATCH_ROLLS, growNeed, rollElement } from "@/lib/pet";
+
+const ELEMENT_COLOURS = ELEMENTS.map((e) => e.colour);
 import {
   STORAGE_KEY,
   attackPower,
@@ -198,6 +201,8 @@ export function DailyGame() {
     const show = window.setTimeout(() => {
       setHatchedNow(element);
       play("chest");
+      // The burst of the shell is the big moment.
+      window.setTimeout(() => juice("large", undefined, undefined, ELEMENT_COLOURS[element]), HATCH_MS * 0.57);
     }, 400);
     const hide = window.setTimeout(() => setHatchedNow(null), 400 + HATCH_MS);
     return () => {
@@ -303,6 +308,9 @@ export function DailyGame() {
     };
     const sound = sounds[state.landing.kind];
     if (sound) play(sound);
+    // 手感三級: coins and dice are small, a chest or a lucky square medium.
+    const tier = ({ start: "small", coin: "small", meat: "small", chest: "medium", lucky: "medium" } as const)[state.landing.kind as "coin"];
+    if (tier) juice(tier, undefined, window.innerHeight * 0.42);
   }, [pending?.committed, state.landing, state.rollCount]);
 
   // The landing picture shows once per roll. Leaving for another page hides the board and coming back would
@@ -398,17 +406,18 @@ export function DailyGame() {
     const rivalNfts = 1 + Math.floor(Math.random() * 5);
     // A chest holds 🍖 half the time.
     const chestMeat = Math.random() < 0.5;
-    // A rival's store (偷嘢): nine crates — the three dangers (老鼠夾, 炸彈, 鬧鐘), one rarer prize (a bag of coins
+    // A rival's store (偷嘢): nine crates — two dangers (of 老鼠夾, 炸彈, 鬧鐘), one rarer prize (a bag of coins
     // or a die), and 💎 and 🍖; now and then one of those is the 大寶箱 jackpot. Shuffled.
     const common = (): StealBox => (Math.random() < 0.6 ? { kind: "juice", amount: 1 + Math.floor(Math.random() * 3) } : { kind: "meat", amount: 3 });
-    const commons = [common(), common(), common(), common(), common()];
+    const commons = [common(), common(), common(), common(), common(), common()];
     if (Math.random() < 0.15) commons[0] = { kind: "jackpot", amount: 1 };
     const rare: StealBox = Math.random() < 0.6 ? { kind: "coins", amount: 6 + Math.floor(Math.random() * 5) } : { kind: "dice", amount: 1 };
-    const dangers: StealBox[] = [
-      { kind: "trap", amount: 1 },
-      { kind: "bomb", amount: 1 },
-      { kind: "alarm", amount: 1 },
-    ];
+    // Two of the three dangers in each store, picked at random (Sky 2026-10-01: three was too harsh —
+    // with two, about four raids in ten meet none).
+    const dangers: StealBox[] = (["trap", "bomb", "alarm"] as const)
+      .map((kind) => ({ kind, amount: 1 }) as StealBox)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 2);
     const stealBoxes: StealBox[] = [...dangers, rare, ...commons].sort(() => Math.random() - 0.5);
     setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalFace, rivalElement, rivalNfts, chest, chestMeat, stealBoxes, tornado, running: true, committed: false });
   }

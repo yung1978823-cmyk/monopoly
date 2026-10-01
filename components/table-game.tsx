@@ -1,5 +1,6 @@
 "use client";
 
+import { juice } from "@/components/juice";
 import { ACTORS, createBoardScene, loadThree, type BoardScene, type Decor } from "@/components/eight-scene";
 import { TILE_INFO } from "@/lib/board";
 import { CHARACTERS, savePick, savedPick } from "@/lib/characters";
@@ -413,12 +414,14 @@ export function EightBoard({
           case "bought":
             play("coin");
             say("{name} 買地起樓 −{n}", { name: who(event.seat), n: event.price });
+            juice(state.seats[event.seat]?.bot ? "small" : "medium", undefined, window.innerHeight * 0.45);
             special(event.seat, "builds");
             await Promise.all([scene.own(event.key, event.seat, 1), scene.pulse(event.seat)]);
             break;
           case "upgraded":
             play("build");
             say(event.level >= 4 ? "{name} 起咗地標！" : "{name} 升到第 {n} 級", { name: who(event.seat), n: event.level });
+            juice(event.level >= 4 ? "large" : state.seats[event.seat]?.bot ? "small" : "medium", undefined, window.innerHeight * 0.45);
             if (event.level < 4) special(event.seat, "builds");
             await Promise.all([scene.own(event.key, event.seat, event.level), scene.pulse(event.seat, true)]);
             if (event.level >= 4) {

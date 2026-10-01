@@ -326,3 +326,11 @@
 }
 @keyframes hatch-twinkle { 0%, 58% { opacity: 0; transform: rotate(45deg) scale(0); } 66% { opacity: 1; transform: rotate(45deg) scale(1.3); } 80% { opacity: 0.8; transform: rotate(135deg) scale(0.8); } 92%, 100% { opacity: 0; transform: rotate(225deg) scale(0); } }
 @media (prefers-reduced-motion: reduce) { [data-testid="hatched"] * { animation-duration: 1ms !important; } }
+/* 手感三級 (Sky 2026-10-01): shared sparkles, ring, flash and screen nudge. */
+@keyframes juice-spark { 0% { transform: translate(-50%, -50%) rotate(45deg) scale(0.4); opacity: 1; } 70% { opacity: 1; } 100% { transform: translate(calc(-50% + var(--jx)), calc(-50% + var(--jy))) rotate(225deg) scale(0); opacity: 0; } }
+@keyframes juice-ring { 0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0.9; } 100% { transform: translate(-50%, -50%) scale(1.8); opacity: 0; } }
+@keyframes juice-flash { 0% { opacity: 0.55; } 100% { opacity: 0; } }
+@keyframes juice-shake-m { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(-3px, 2px); } 50% { transform: translate(3px, -2px); } 75% { transform: translate(-2px, 1px); } }
+@keyframes juice-shake-l { 0%, 100% { transform: translate(0, 0) rotate(0); } 15% { transform: translate(-8px, 5px) rotate(-0.6deg); } 30% { transform: translate(7px, -6px) rotate(0.5deg); } 45% { transform: translate(-6px, 3px) rotate(-0.3deg); } 60% { transform: translate(4px, -2px); } 80% { transform: translate(-2px, 1px); } }
+body.juice-shake-medium > * { animation: juice-shake-m 300ms ease-out; }
+body.juice-shake-large > * { animation: juice-shake-l 500ms ease-out; }

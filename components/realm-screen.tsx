@@ -9,7 +9,6 @@ import {
   HOUSE_RENT,
   LANDS,
   LAND_KINDS,
-  LAND_TAX,
   LISTINGS,
   MATERIALS,
   MATERIAL_PRICE,
@@ -43,6 +42,7 @@ import {
   type Realm,
   type Wallet,
 } from "@/lib/realm";
+import { juice, juiceAt } from "@/components/juice";
 import { play } from "@/lib/sfx";
 import { cn } from "cn";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -148,7 +148,12 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
   };
 
   return (
-    <main className="relative flex h-dvh w-full flex-col overflow-hidden bg-[#3B1D6E] text-[#1E3A8A]" data-testid="realm">
+    <main
+      className="relative flex h-dvh w-full flex-col overflow-hidden bg-[#2A1A5E] bg-cover bg-center text-[#1E3A8A]"
+      // Same outer-space world as the public table (Sky 2026-10-01), not a flat purple page.
+      style={{ backgroundImage: "linear-gradient(rgba(20,10,50,0.35), rgba(20,10,50,0.55)), url(/art/table-lobby.webp)" }}
+      data-testid="realm"
+    >
       <header className="z-10 mx-auto flex w-full max-w-xl flex-col gap-2 px-3 pt-[max(env(safe-area-inset-top),0.6rem)]">
         <div className="flex items-center gap-2">
           <button
@@ -159,7 +164,10 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
           >
             ←
           </button>
-          <h1 className="flex-1 text-center text-2xl font-black text-white drop-shadow-[0_3px_0_#1E3A8A]">{t("🏰 領地")}</h1>
+          <h1 className="flex flex-1 items-center justify-center gap-1.5 text-2xl font-black text-white drop-shadow-[0_3px_0_#1E3A8A]">
+            <img src="/art/ui/land.webp" alt="" className="size-9 object-contain" />
+            {t("領地")}
+          </h1>
           <span className="rounded-full bg-[#FBD000] px-2 py-0.5 text-xs font-black">{t("練習版")}</span>
         </div>
         <WalletBar wallet={wallet} />
@@ -198,7 +206,9 @@ function WalletBar({ wallet }: { wallet: Wallet }) {
   const { t } = useLang();
   return (
     <div className="flex items-center justify-center gap-2 rounded-full bg-white/90 px-3 py-1 text-sm font-black tabular-nums" aria-label={t("我嘅錢同材料")} data-testid="wallet">
-      <span>💰 {wallet.points}</span>
+      <span>
+        <img src="/art/ui/coin.webp" alt="" className="inline size-4 align-[-3px]" /> {wallet.points}
+      </span>
       {MATERIALS.map((m) => (
         <span key={m}>
           {MATERIAL_ICONS[m]} {wallet.stock[m]}
@@ -235,6 +245,7 @@ function EmptyLand({ wallet, onBuy }: { wallet: Wallet; onBuy: (land: LandKind) 
               disabled={!ready || !afford}
               onClick={() => {
                 play("build");
+                juice("large");
                 onBuy(land);
               }}
               className="flex min-w-20 cursor-pointer flex-col items-center rounded-2xl border-[3px] border-[#FBD000] bg-[#E52521] px-2 py-1 font-black text-white disabled:cursor-default disabled:border-[#D6DEEA] disabled:bg-[#9CA3AF]"
@@ -243,7 +254,9 @@ function EmptyLand({ wallet, onBuy }: { wallet: Wallet; onBuy: (land: LandKind) 
               {ready ? (
                 <>
                   <span>{t("買地")}</span>
-                  <span className="text-xs">{t("臨時 {n}", { n: info.price })}</span>
+                  <span className="text-xs">
+                    <img src="/art/ui/coin.webp" alt="" className="inline size-4 align-[-3px]" /> {info.price}
+                  </span>
                 </>
               ) : (
                 <span className="text-xs">{t("即將推出")}</span>
@@ -298,7 +311,9 @@ function RealmList({ realm, wallet, onJoin, onMine }: { realm: Realm; wallet: Wa
             data-testid={`join-${listing.id}`}
           >
             <span>{t("入場")}</span>
-            <span className="text-xs">💰 {listing.realm.ticket}</span>
+            <span className="text-xs">
+              <img src="/art/ui/coin.webp" alt="" className="inline size-4 align-[-3px]" /> {listing.realm.ticket}
+            </span>
           </button>,
         ),
       )}
@@ -362,10 +377,28 @@ function RealmEditor({
   const recipe = (kind: BuildingKind) =>
     MATERIALS.filter((m) => RECIPES[kind][m] > 0).map((m) => `${MATERIAL_ICONS[m]}${RECIPES[kind][m]}`).join(" ");
   const land = realm.land!;
+  const fingers = useRef(new Set<number>());
+  const affordable = BUILDING_KINDS.filter((kind) => canPlace(realm, kind) && hasStock(wallet.stock, RECIPES[kind])).length;
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col">
-      <div ref={mount} className="relative h-[38%] min-h-40 w-full touch-none" aria-label={t("我嘅領地")}>
+      {/* A preview to look at, not to zoom: the wheel and two-finger pinch stay out of the 3D board
+          (Sky 2026-10-01: one scroll shrank the island to a dot). Dragging to turn it still works. */}
+      <div
+        ref={mount}
+        className="relative h-[38%] min-h-40 w-full touch-none"
+        aria-label={t("我嘅領地")}
+        onWheelCapture={(event: { stopPropagation: () => void }) => event.stopPropagation()}
+        onPointerDownCapture={(event: { pointerId: number; stopPropagation: () => void }) => {
+          fingers.current.add(event.pointerId);
+          if (fingers.current.size > 1) event.stopPropagation();
+        }}
+        onPointerMoveCapture={(event: { stopPropagation: () => void }) => {
+          if (fingers.current.size > 1) event.stopPropagation();
+        }}
+        onPointerUpCapture={(event: { pointerId: number }) => fingers.current.delete(event.pointerId)}
+        onPointerCancelCapture={(event: { pointerId: number }) => fingers.current.delete(event.pointerId)}
+      >
         {loaded !== "ready" ? (
           <p className="absolute inset-x-0 top-1/3 text-center font-black text-white">
             {loaded === "loading" ? t("載入立體棋盤⋯") : t("立體畫面載入唔到，請檢查網絡再試。")}
@@ -398,20 +431,23 @@ function RealmEditor({
                 key={slot}
                 type="button"
                 onClick={() => setPicking(slot)}
-                className="flex aspect-square cursor-pointer items-center justify-center rounded-2xl border-[3px] border-dashed border-[#8B5CF6]/50 bg-[#F3EEFF] text-2xl font-black text-[#8B5CF6]/60"
+                className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-[3px] border-dashed border-[#8B5CF6]/60 bg-[#F3EEFF] font-black text-[#7C3AED] animate-[glow_2.4s_ease-in-out_infinite]"
                 aria-label={t("喺第 {n} 個位起嘢", { n: slot + 1 })}
                 data-testid={`slot-${slot}`}
               >
-                +
+                {/* Say what the empty spot is for (Sky 2026-10-01): a crane, "起樓", and how many kinds you can afford. */}
+                <img src="/art/ui/build.webp" alt="" className="size-10 object-contain" />
+                <span className="text-sm">{t("起樓")}</span>
+                <span className="text-[11px] text-[#3B5BA9]">{t("有 {n} 款起得", { n: affordable })}</span>
               </button>
             ),
           )}
         </div>
-        <p className="-mt-1 text-center text-[11px] font-bold text-[#3B5BA9]">{t("拆咗嘅建築唔會退返材料")}</p>
+        <p className="-mt-1 text-center text-xs font-bold text-[#3B5BA9]">{t("撳已起嘅建築可以拆走（材料唔退返）")}</p>
 
         {/* Material shop. */}
         <div className="rounded-2xl bg-[#FFF8D6] p-2">
-          <p className="mb-1 text-center text-sm font-black">{t("材料店（臨時價，買材料嘅錢會銷毀）")}</p>
+          <p className="mb-1 text-center text-sm font-black">{t("材料店")}</p>
           <div className="grid grid-cols-3 gap-2">
             {MATERIALS.map((m) => (
               <button
@@ -420,6 +456,7 @@ function RealmEditor({
                 disabled={wallet.points < MATERIAL_PRICE[m]}
                 onClick={() => {
                   play("coin");
+                  juiceAt("small", document.querySelector(`[data-testid="shop-${m}"]`));
                   onChange({ wallet: buyMaterial(wallet, m) });
                 }}
                 className="flex cursor-pointer flex-col items-center rounded-2xl border-2 border-[#FBD000] bg-white py-1 font-black disabled:opacity-50"
@@ -428,17 +465,18 @@ function RealmEditor({
               >
                 <span className="text-2xl">{MATERIAL_ICONS[m]}</span>
                 <span className="text-xs">{t(MATERIAL_NAMES[m])}</span>
-                <span className="text-xs text-[#B45309]">💰 {MATERIAL_PRICE[m]}</span>
+                <span className="text-xs text-[#B45309]">
+                  <img src="/art/ui/coin.webp" alt="" className="inline size-4 align-[-3px]" /> {MATERIAL_PRICE[m]}
+                </span>
               </button>
             ))}
           </div>
-          <p className="mt-1 text-center text-[11px] font-bold text-[#3B5BA9]">{t("公開桌按名次都會派材料")}</p>
+          <p className="mt-1 text-center text-xs font-bold text-[#3B5BA9]">{t("玩公開桌，名次越前送越多材料")}</p>
         </div>
 
         <p className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs font-black" data-testid="realm-summary">
           <span>{t("同時開 {n} 張枱", { n: tablesOf(realm) })}</span>
           <span>{t("每人 {n} 轉", { n: turnsOf(realm) })}</span>
-          <span>{t("地稅 {n}%", { n: LAND_TAX * 100 })}</span>
         </p>
 
         {count(realm, "chance") > 0 ? (
@@ -487,7 +525,7 @@ function RealmEditor({
           className="h-14 w-full shrink-0 cursor-pointer rounded-full border-4 border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-xl font-black text-white shadow-[0_5px_0_#8E1210] active:translate-y-1"
           data-testid="host"
         >
-          {t("開局招待（電腦做客人）")}
+          {t("開局")}
         </button>
       </div>
 
@@ -509,6 +547,7 @@ function RealmEditor({
                   disabled={!fits || !enough}
                   onClick={() => {
                     play("build");
+                    juice("medium");
                     onChange(build(realm, wallet, picking, kind));
                     setPicking(null);
                   }}
@@ -523,7 +562,6 @@ function RealmEditor({
                   </span>
                   <span className="text-right text-xs font-black text-[#B45309]">
                     {recipe(kind)}
-                    <span className="block text-[10px] text-[#3B5BA9]">{t("臨時配方")}</span>
                   </span>
                 </button>
               );

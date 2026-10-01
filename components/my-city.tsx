@@ -1,5 +1,6 @@
 "use client";
 
+import { juice } from "@/components/juice";
 import { CityView } from "@/components/city-view";
 import { LevelPips } from "@/components/building";
 import { TipHand } from "@/components/tip-hand";
@@ -48,6 +49,7 @@ export function MyCity({
         setPage(which);
         setParty((n) => n + 1);
         play("chest");
+        juice("large");
       }, 0);
       seenTheme.current = state.theme;
       seenDone.current = done;
@@ -72,6 +74,7 @@ export function MyCity({
     if (!current || !canUpgrade(state, building)) return;
     onUpgrade(building);
     play("build");
+    juice("medium", undefined, window.innerHeight * 0.45);
     setRaised({ building, key: Date.now() });
   }
 
