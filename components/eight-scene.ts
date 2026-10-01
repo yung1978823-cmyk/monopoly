@@ -364,6 +364,25 @@ export function createBoardScene(
     head.add(mouth);
     return { group, head, mouth, phase: 0 };
   }
+  /**
+   * Sky's drawn monsters (2026-10-01) in place of the shape-built ones: a picture standing on its island that
+   * always faces the camera. `mouth` is where the shot leaves the picture (0–1 across, 0–1 down).
+   */
+  function makePictureMonster(url: string, size: number, mouth: [number, number]) {
+    const group = new T.Group();
+    const tex = new T.TextureLoader().load(url);
+    tex.encoding = T.sRGBEncoding;
+    const sprite = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.05 }));
+    sprite.center.set(0.5, 0);
+    sprite.scale.set(size, size, 1);
+    group.add(sprite);
+    const head = new T.Object3D();
+    group.add(head);
+    const spot = new T.Object3D();
+    spot.position.set((mouth[0] - 0.5) * size, (1 - mouth[1]) * size, 0.2);
+    group.add(spot);
+    return { group, head, mouth: spot, phase: 0, flat: true };
+  }
   /** 炮石怪: the right diamond's monster, a mossy stone golem with a cannon in its chest. */
   function makeGolem() {
     const group = new T.Group();
@@ -440,7 +459,7 @@ export function createBoardScene(
   /** The outer-space backdrop (八字 board). */
   let space: Backdrop | null = null;
   /** The two monsters, one in the middle of each diamond (八字 board only). */
-  const monsters: Partial<Record<"left" | "right", { group: any; head: any; mouth: any; phase: number }>> = {};
+  const monsters: Partial<Record<"left" | "right", { group: any; head: any; mouth: any; phase: number; flat?: boolean }>> = {};
   if (island) {
     const water = new T.Mesh(new T.CircleGeometry(80, 64), mat(0x2bb3c9, 0.25, { metalness: 0.2 }));
     water.rotation.x = -Math.PI / 2;
@@ -482,7 +501,12 @@ export function createBoardScene(
         big.group.add(trunk, crown);
       }
       const side = x < 0 ? "left" : "right";
-      const m = side === "left" ? makeDragon() : makeGolem();
+      const m =
+        side === "left"
+          ? makePictureMonster("/art/fx/monster-dragon.webp", 2.9, [0.6, 0.38])
+          : makePictureMonster("/art/fx/monster-golem.webp", 2.9, [0.73, 0.36]);
+      void makeDragon;
+      void makeGolem;
       m.group.position.set(0, TOP, 0.1);
       big.group.add(m.group);
       monsters[side] = m;
@@ -1670,7 +1694,8 @@ export function createBoardScene(
       // Turn to face the target and rear back.
       if (m) {
         const p = m.group.getWorldPosition(new T.Vector3());
-        const turn = Math.atan2(target.x - p.x, target.z - p.z);
+        // A picture can't turn round, so it only rears back.
+        const turn = m.flat ? m.group.rotation.y : Math.atan2(target.x - p.x, target.z - p.z);
         const start = m.group.rotation.y;
         await tween(300, (k) => {
           m.group.rotation.y = start + (turn - start) * k;
