@@ -53,7 +53,6 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
   const trapped = last?.kind === "trap";
   const bombed = last?.kind === "bomb";
   const rang = last?.kind === "alarm";
-  const hurt = trapped || bombed || rang;
   const left = stealPicksLeft(state);
   const triple =
     opened.length === STEAL_PICKS && opened.every((i) => boxes[i]?.kind === boxes[opened[0]]?.kind) && !STEAL_DANGERS.includes(boxes[opened[0]]?.kind);
@@ -85,8 +84,6 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
     onPick(i);
   }
 
-  // The ghost reacts to the last crate: a hop for loot, a jolt for the trap.
-  const mood = hurt ? "animate-[thief-jolt_0.5s_ease-out]" : last ? "animate-[thief-hop_0.5s_ease-out]" : "animate-[thief-idle_2.4s_ease-in-out_infinite]";
 
   return (
     <main
@@ -158,7 +155,8 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
                   <span className="text-3xl font-black text-[#FBD000] drop-shadow-[0_2px_0_#5a3a1c]">?</span>
                 )}
                 {isOpen && box.kind === "bomb" ? (
-                  <img src="/art/fx/boom.webp" alt="" draggable={false} className="pointer-events-none absolute inset-[-60%] max-w-none animate-[pop_0.5s_ease-out] object-contain opacity-90" />
+                  // What's left after the blast: a scorch mark on the crate (the explosion itself fills the screen).
+                  <span className="pointer-events-none absolute inset-0 rounded-[inherit]" style={{ background: "radial-gradient(circle, rgba(20,8,0,0.75) 0%, rgba(60,20,0,0.45) 45%, transparent 75%)" }} />
                 ) : null}
                 {isOpen && box.kind === "jackpot" ? (
                   <span className="pointer-events-none absolute inset-[-40%] animate-[siren_2600ms_linear_infinite] rounded-full opacity-60" style={{ background: "conic-gradient(from 0deg, rgba(251,208,0,0.6) 0 20deg, transparent 20deg 60deg, rgba(251,208,0,0.6) 60deg 80deg, transparent 80deg 120deg, rgba(251,208,0,0.6) 120deg 140deg, transparent 140deg 180deg, rgba(251,208,0,0.6) 180deg 200deg, transparent 200deg 240deg, rgba(251,208,0,0.6) 240deg 260deg, transparent 260deg 300deg, rgba(251,208,0,0.6) 300deg 320deg, transparent 320deg)" }} />
@@ -180,14 +178,6 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
         </p>
       ) : null}
 
-      {/* The ghost thief, bottom left, reacting to each crate. */}
-      <img
-        src="/art/fx/thief.webp"
-        alt=""
-        draggable={false}
-        key={opened.length}
-        className={cn("pointer-events-none absolute bottom-[max(env(safe-area-inset-bottom),0.5rem)] left-1 w-36 object-contain drop-shadow-[0_10px_14px_rgba(0,0,0,0.6)]", mood)}
-      />
 
       {done ? (
         <button
@@ -198,6 +188,20 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
         >
           {t("返回棋盤")}
         </button>
+      ) : null}
+      {/* 炸彈 (Sky 2026-10-01): the whole screen blows up, not just the crate — a flash, the fireball from the
+          middle filling the screen, a hot tint, then it clears to show what's left. */}
+      {bombed ? (
+        <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden" data-testid="bomb-blast">
+          <div className="absolute inset-0 animate-[blast-tint_1600ms_ease-out_forwards] bg-[#ff6a00] opacity-0" />
+          <img
+            src="/art/fx/boom.webp"
+            alt=""
+            draggable={false}
+            className="absolute left-1/2 top-1/2 w-[140vmax] max-w-none animate-[blast-ball_1600ms_ease-out_forwards] opacity-0"
+          />
+          <div className="absolute inset-0 animate-[blast-flash_1600ms_linear_forwards] bg-white opacity-0" />
+        </div>
       ) : null}
       {smoke ? (
         <div className="pointer-events-none absolute inset-0 z-50 overflow-hidden">

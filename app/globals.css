@@ -308,6 +308,16 @@
   100% { opacity: 0; transform: translate(calc(-50% + var(--dx) * 5), calc(-50% + var(--dy) * 5)) rotate(calc(var(--r) + 110deg)) scale(1.5); }
 }
 
+/* 炸彈: a full-screen blast over 1.6 s. */
+@keyframes blast-flash { 0% { opacity: 0; } 4% { opacity: 1; } 16% { opacity: 0; } 100% { opacity: 0; } }
+@keyframes blast-tint { 0% { opacity: 0; } 8% { opacity: 0.55; } 60% { opacity: 0.25; } 100% { opacity: 0; } }
+@keyframes blast-ball {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.15) rotate(0deg); }
+  6% { opacity: 1; }
+  30% { transform: translate(-50%, -50%) scale(0.95) rotate(8deg); }
+  70% { opacity: 1; transform: translate(-50%, -50%) scale(1.1) rotate(12deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.3) rotate(16deg); }
+}
 /* 偷嘢 store: the ghost thief's moods (pet-screen dragons breathe with thief-idle too). */
 @keyframes thief-idle { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-9px) rotate(-3deg); } }
 @keyframes thief-hop { 0% { transform: translateY(0) scale(1); } 40% { transform: translateY(-26px) scale(1.06) rotate(-4deg); } 100% { transform: translateY(0) scale(1); } }
