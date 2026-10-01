@@ -431,7 +431,7 @@ function RealmEditor({
                 key={slot}
                 type="button"
                 onClick={() => setPicking(slot)}
-                className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-[3px] border-dashed border-[#8B5CF6]/60 bg-[#F3EEFF] font-black text-[#7C3AED] animate-[glow_2.4s_ease-in-out_infinite]"
+                className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-[3px] border-dashed border-[#8B5CF6]/60 bg-[#F3EEFF] font-black text-[#7C3AED] animate-[breathe_3s_ease-in-out_infinite]"
                 aria-label={t("喺第 {n} 個位起嘢", { n: slot + 1 })}
                 data-testid={`slot-${slot}`}
               >
