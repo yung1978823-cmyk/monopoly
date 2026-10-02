@@ -408,7 +408,8 @@ export function createCityScene(
   }
   // ---------- 島面小擺設 (Sky, option A): paving, lamps, trees, planters and people walking, so the
   // island reads as a lived-in plaza rather than an empty plate. Picture pages only.
-  const walkers: { g: any; a: number; speed: number; r: number; phase: number; mixer?: any }[] = [];
+  type Job = { plot: number; at: number; from: [number, number]; to: [number, number]; walk: number; work: number; struck: number };
+  const walkers: { g: any; a: number; speed: number; r: number; phase: number; mixer?: any; model?: any; hammer?: any; job?: Job }[] = [];
   if (theme.art) {
     const id = theme.id;
     const style = {
@@ -572,6 +573,19 @@ export function createCityScene(
               walk.play();
             }
             walker.mixer = mixer;
+            walker.model = model;
+            // A little hammer in hand, shown only while building (Sky 2026-10-02: the walkers do the building).
+            const hammer = new T.Group();
+            const handle = new T.Mesh(new T.CylinderGeometry(0.012, 0.012, 0.17, 6), mat(0x8b5a2b, 0.7));
+            handle.position.y = 0.085;
+            const head = new T.Mesh(new T.BoxGeometry(0.09, 0.05, 0.05), mat(0xd4a72c, 0.3, { metalness: 0.5 }));
+            head.position.y = 0.17;
+            hammer.add(handle, head);
+            hammer.position.set(0.07, 0.15, 0.04);
+            hammer.scale.setScalar(0.75);
+            hammer.visible = false;
+            g.add(hammer);
+            walker.hammer = hammer;
           })
           .catch(() => {
             // Keep the peg.
@@ -856,7 +870,76 @@ export function createCityScene(
   const WORK_MS = CLOUD_END + 500;
   type Worker = { s: any; side: number; phase: number };
   const crews = new Map<number, { at: number; men: Worker[] }>();
+  /** 起樓 (Sky 2026-10-02): the two characters walking round the island nearest the plot run over, hammer away
+   *  beside it while the cloud covers the building, then walk back to their stroll. */
+  const BACK_MS = 700;
+  function sendBuilders(i: number) {
+    const ready = walkers.filter((w) => w.model && !w.job);
+    if (ready.length < 2) return false;
+    const [px, pz] = [plots[i].holder.position.x, plots[i].holder.position.z];
+    const out = Math.hypot(px, pz) || 1;
+    const [ox, oz] = [px / out, pz / out];
+    const [tx, tz] = [-oz, ox];
+    const near = ready.sort((a, b) => Math.hypot(a.g.position.x - px, a.g.position.z - pz) - Math.hypot(b.g.position.x - px, b.g.position.z - pz)).slice(0, 2);
+    const now = performance.now();
+    near.forEach((w, k) => {
+      const side = k ? 1 : -1;
+      const to: [number, number] = [px + tx * side * 0.62 + ox * 0.55, pz + tz * side * 0.62 + oz * 0.55];
+      const from: [number, number] = [w.g.position.x, w.g.position.z];
+      const walk = Math.min(900, Math.max(300, (Math.hypot(to[0] - from[0], to[1] - from[1]) / 4) * 1000));
+      w.job = { plot: i, at: now, from, to, walk, work: Math.max(CLOUD_END + 300, walk + 1300), struck: -1 };
+    });
+    return true;
+  }
+  function buildStep(w: (typeof walkers)[number], now: number, dt: number) {
+    const job = w.job!;
+    const age = now - job.at;
+    const [px, pz] = [plots[job.plot].holder.position.x, plots[job.plot].holder.position.z];
+    const face = (dx: number, dz: number) => {
+      if (Math.abs(dx) + Math.abs(dz) > 1e-4) w.g.rotation.y = Math.atan2(dx, dz);
+    };
+    if (age < job.walk) {
+      // Run over.
+      const k = age / job.walk, e = k * k * (3 - 2 * k);
+      const x = job.from[0] + (job.to[0] - job.from[0]) * e, z = job.from[1] + (job.to[1] - job.from[1]) * e;
+      w.g.position.set(x, TOP + Math.abs(Math.sin(now / 90)) * 0.04, z);
+      face(job.to[0] - job.from[0], job.to[1] - job.from[1]);
+      w.mixer?.update(dt * 1.8);
+      return;
+    }
+    if (age < job.work) {
+      // Hammer: face the building, swing on a beat, a bob and a few sparks each strike.
+      w.g.position.set(job.to[0], TOP, job.to[1]);
+      face(px - job.to[0], pz - job.to[1]);
+      if (w.hammer) w.hammer.visible = true;
+      const t = (age - job.walk) / 260 + (job.to[0] > px ? 0.5 : 0);
+      const phase = t - Math.floor(t);
+      const swing = phase < 0.6 ? -1.3 * (phase / 0.6) : -1.3 + 2.1 * ((phase - 0.6) / 0.4);
+      if (w.hammer) w.hammer.rotation.x = swing;
+      if (w.model) w.model.rotation.x = phase > 0.6 ? 0.18 * ((phase - 0.6) / 0.4) : 0.18 * (1 - phase / 0.6);
+      const beat = Math.floor(t);
+      if (phase > 0.95 && job.struck !== beat && w.hammer) {
+        job.struck = beat;
+        burst(w.hammer.localToWorld(new T.Vector3(0, 0.17, 0)), 5, [0xffd34d, 0xffffff, 0x9fd8ff], 1.6, 0.35, 0.035, false);
+      }
+      return;
+    }
+    if (w.hammer) w.hammer.visible = false;
+    if (w.model) w.model.rotation.x = 0;
+    // Walk back onto the stroll round the edge, then carry on.
+    const a = Math.atan2(job.to[1], job.to[0]);
+    const home: [number, number] = [Math.cos(a) * w.r, Math.sin(a) * w.r];
+    const k = Math.min(1, (age - job.work) / BACK_MS);
+    w.g.position.set(job.to[0] + (home[0] - job.to[0]) * k, TOP + Math.abs(Math.sin(now / 160)) * 0.03, job.to[1] + (home[1] - job.to[1]) * k);
+    face(home[0] - job.to[0], home[1] - job.to[1]);
+    w.mixer?.update(dt);
+    if (k >= 1) {
+      w.a = a;
+      w.job = undefined;
+    }
+  }
   function hireCrew(i: number) {
+    if (sendBuilders(i)) return;
     const p = plots[i];
     const old = crews.get(i);
     if (old) for (const w of old.men) p.holder.remove(w.s);
@@ -1262,6 +1345,10 @@ export function createCityScene(
       b.mesh.material.opacity = Math.max(0, 1 - age / b.life);
     }
     for (const w of walkers) {
+      if (w.job) {
+        buildStep(w, now, dt);
+        continue;
+      }
       if (!reduceMotion) w.a += w.speed * dt;
       w.g.position.set(Math.cos(w.a) * w.r, TOP + Math.abs(Math.sin(now / 160 + w.phase)) * 0.03, Math.sin(w.a) * w.r);
       w.g.rotation.y = -w.a + (w.speed > 0 ? 0 : Math.PI);
