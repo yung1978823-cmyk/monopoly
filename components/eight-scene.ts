@@ -725,6 +725,18 @@ export function createBoardScene(
     }
   }
 
+  /** Painted tile pictures by square kind (public table). */
+  const TILE_ART: Record<string, string> = { chance: "/art/tiles/crystal/chance.webp", chest: "/art/tiles/crystal/chest.webp", start: "/art/tiles/crystal/start.webp" };
+  const tilePics = new Map<string, any>();
+  const tilePic = (url: string) => {
+    if (!tilePics.has(url)) {
+      const t = new T.TextureLoader().load(url);
+      t.encoding = T.sRGBEncoding;
+      t.anisotropy = 4;
+      tilePics.set(url, t);
+    }
+    return tilePics.get(url);
+  };
   const PLAIN: Record<string, number> = {
     start: 0xfbd000, jail: 0x64748b, chest: 0xf2c230, fly: 0x38bdf8, dock: 0x38bdf8, chance: 0x8b5cf6, tax: 0x334155, fork: 0xffffff, cross: 0xff7a59,
   };
@@ -739,7 +751,9 @@ export function createBoardScene(
     // the special squares keep their colour so they're easy to spot.
     // On the crystal islands (public table) the lots are pale crystal stone instead of grey.
     const stones = crystal ? [0xc9c0e6, 0xd2c9ee, 0xc1b7df, 0xd8d0f1] : [0x9a958c, 0xa39e94, 0x8f8a82, 0xaaa59a];
-    const base = square.kind === "lot" ? (square.gold ? 0xd6c24a : stones[Object.keys(tiles).length % 4]) : PLAIN[square.kind];
+    // Sky's painted tiles (2026-10-03): the picture lies on the square's top instead of the little 3D sign.
+    const art = crystal ? TILE_ART[square.kind] : undefined;
+    const base = art ? 0x3d2c78 : square.kind === "lot" ? (square.gold ? 0xd6c24a : stones[Object.keys(tiles).length % 4]) : PLAIN[square.kind];
     const big = ["start", "jail", "chest", "fly", "dock", "cross"].includes(square.kind);
     const isle = islandMesh((big ? 1.36 : 1.08) * ISLE, 100 + Object.keys(tiles).length * 17, base);
     group.add(isle.group);
@@ -777,7 +791,28 @@ export function createBoardScene(
     holder.position.copy(toLocal(new T.Vector3(0, 0, -0.3), yaw)).setY(TOP * 0.3); // keeps its base on the tile top
     holder.scale.setScalar(0.7);
     group.add(holder);
-    decorate(square.kind, holder, yaw);
+    if (art) {
+      const size = (big ? 1.36 : 1.08) * ISLE * 0.98;
+      const pic = new T.Mesh(
+        new T.PlaneGeometry(size, size),
+        new T.MeshStandardMaterial({ map: tilePic(art), color: 0xeeeeee, roughness: 0.9, transparent: true, alphaTest: 0.3, polygonOffset: true, polygonOffsetFactor: -2 }),
+      );
+      pic.rotation.x = -Math.PI / 2;
+      pic.receiveShadow = true;
+      // Upright to the camera; the start arrow points the way round instead.
+      let turn = 0;
+      if (square.kind === "start") {
+        const [ax, az] = layout.spotPoint({ on: "loop", i: 0 }), [bx, bz] = layout.spotPoint({ on: "loop", i: 1 });
+        turn = Math.atan2(-(bx - ax), -(bz - az));
+      }
+      const flat = new T.Group();
+      flat.rotation.y = -yaw + turn;
+      flat.position.y = TOP + 0.004;
+      flat.add(pic);
+      group.add(flat);
+    } else {
+      decorate(square.kind, holder, yaw);
+    }
   }
   for (const plan of layout.tiles) {
     makeTile(plan.key, plan.x, plan.z, plan.outward ? new T.Vector3(plan.outward[0], 0, plan.outward[1]) : null, plan.yaw);
