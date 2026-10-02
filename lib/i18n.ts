@@ -27,6 +27,7 @@ const DICT: Record<string, { hans: string; en: string }> = {
   糖果星: { hans: "糖果星", en: "Candy Planet" },
   冰晶星: { hans: "冰晶星", en: "Ice Planet" },
   熔岩星: { hans: "熔岩星", en: "Lava Planet" },
+  霓虹未來城: { hans: "霓虹未来城", en: "Neon Future City" },
   威尼斯水城: { hans: "威尼斯水城", en: "Venice Water City" },
   夏威夷海灘: { hans: "夏威夷海滩", en: "Hawaii Beach" },
   杜拜海灣: { hans: "迪拜海湾", en: "Dubai Bay" },

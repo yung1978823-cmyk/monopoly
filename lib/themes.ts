@@ -176,6 +176,33 @@ export const LAVA: Theme = {
     },
   },
 };
+/** 霓虹未來城 (Sky 2026-10-02): the sixth page, in 維多利亞港's place — capsule homes, a sky port, a rocket pad, a neon
+ *  ferris wheel (in memory of the harbour's wheel) and a space elevator in a neon-lit navy nebula. */
+export const NEON: Theme = {
+  id: "neon",
+  name: "霓虹未來城",
+  style: "art",
+  ground: 0xe6e6f4,
+  rock: 0x3a3f7a,
+  wall: 0xf6f4ff,
+  roof: 0x2a2f6a,
+  trim: 0xff5fd2,
+  sky: "#3a2fa0",
+  art: {
+    dir: "/art/city/neon",
+    names: ["house", "port", "rocket", "wheel", "elevator"],
+    space: true,
+    boatAspect: 1,
+    gullAspect: 1,
+    sizes: {
+      house: [[128, 153], [165, 246], [183, 329], [205, 468], [267, 560]],
+      port: [[137, 75], [233, 185], [227, 239], [252, 378], [300, 543]],
+      rocket: [[123, 95], [167, 168], [217, 271], [281, 379], [300, 544]],
+      wheel: [[92, 118], [150, 187], [172, 239], [242, 319], [300, 412]],
+      elevator: [[131, 115], [141, 201], [153, 366], [173, 496], [216, 560]],
+    },
+  },
+};
 /** 希臘藍白海岸 (no longer in the list): the old first page, drawn from pictures (also shown on any page with the preview link ?city=greece). */
 export const GREECE: Theme = {
   id: "greece",
@@ -347,7 +374,7 @@ export const THEMES: readonly Theme[] = [
   CANDY,
   ICE,
   LAVA,
-  VICTORIA,
+  NEON,
 ];
 
 /** The page asked for in a preview link (?city=greece, ?city=venice …) as a page number, or null. Browser only. */
