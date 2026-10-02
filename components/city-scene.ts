@@ -471,7 +471,8 @@ export function createCityScene(
               o.material.metalness = 0;
               o.material.roughness = Math.max(0.6, o.material.roughness ?? 0.6);
             });
-            model.scale.setScalar(0.5 / 1.2);
+            // Twice the old size (Sky 2026-10-02): about 1.0 tall.
+            model.scale.setScalar(1.0 / 1.2);
             g.children.forEach((c: any) => (c.visible = false));
             g.add(model);
             const mixer = new T.AnimationMixer(model);
@@ -490,8 +491,8 @@ export function createCityScene(
             const head = new T.Mesh(new T.BoxGeometry(0.09, 0.05, 0.05), mat(0xd4a72c, 0.3, { metalness: 0.5 }));
             head.position.y = 0.17;
             hammer.add(handle, head);
-            hammer.position.set(0.07, 0.15, 0.04);
-            hammer.scale.setScalar(0.75);
+            hammer.position.set(0.14, 0.3, 0.08);
+            hammer.scale.setScalar(1.5);
             hammer.visible = false;
             g.add(hammer);
             walker.hammer = hammer;
@@ -501,6 +502,32 @@ export function createCityScene(
           });
       }
     }
+  }
+  // 冰牙守護獸 (Sky 2026-10-02, Meshy "Frostfang Guardian"): an ice wolf trotting round every page on four legs,
+  // about as big as the characters. The model has no skeleton, so the trot is a bounce, a rock and a sway.
+  const wolf = { g: new T.Group(), a: 1.9, speed: -0.11, r: 3.35, model: null as any };
+  if (theme.art) {
+    island.add(wolf.g);
+    loadGltfLoader(T)
+      .then((Loader) => new Promise<any>((resolve, reject) => new Loader().load("/models/frostfang.glb", resolve, undefined, reject)))
+      .then((gltf) => {
+        const model = gltf.scene;
+        model.traverse((o: any) => {
+          if (!o.isMesh) return;
+          o.castShadow = true;
+          o.frustumCulled = false;
+          o.material.metalness = 0;
+        });
+        // 0.74 tall in the file, feet at -0.37: stand it on the ground, about 0.95 tall.
+        const k = 1.28;
+        model.scale.setScalar(k);
+        model.position.y = 0.37 * k;
+        wolf.g.add(model);
+        wolf.model = model;
+      })
+      .catch(() => {
+        // No wolf if it can't load.
+      });
   }
   // The town's monster, on a round stone in the middle.
   const monsters: Monster[] = [];
@@ -793,7 +820,7 @@ export function createCityScene(
     const now = performance.now();
     near.forEach((w, k) => {
       const side = k ? 1 : -1;
-      const to: [number, number] = [px + tx * side * 0.62 + ox * 0.55, pz + tz * side * 0.62 + oz * 0.55];
+      const to: [number, number] = [px + tx * side * 0.85 + ox * 0.7, pz + tz * side * 0.85 + oz * 0.7];
       const from: [number, number] = [w.g.position.x, w.g.position.z];
       const walk = Math.min(900, Math.max(300, (Math.hypot(to[0] - from[0], to[1] - from[1]) / 4) * 1000));
       w.job = { plot: i, at: now, from, to, walk, work: Math.max(CLOUD_END + 300, walk + 1300), struck: -1 };
@@ -1209,6 +1236,14 @@ export function createCityScene(
       b.mesh.rotation.x += dt * 6;
       b.mesh.rotation.y += dt * 5;
       b.mesh.material.opacity = Math.max(0, 1 - age / b.life);
+    }
+    if (wolf.model) {
+      if (!reduceMotion) wolf.a += wolf.speed * dt;
+      const step = now / 115;
+      wolf.g.position.set(Math.cos(wolf.a) * wolf.r, TOP + Math.abs(Math.sin(step)) * 0.07, Math.sin(wolf.a) * wolf.r);
+      wolf.g.rotation.y = -wolf.a + (wolf.speed > 0 ? 0 : Math.PI);
+      wolf.model.rotation.x = Math.sin(step * 2) * 0.06;
+      wolf.model.rotation.z = Math.sin(step) * 0.05;
     }
     for (const w of walkers) {
       if (w.job) {
