@@ -351,28 +351,24 @@ export function createCityScene(
       floor.receiveShadow = true;
       island.add(floor);
       // A thin lip so the floor has an edge.
-      const lip = new T.Mesh(new T.CylinderGeometry(4.2, 4.15, 0.14, 72, 1, true), new T.MeshBasicMaterial({ color: 0xb7a9d9 }));
+      const lip = new T.Mesh(new T.CylinderGeometry(4.2, 4.15, 0.14, 72, 1, true), new T.MeshBasicMaterial({ color: new T.Color(theme.art!.islandCore ?? 0x4a4266).multiplyScalar(2.2) }));
       lip.position.y = TOP - 0.07;
       island.add(lip);
       // The rock: the strip wraps round a cone, mirrored at every join so the seams match.
       const sideTex = load(`${painted}/side.webp`);
       sideTex.wrapS = T.MirroredRepeatWrapping;
       sideTex.repeat.set(4, 1);
-      const H = 3.8;
+      const H = theme.art!.islandDepth ?? 3.8;
       const rockMat = new T.MeshBasicMaterial({ map: sideTex, transparent: true, alphaTest: 0.4, side: T.DoubleSide });
       const under = new T.Mesh(new T.CylinderGeometry(4.15, 3.3, H, 72, 1, true), rockMat);
       under.position.y = TOP - 0.14 - H / 2;
       island.add(under);
       // A solid core inside, so the gaps between the hanging crystals show rock, not the far side.
-      const coreTex = load(`${painted}/side.webp`);
-      coreTex.wrapS = T.MirroredRepeatWrapping;
-      coreTex.repeat.set(4, 0.45);
-      coreTex.offset.set(0, 0.55);
       const core = new T.Mesh(
-        new T.CylinderGeometry(4.0, 2.2, 2.6, 48, 1, true),
-        new T.MeshBasicMaterial({ map: coreTex, color: 0x9a90b8 }),
+        new T.CylinderGeometry(4.0, 2.2, Math.min(2.6, H * 0.75), 48, 1, true),
+        new T.MeshBasicMaterial({ color: theme.art!.islandCore ?? 0x4a4266 }),
       );
-      core.position.y = TOP - 0.14 - 1.3;
+      core.position.y = TOP - 0.14 - Math.min(2.6, H * 0.75) / 2;
       island.add(core);
     }
     const top = shadowy(new T.Mesh(rough(new T.CylinderGeometry(4.2, 4.35, 0.3, 12), 0.15), mat(theme.ground, 0.85)));
@@ -624,7 +620,9 @@ export function createCityScene(
   const monsters: Monster[] = [];
   if (who.resident) {
     const m = buildMonster(T, who.resident.element, who.resident.stage, who.resident.legend);
-    const stand = shadowy(new T.Mesh(new T.CylinderGeometry(0.75, 0.85, 0.16, 20), mat(0xcfc6b5, 0.8)));
+    // On a painted island the stone takes the island's colour instead of plain white.
+    const standColour = theme.art?.island ? new T.Color(theme.art.islandCore ?? 0x4a4266).multiplyScalar(2.2).getHex() : 0xcfc6b5;
+    const stand = shadowy(new T.Mesh(new T.CylinderGeometry(0.75, 0.85, 0.16, 20), mat(standColour, 0.8)));
     stand.position.set(Math.sin(HOME_YAW) * 0.35, TOP + 0.08, Math.cos(HOME_YAW) * 0.35);
     island.add(stand);
     m.group.position.set(stand.position.x, TOP + 0.16, stand.position.z);

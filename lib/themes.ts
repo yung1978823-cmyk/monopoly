@@ -29,6 +29,10 @@ export type ThemeArt = {
   /** Painted island (Sky 2026-10-02): `top.webp` (round floor seen from above) and `side.webp` (the rock
    *  underneath, sky cut away) instead of the plain white island. */
   island?: boolean;
+  /** How far the painted rock hangs below the floor (default 3.8). */
+  islandDepth?: number;
+  /** Colour of the solid rock core seen between the hanging bits. */
+  islandCore?: number;
 };
 
 export type Theme = {
@@ -63,6 +67,7 @@ export const CRYSTAL: Theme = {
     names: ["house", "mine", "observatory", "tower", "palace"],
     space: true,
     island: true,
+    islandCore: 0x4a4266,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {
@@ -89,6 +94,9 @@ export const MECH: Theme = {
     dir: "/art/city/mech",
     names: ["house", "factory", "steam", "power", "clock"],
     space: true,
+    island: true,
+    islandDepth: 3.6,
+    islandCore: 0x3a2716,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {
