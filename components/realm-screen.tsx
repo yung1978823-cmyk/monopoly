@@ -452,9 +452,9 @@ function RealmEditor({
             {loaded === "loading" ? t("載入立體棋盤⋯") : t("立體畫面載入唔到，請檢查網絡再試。")}
           </p>
         ) : null}
-        {/* Build spots down the left and right edges (Sky 2026-10-01), so the island in the middle stays clear. */}
+        {/* Build spots in the bottom corners (Sky 2026-10-02), so the island in the middle stays clear. */}
         {[realm.slots.slice(0, Math.ceil(realm.slots.length / 2)), realm.slots.slice(Math.ceil(realm.slots.length / 2))].map((side, s) => (
-          <div key={s} className={cn("absolute top-1/2 flex -translate-y-1/2 flex-col gap-2", s ? "right-2" : "left-2")} data-testid={s ? "slots-right" : "slots-left"}>
+          <div key={s} className={cn("absolute bottom-2 flex flex-col gap-1.5", s ? "right-2" : "left-2")} data-testid={s ? "slots-right" : "slots-left"}>
             {side.map((kind, k) => {
               const slot = s ? Math.ceil(realm.slots.length / 2) + k : k;
               return kind ? (
@@ -462,11 +462,11 @@ function RealmEditor({
                   key={slot}
                   type="button"
                   onClick={() => setPicking(slot)}
-                  className="flex size-16 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-[#FBD000] bg-white/85 shadow-[0_4px_12px_rgba(0,0,0,0.35)] backdrop-blur"
+                  className="flex size-14 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-[#FBD000] bg-white/85 shadow-[0_4px_12px_rgba(0,0,0,0.35)] backdrop-blur"
                   aria-label={t("換走或者拆咗{b}", { b: t(NAMES[kind]) })}
                   data-testid={`slot-${slot}`}
                 >
-                  {pic(ICONS[kind], "size-11")}
+                  {pic(ICONS[kind], "size-9")}
                   <span className="text-[10px] font-black leading-none">{t(NAMES[kind])}</span>
                 </button>
               ) : (
@@ -474,12 +474,12 @@ function RealmEditor({
                   key={slot}
                   type="button"
                   onClick={() => setPicking(slot)}
-                  className="flex size-16 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/80 bg-[#7C3AED]/55 font-black text-white shadow-[0_4px_12px_rgba(0,0,0,0.35)] backdrop-blur animate-[breathe_3s_ease-in-out_infinite]"
+                  className="flex size-14 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/80 bg-[#7C3AED]/55 font-black text-white shadow-[0_4px_12px_rgba(0,0,0,0.35)] backdrop-blur animate-[breathe_3s_ease-in-out_infinite]"
                   aria-label={t("喺第 {n} 個位起嘢", { n: slot + 1 })}
                   data-testid={`slot-${slot}`}
                 >
-                  <img src="/art/ui/build.webp" alt="" className="size-9 object-contain" />
-                  <span className="text-xs leading-none">{t("起樓")}</span>
+                  <img src="/art/ui/build.webp" alt="" className="size-7 object-contain" />
+                  <span className="text-[11px] leading-none">{t("起樓")}</span>
                 </button>
               );
             })}

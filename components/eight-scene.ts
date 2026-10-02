@@ -1147,9 +1147,10 @@ export function createBoardScene(
   const tween = (ms: number, step: (k: number) => void) =>
     new Promise<void>((resolve) => anims.push({ start: performance.now(), ms: ms / pace(), step, resolve }));
 
-  // ---------- Camera: 40° down; close on the player, wide between turns ----------
-  const ELEV = (40 * Math.PI) / 180;
-  /** The player can turn the board round (drag sideways) and tilt it (drag up and down). */
+  // ---------- Camera: 40° down (海島 45°); close on the player, wide between turns ----------
+  const ELEV = ((island ? 45 : 40) * Math.PI) / 180;
+  /** The player can turn the board round (drag sideways) and tilt it (drag up and down) — 海島 only turns
+   *  (Sky 2026-10-02: fixed at 45°, left and right only). */
   const view = { yaw: 0, elev: ELEV, goalYaw: 0, goalElev: ELEV, idle: 0 };
   const WIDE = { dist: layout.wide[2], target: new T.Vector3(layout.wideTarget[0], 0, layout.wideTarget[1]) };
   const CLOSE = 13;
@@ -1173,7 +1174,7 @@ export function createBoardScene(
     if (pts.length === 1) {
       // One finger (or the mouse): turn round the board and tilt it.
       view.goalYaw -= (e.clientX - before.x) * 0.006;
-      view.goalElev = Math.max(0.35, Math.min(1.35, view.goalElev + (e.clientY - before.y) * 0.004));
+      if (!island) view.goalElev = Math.max(0.35, Math.min(1.35, view.goalElev + (e.clientY - before.y) * 0.004));
     } else {
       // Two fingers: pinch to zoom, move together to slide the board.
       dragged = true;
