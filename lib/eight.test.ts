@@ -29,7 +29,11 @@ import {
 const players = (count: number) =>
   Array.from({ length: count }, (_, index) => ({ name: `P${index}`, avatar: "", colour: "#000", bot: index > 0 }));
 
-const start = (count = 2): TableState => newTable(players(count));
+/** A fresh table with empty hands, so the draw tests start from nothing. */
+const start = (count = 2): TableState => {
+  const state = newTable(players(count));
+  return { ...state, seats: state.seats.map((seat) => ({ ...seat, powers: [] })) };
+};
 const at = (state: TableState, seat: number, spot: Spot): TableState => ({
   ...state,
   seats: state.seats.map((player, index) => (index === seat ? { ...player, spot } : player)),
@@ -67,6 +71,10 @@ describe("八字 board", () => {
 });
 
 describe("public table on the 八字 board", () => {
+  it("deals everyone 全城加建 and 怪獸卡 at the start", () => {
+    for (const seat of newTable(players(4)).seats) assert.deepEqual(seat.powers, ["boost", "monster"]);
+  });
+
   it("seats everyone with the 18 stake", () => {
     assert.deepEqual(start(4).seats.map((seat) => seat.cash), [STAKE, STAKE, STAKE, STAKE]);
   });

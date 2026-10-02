@@ -225,6 +225,8 @@ export function sideOf(spot: Spot): "left" | "right" {
   return spot.i > MIDDLE && spot.i < MIDDLE_AGAIN ? "right" : "left";
 }
 export const MAX_POWERS = 2;
+/** The two power cards every player starts the table with. */
+export const START_POWERS: readonly Power[] = ["boost", "monster"];
 /** Out of 10 chance draws, how many give a power card instead; and out of 10 chests. */
 export const POWER_ODDS = 5;
 export const CHEST_POWER_ODDS = 3;
@@ -351,7 +353,8 @@ export function newTable(
       jailed: false,
       bankrupt: false,
       turnsTaken: 0,
-      powers: [],
+      // Sky (2026-10-03): everyone sits down holding two power cards — 全城加建 (土地升價) and 怪獸卡.
+      powers: [...START_POWERS],
     })),
     deeds: {},
     current: 0,
