@@ -406,19 +406,11 @@ export function createCityScene(
       }
     }
   }
-  // ---------- 島面小擺設 (Sky, option A): paving, lamps, trees, planters and people walking, so the
-  // island reads as a lived-in plaza rather than an empty plate. Picture pages only.
+  // ---------- 島面 (Sky 2026-10-02): paving and the characters walking round; no other decorations, so the
+  // buildings stand out. Picture pages only.
   type Job = { plot: number; at: number; from: [number, number]; to: [number, number]; walk: number; work: number; struck: number };
   const walkers: { g: any; a: number; speed: number; r: number; phase: number; mixer?: any; model?: any; hammer?: any; job?: Job }[] = [];
   if (theme.art) {
-    const id = theme.id;
-    const style = {
-      tree: id === "crystal" ? "crystal" : id === "mech" ? "gear" : id === "candy" ? "lollipop" : id === "hawaii" || id === "dubai" ? "palm" : id === "jiangnan" ? "willow" : "cypress",
-      planter: ({ candy: 0xf7c6d9, mech: 0x8a6a4a, crystal: 0xd9d2f2, greece: 0xf4f1ea, venice: 0xc0643a, hawaii: 0x8a5a33, jiangnan: 0x9aa0a6, dubai: 0xd9b98a } as Record<string, number>)[id] ?? 0xf4f1ea,
-      flower: ({ candy: 0xff5fa2, mech: 0xffa53a, crystal: 0x9b7bff, greece: 0xe84a9a, venice: 0xd8342c, hawaii: 0xff5a5f, jiangnan: 0xf2a1c0, dubai: 0xf2c14e } as Record<string, number>)[id] ?? 0xe84a9a,
-      post: ({ candy: 0xffffff, mech: 0xb87333, crystal: 0xd4a72c, greece: 0x2f6fd0, venice: 0x2a2a2a, hawaii: 0x7a4a24, jiangnan: 0x6b3a22, dubai: 0xb8872e } as Record<string, number>)[id] ?? 0x2a2a2a,
-      light: id === "jiangnan" ? 0xe53935 : id === "hawaii" ? 0xff8a1a : id === "crystal" ? 0x9fd8ff : id === "mech" ? 0xffb347 : id === "candy" ? 0xff9ad0 : 0xffe08a,
-    };
     // Paving stones over the island top.
     {
       const c = document.createElement("canvas");
@@ -446,132 +438,8 @@ export function createCityScene(
       pave.receiveShadow = true;
       island.add(pave);
     }
-    const at = (a: number, r: number) => [Math.cos(a) * r, Math.sin(a) * r] as const;
-    const tree = (x: number, z: number, k = 1) => {
-      const g = new T.Group();
-      g.position.set(x, TOP, z);
-      g.scale.setScalar(k);
-      if (style.tree === "palm") {
-        const trunk = shadowy(new T.Mesh(new T.CylinderGeometry(0.035, 0.06, 0.9, 6), flat(0x8b6b43)));
-        trunk.position.y = 0.45;
-        trunk.rotation.z = 0.12;
-        g.add(trunk);
-        for (let k2 = 0; k2 < 6; k2++) {
-          const leaf = shadowy(new T.Mesh(new T.BoxGeometry(0.5, 0.02, 0.12), mat(0x3f9a3a, 0.7)));
-          const a = (k2 / 6) * Math.PI * 2;
-          leaf.position.set(0.05 + Math.cos(a) * 0.22, 0.9, Math.sin(a) * 0.22);
-          leaf.rotation.y = -a;
-          leaf.rotation.z = -0.4;
-          g.add(leaf);
-        }
-      } else if (style.tree === "willow") {
-        const trunk = shadowy(new T.Mesh(new T.CylinderGeometry(0.04, 0.06, 0.45, 6), flat(0x6b4a2b)));
-        trunk.position.y = 0.22;
-        g.add(trunk);
-        for (const [dx, dy, dz, r] of [[0, 0.62, 0, 0.3], [0.16, 0.5, 0.08, 0.2], [-0.15, 0.5, -0.05, 0.22], [0.02, 0.45, -0.17, 0.18]]) {
-          const blob = shadowy(new T.Mesh(new T.SphereGeometry(r, 10, 8), mat(0x8cc63f, 0.8)));
-          blob.scale.y = 1.25;
-          blob.position.set(dx, dy, dz);
-          g.add(blob);
-        }
-      } else if (style.tree === "lollipop") {
-        // 糖果星: a big swirl lollipop on a striped stick, in place of a tree.
-        const stick = shadowy(new T.Mesh(new T.CylinderGeometry(0.025, 0.025, 0.55, 8), mat(0xffffff, 0.4)));
-        stick.position.y = 0.27;
-        g.add(stick);
-        const c = document.createElement("canvas");
-        c.width = c.height = 64;
-        const x2 = c.getContext("2d")!;
-        for (let k3 = 0; k3 < 12; k3++) {
-          x2.fillStyle = k3 % 2 ? "#ffffff" : ["#ff5fa2", "#b07cff", "#ff8a3d"][k3 % 3];
-          x2.beginPath();
-          x2.moveTo(32, 32);
-          x2.arc(32, 32, 32, (k3 / 12) * Math.PI * 2, ((k3 + 1.2) / 12) * Math.PI * 2 + k3 * 0.15);
-          x2.fill();
-        }
-        const tex2 = new T.CanvasTexture(c);
-        tex2.encoding = T.sRGBEncoding;
-        const candy = shadowy(new T.Mesh(new T.CylinderGeometry(0.2, 0.2, 0.06, 20), [mat(0xff5fa2, 0.3), new T.MeshStandardMaterial({ map: tex2, roughness: 0.3 }), new T.MeshStandardMaterial({ map: tex2, roughness: 0.3 })]));
-        candy.rotation.x = Math.PI / 2;
-        candy.position.y = 0.66;
-        g.add(candy);
-      } else if (style.tree === "gear") {
-        // 機械星: a brass gear standing on a little post, in place of a tree.
-        const post = shadowy(new T.Mesh(new T.CylinderGeometry(0.03, 0.04, 0.32, 6), mat(0x6b5a4c, 0.6, { metalness: 0.4 })));
-        post.position.y = 0.16;
-        g.add(post);
-        const gear = shadowy(new T.Mesh(new T.CylinderGeometry(0.2, 0.2, 0.05, 10), mat(0xd4a72c, 0.35, { metalness: 0.6 })));
-        gear.rotation.x = Math.PI / 2;
-        gear.position.y = 0.48;
-        g.add(gear);
-        for (let t2 = 0; t2 < 10; t2++) {
-          const tooth = shadowy(new T.Mesh(new T.BoxGeometry(0.07, 0.07, 0.05), mat(0xd4a72c, 0.35, { metalness: 0.6 })));
-          const a2 = (t2 / 10) * Math.PI * 2;
-          tooth.position.set(Math.cos(a2) * 0.22, 0.48 + Math.sin(a2) * 0.22, 0);
-          tooth.rotation.z = a2;
-          g.add(tooth);
-        }
-        const hub = new T.Mesh(new T.CylinderGeometry(0.06, 0.06, 0.07, 8), mat(0xb87333, 0.4, { metalness: 0.5 }));
-        hub.rotation.x = Math.PI / 2;
-        hub.position.y = 0.48;
-        g.add(hub);
-      } else if (style.tree === "crystal") {
-        // 水晶星: a little cluster of glowing crystals in place of a tree.
-        for (const [dx, dz, h, tilt, c] of [[0, 0, 0.75, 0, 0x8fd3ff], [0.12, 0.05, 0.45, 0.35, 0xb79bff], [-0.1, 0.06, 0.4, -0.4, 0x9fe6ff], [0.02, -0.11, 0.32, 0.25, 0xc9b6ff]] as const) {
-          const gem = shadowy(new T.Mesh(new T.OctahedronGeometry(0.12, 0), mat(c, 0.15, { emissive: c, emissiveIntensity: 0.35, metalness: 0.1 })));
-          gem.scale.set(0.8, h / 0.24, 0.8);
-          gem.position.set(dx, h / 2, dz);
-          gem.rotation.z = tilt;
-          g.add(gem);
-        }
-      } else {
-        const trunk = shadowy(new T.Mesh(new T.CylinderGeometry(0.03, 0.04, 0.15, 6), flat(0x6b4a2b)));
-        trunk.position.y = 0.07;
-        g.add(trunk);
-        const cone = shadowy(new T.Mesh(new T.ConeGeometry(0.16, 0.8, 8), mat(0x2f6b35, 0.8)));
-        cone.position.y = 0.52;
-        g.add(cone);
-      }
-      island.add(g);
-    };
-    const lamp = (x: number, z: number) => {
-      const g = new T.Group();
-      g.position.set(x, TOP, z);
-      const post = shadowy(new T.Mesh(new T.CylinderGeometry(0.025, 0.035, 0.7, 6), mat(style.post, 0.5)));
-      post.position.y = 0.35;
-      g.add(post);
-      const bulb = new T.Mesh(
-        id === "jiangnan" ? new T.SphereGeometry(0.08, 10, 8) : new T.BoxGeometry(0.1, 0.12, 0.1),
-        mat(style.light, 0.4, { emissive: style.light, emissiveIntensity: 0.9 }),
-      );
-      bulb.position.y = 0.76;
-      if (id === "jiangnan") bulb.scale.y = 1.3;
-      g.add(bulb);
-      island.add(g);
-    };
-    const planter = (x: number, z: number) => {
-      const g = new T.Group();
-      g.position.set(x, TOP, z);
-      g.add(box(0.34, 0.16, 0.34, style.planter));
-      for (let k2 = 0; k2 < 4; k2++) {
-        const bush = shadowy(new T.Mesh(new T.SphereGeometry(0.09, 8, 6), mat(0x4f9a3f, 0.8)));
-        bush.position.set(((k2 % 2) - 0.5) * 0.14, 0.2, (Math.floor(k2 / 2) - 0.5) * 0.14);
-        g.add(bush);
-        const bloom = new T.Mesh(new T.SphereGeometry(0.035, 6, 5), mat(style.flower, 0.6));
-        bloom.position.set(bush.position.x + 0.04, 0.27, bush.position.z + 0.03);
-        g.add(bloom);
-      }
-      island.add(g);
-    };
-    PLOT_AT.forEach((_, i) => {
-      const a = Math.PI / 2 + (i / PLOTS) * Math.PI * 2 + Math.PI / 4 + Math.PI / PLOTS;
-      const [lx, lz] = at(a - 0.14, 3.55);
-      lamp(lx, lz);
-      const [tx, tz] = at(a + 0.14, 3.55);
-      tree(tx, tz, 0.9);
-      const [px, pz] = at(a, 1.85);
-      planter(px, pz);
-    });
+    // Sky (2026-10-02): no lamps, trees, crystals or planters on the island — just the buildings, the
+    // characters walking round and the dragon.
     // A few people strolling round the edge of the plaza.
     const shirts = [0xe53935, 0x1e88e5, 0xfbc02d, 0x43a047, 0x8e24aa];
     for (let k2 = 0; k2 < 4; k2++) {
@@ -1169,143 +1037,75 @@ export function createCityScene(
     burst(at, big ? 30 : 16, [0xffd34d, 0xff7a1a, 0xffffff], big ? 5 : 3.5, 0.9, 0.07, true);
     if (!splash) shakeAll = performance.now();
   }
-  const shieldGeo = new T.SphereGeometry(1, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-  const shieldPic = picTex("/art/fx/shield.webp");
-  // Light rays and a shockwave ring for the shield.
-  const raysTex = (() => {
-    const c = document.createElement("canvas");
-    c.width = c.height = 256;
-    const x = c.getContext("2d")!;
-    x.translate(128, 128);
-    for (let k = 0; k < 12; k++) {
-      x.rotate((Math.PI * 2) / 12);
-      const g = x.createLinearGradient(0, 0, 0, -128);
-      g.addColorStop(0, "rgba(255,255,255,0.9)");
-      g.addColorStop(1, "rgba(255,255,255,0)");
-      x.fillStyle = g;
-      x.beginPath();
-      x.moveTo(0, 0);
-      x.lineTo(-14, -128);
-      x.lineTo(14, -128);
-      x.closePath();
-      x.fill();
-    }
-    return new T.CanvasTexture(c);
-  })();
-  const waveTex = (() => {
-    const c = document.createElement("canvas");
-    c.width = c.height = 256;
-    const x = c.getContext("2d")!;
-    const g = x.createRadialGradient(128, 128, 90, 128, 128, 126);
-    g.addColorStop(0, "rgba(255,255,255,0)");
-    g.addColorStop(0.55, "rgba(255,255,255,1)");
-    g.addColorStop(1, "rgba(255,255,255,0)");
-    x.fillStyle = g;
-    x.fillRect(0, 0, 256, 256);
-    return new T.CanvasTexture(c);
-  })();
-  function shieldAt(at: any, radius: number, broken: boolean, from: any = null) {
-    // Sky's shield picture (2026-09-30) stands in front of the building, facing the fireball: it springs up
-    // just before the hit, jolts and flashes when struck, then fades — or flies apart if it breaks.
-    // Bigger and harder-hitting (Sky 2026-10-01): it slams down from above with a blue shockwave, blazes with
-    // turning light rays behind it, flashes white and shakes the island when the fireball hits, then shrinks away.
-    const face = from ? from.clone().sub(at).setY(0).normalize() : new T.Vector3(0, 0, 1);
-    const spot = new T.Vector3(at.x, TOP + 1.35, at.z).addScaledVector(face, radius * 1.05);
-    const SIZE = 2.9;
-    const rays = glowSprite(raysTex, 0x7fd0ff);
-    rays.renderOrder = 7;
-    rays.position.copy(spot);
-    rays.material.opacity = 0;
-    const halo = glowSprite(fireTex, 0x3aa0ff);
-    halo.renderOrder = 7;
-    halo.position.copy(spot);
-    halo.material.opacity = 0;
-    const badge = glowSprite(shieldPic, 0xffffff, false);
-    badge.renderOrder = 8;
-    badge.material.opacity = 0;
-    const wave = glowSprite(waveTex, 0x9fe0ff);
-    wave.renderOrder = 8;
-    wave.material.opacity = 0;
-    const bPop = FIRE_MS - 420, bLand = bPop + 190, bHit = FIRE_MS, bEnd = broken ? FIRE_MS + 420 : FIRE_MS + 1400;
-    addFx(bPop, bEnd - bPop, (k, now) => {
-      const t = bPop + k * (bEnd - bPop);
-      // Slam down from above, then a little squash on landing.
-      const fall = Math.min(1, (t - bPop) / (bLand - bPop));
-      const land = t > bLand ? Math.max(0, 1 - (t - bLand) / 160) : 0;
-      const struck = Math.max(0, 1 - Math.abs(t - bHit) / 220);
-      const after = t > bHit ? (t - bHit) / (bEnd - bHit) : 0;
-      const leave = broken ? 0 : after > 0.7 ? (after - 0.7) / 0.3 : 0;
-      const size = SIZE * (1 + 0.18 * struck) * (1 - 0.8 * leave) * (broken ? 1 + after * 1.4 : 1);
-      badge.scale.set(size * (1 + 0.12 * land), size * (1 - 0.12 * land), 1);
-      badge.position.copy(spot);
-      badge.position.y += (1 - fall * fall) * 2.4;
-      badge.position.addScaledVector(face, struck * 0.18 * Math.sin(t / 18));
-      const flash = 1 + struck * 1.6;
-      badge.material.color.setRGB(flash, flash, flash);
-      badge.material.rotation = broken && t > bHit ? after * 1.2 : Math.sin(t / 25) * 0.1 * struck;
-      badge.material.opacity = Math.min(1, fall * 1.5) * (broken ? 1 - after : 1 - leave);
-      // Light behind it: rays turning, a blue glow that swells when struck.
-      const glow = Math.min(1, fall) * (broken ? 1 - after : 1 - leave);
-      rays.scale.setScalar(SIZE * 1.9 * (1 + 0.25 * struck));
-      rays.material.rotation = now / 900;
-      rays.material.opacity = 0.75 * glow;
-      halo.scale.setScalar(SIZE * (1.5 + 0.9 * struck));
-      halo.material.opacity = (0.55 + 0.45 * struck) * glow;
-      // A shockwave ring when it lands, and a bigger one when the fireball hits.
-      const w1 = (t - bLand) / 380, w2 = (t - bHit) / 480;
-      const w = w2 >= 0 && w2 <= 1 ? w2 : w1 >= 0 && w1 <= 1 ? w1 : -1;
-      if (w >= 0) {
-        wave.position.copy(spot);
-        wave.scale.setScalar(SIZE * (w2 >= 0 ? 1 + w * 2.6 : 0.8 + w * 1.6));
-        wave.material.opacity = (w2 >= 0 ? 1 : 0.7) * (1 - w);
-      } else wave.material.opacity = 0;
+  const holePic = picTex("/art/fx/blackhole.webp");
+  /**
+   * 黑洞 (Sky 2026-10-02, in place of the shield): a swirling black hole opens in the fireball's path.
+   * Not broken: it swallows the fireball — spinning it in, shrinking it to nothing — then snaps shut.
+   * Broken: it strains, warps and bursts apart, and the fireball carries on to the building.
+   */
+  function blackHoleAt(spot: any, broken: boolean) {
+    const SIZE = 2.6;
+    const hole = glowSprite(holePic, 0xffffff, false);
+    hole.renderOrder = 8;
+    hole.position.copy(spot);
+    hole.material.opacity = 0;
+    const glow = glowSprite(fireTex, 0xb04cff);
+    glow.renderOrder = 7;
+    glow.position.copy(spot);
+    glow.material.opacity = 0;
+    const open = broken ? FIRE_MS * 0.55 : FIRE_MS - 480;
+    const hit = broken ? FIRE_MS * 0.85 : FIRE_MS;
+    const end = broken ? hit + 380 : hit + 900;
+    addFx(open, end - open, (k, now) => {
+      const t = open + k * (end - open);
+      const grow = Math.min(1, (t - open) / 260);
+      let size = SIZE * (grow < 1 ? grow * (1.1 - 0.1 * grow) : 1);
+      if (!broken && t > hit) {
+        // Gulp, then close.
+        const after = (t - hit) / (end - hit);
+        size *= after < 0.35 ? 1 + 0.18 * Math.sin((after / 0.35) * Math.PI) : 1 - (after - 0.35) / 0.65;
+      }
+      let sx = size, sy = size;
+      if (broken && t > hit - 160) {
+        // Straining against the fireball, then flying apart.
+        const strain = Math.min(1, (t - (hit - 160)) / 160);
+        sx = size * (1 + 0.35 * strain * Math.abs(Math.sin(t / 30)));
+        sy = size * (1 - 0.25 * strain * Math.abs(Math.cos(t / 30)));
+        if (t > hit) {
+          const after = (t - hit) / (end - hit);
+          sx *= 1 + after * 1.2;
+          sy *= 1 + after * 1.2;
+        }
+      }
+      hole.scale.set(sx, sy, 1);
+      hole.material.rotation = -now / (broken && t > hit - 160 ? 90 : 220);
+      const fade = broken && t > hit ? 1 - (t - hit) / (end - hit) : 1;
+      hole.material.opacity = Math.min(1, grow * 1.4) * fade;
+      glow.scale.setScalar(sx * 1.5);
+      glow.material.opacity = 0.55 * Math.min(1, grow) * fade;
     }, () => {
-      drop(badge);
-      drop(rays);
-      drop(halo);
-      drop(wave);
+      drop(hole);
+      drop(glow);
     });
-    addFx(bLand, 10, () => undefined, () => burst(spot.clone().setY(TOP + 0.2), 18, [0xbfe8ff, 0xffffff], 3, 0.5, 0.06, true));
-    addFx(bHit, 10, () => undefined, () => {
-      shakeAll = performance.now();
-      impactLight.color.setHex(0x6ec3ff);
-      impactLight.position.copy(spot);
-      addFx(0, 500, (q) => (impactLight.intensity = 5 * (1 - q)), () => {
-        impactLight.intensity = 0;
-        impactLight.color.setHex(0xff8a2a);
+    if (broken) {
+      addFx(hit, 10, () => undefined, () => {
+        shakeAll = performance.now();
+        burst(spot, 44, [0xb04cff, 0xff5fd2, 0xffffff, 0x6a3cff], 5.5, 0.9, 0.09, false);
       });
-      burst(spot, broken ? 50 : 36, [0xffffff, 0x7fd8ff, 0x2f9dff, 0xffd34d], broken ? 6 : 5, 0.9, 0.09, false);
-    });
-    // A glassy blue dome over the building: it pops up just before the fireball lands, ripples when struck,
-    // then fades (or bursts into shards if it breaks).
-    const dome = new T.Mesh(shieldGeo, new T.MeshBasicMaterial({ color: 0x2f9dff, transparent: true, opacity: 0, depthWrite: false, side: T.DoubleSide }));
-    const rim = new T.Mesh(shieldGeo, new T.MeshBasicMaterial({ color: 0x1e6fe0, wireframe: true, transparent: true, opacity: 0, depthWrite: false }));
-    const g = new T.Group();
-    g.add(dome, rim);
-    g.position.set(at.x, TOP, at.z);
-    scene.add(g);
-    const pop = FIRE_MS - 260, hit = FIRE_MS;
-    const life = broken ? hit + 160 : hit + 900;
-    addFx(pop, life - pop, (k) => {
-      const t = pop + k * (life - pop);
-      const grow = Math.min(1, (t - pop) / 180);
-      const struck = Math.max(0, 1 - Math.abs(t - hit) / 220);
-      g.scale.set(radius * (grow * (1 + 0.12 * struck)), radius * 1.15 * grow * (1 - 0.08 * struck), radius * (grow * (1 + 0.12 * struck)));
-      const fade = t > hit ? 1 - (t - hit) / (life - hit) : 1;
-      dome.material.opacity = (0.22 + 0.3 * struck) * fade;
-      rim.material.opacity = (0.3 + 0.4 * struck) * fade;
-      dome.material.color.setHex(struck > 0.3 ? 0x8fd4ff : 0x2f9dff);
-      g.rotation.y += 0.02;
-    }, () => {
-      scene.remove(g);
-      dome.material.dispose();
-      rim.material.dispose();
-    });
-    addFx(hit, 10, () => undefined, () => {
-      const top = new T.Vector3(at.x, TOP + radius * 0.8, at.z);
-      if (broken) burst(top, 40, [0x7fd8ff, 0xffffff, 0x2f9dff], 5, 1.0, 0.1, true);
-      else burst(top, 26, [0xffffff, 0x7fd8ff, 0x2f9dff], 4, 0.7, 0.08, false);
-    });
+      return;
+    }
+    // The swallowed fireball: spirals into the middle, shrinking, then a little purple pop as it shuts.
+    const ember = glowSprite(fireballPic, 0xffffff, false);
+    ember.center.set(0.33, 0.37);
+    ember.material.opacity = 0;
+    addFx(hit, 520, (k) => {
+      const a = k * Math.PI * 5, r = 0.55 * (1 - k);
+      ember.position.set(spot.x + Math.cos(a) * r, spot.y + Math.sin(a) * r * 0.8, spot.z);
+      ember.scale.setScalar(1.5 * (1 - k) + 0.05);
+      ember.material.rotation = a;
+      ember.material.opacity = 1 - k * 0.6;
+    }, () => drop(ember));
+    addFx(hit + 520, 10, () => undefined, () => burst(spot, 24, [0xb04cff, 0xff5fd2, 0xffffff], 3, 0.6, 0.06, false));
   }
   function fireball(from: any, to: any) {
     const halo = glowSprite(fireTex, 0xff7a1a);
@@ -1464,20 +1264,23 @@ export function createCityScene(
       lungeState.at = performance.now() - 250;
       const aim = to.clone();
       if (result === "block") {
-        // Stop at the dome's skin, in front of the building.
-        const r = (plot ? 1.3 : 1.7) * 1.05;
+        // Stop in front of the building, where the black hole opens.
         const c = plot ? worldOf(index!, 0) : new T.Vector3(0, 0, 0);
-        aim.copy(c).add(mouth.clone().sub(c).setY(0).normalize().multiplyScalar(r));
+        aim.copy(c).add(mouth.clone().sub(c).setY(0).normalize().multiplyScalar((plot ? 1.3 : 1.7) * 1.05));
         aim.y = TOP + 1.35;
       }
       fireball(mouth, aim);
-      if (result === "block" || result === "break") shieldAt(plot ? worldOf(index!, 0) : new T.Vector3(0, 0, 0), plot ? 1.3 : 1.7, result === "break", mouth);
       if (result === "block") {
-        // The fireball splashes harmlessly against the shield.
-        addFx(FIRE_MS, 10, () => undefined, () => explode(aim, false, true));
+        blackHoleAt(aim, false);
         return;
       }
-      addFx(FIRE_MS + (result === "break" ? 120 : 0), 10, () => undefined, () => {
+      if (result === "break") {
+        // Where the fireball will be most of the way there (the same arc the fireball flies).
+        const p = new T.Vector3().lerpVectors(mouth, to, 0.85);
+        p.y += Math.sin(0.85 * Math.PI) * 1.4;
+        blackHoleAt(p, true);
+      }
+      addFx(FIRE_MS, 10, () => undefined, () => {
         explode(to, result !== "hit");
         if (plot && result !== "hit") {
           plot.shakeAt = performance.now();

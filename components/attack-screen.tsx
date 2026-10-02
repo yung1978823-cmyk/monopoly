@@ -101,7 +101,7 @@ export function AttackScreen({
       ? t("{b}跌咗一級！", { b: t(LANDMARK_NAMES[readout.smashed]) })
       : readout?.hit
         ? t("打中！")
-        : t("打唔中……")
+        : t("攻擊俾黑洞吸走咗！")
     : standing.length > 0
       ? `${state.enemyShield ? "🛡️ " : ""}${t("撳一座建築 🔨")}`
       : t("一座建築都冇，直接打！");
