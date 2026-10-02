@@ -122,6 +122,33 @@ export const CANDY: Theme = {
     },
   },
 };
+/** 冰晶星 (Sky 2026-10-02): the fourth page, in 江南's place — an ice house, penguin and dragon ice sculptures, a
+ *  skating rink and an ice castle in an icy blue nebula. */
+export const ICE: Theme = {
+  id: "ice",
+  name: "冰晶星",
+  style: "art",
+  ground: 0xe6eefa,
+  rock: 0x6f86b0,
+  wall: 0xf4f8ff,
+  roof: 0x7aa7e8,
+  trim: 0xd4a72c,
+  sky: "#4a74d8",
+  art: {
+    dir: "/art/city/ice",
+    names: ["house", "penguin", "rink", "dragon", "castle"],
+    space: true,
+    boatAspect: 1,
+    gullAspect: 1,
+    sizes: {
+      house: [[120, 105], [175, 168], [216, 264], [249, 382], [300, 452]],
+      penguin: [[106, 114], [158, 177], [200, 228], [238, 316], [300, 454]],
+      rink: [[135, 102], [170, 123], [216, 196], [243, 252], [300, 360]],
+      dragon: [[123, 106], [145, 155], [163, 186], [209, 243], [300, 328]],
+      castle: [[158, 171], [200, 231], [216, 306], [260, 405], [296, 560]],
+    },
+  },
+};
 /** 希臘藍白海岸 (no longer in the list): the old first page, drawn from pictures (also shown on any page with the preview link ?city=greece). */
 export const GREECE: Theme = {
   id: "greece",
@@ -291,7 +318,7 @@ export const THEMES: readonly Theme[] = [
   CRYSTAL,
   MECH,
   CANDY,
-  JIANGNAN,
+  ICE,
   DUBAI,
   VICTORIA,
 ];
