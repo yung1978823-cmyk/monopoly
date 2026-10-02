@@ -332,25 +332,68 @@ export function createCityScene(
       geo.computeVertexNormals();
       return geo;
     };
+    const painted = theme.art?.island ? theme.art.dir : null;
+    if (painted) {
+      // 島面 (Sky 2026-10-02): the painted round floor on top, the painted rock hanging underneath.
+      const load = (url: string) => {
+        const t = new T.TextureLoader().load(url);
+        t.encoding = T.sRGBEncoding;
+        t.anisotropy = 4;
+        return t;
+      };
+      const floorTex = load(`${painted}/top.webp`);
+      // The picture's circle almost fills the square; pull in a hair so no black shows at the rim.
+      floorTex.repeat.set(0.96, 0.96);
+      floorTex.offset.set(0.02, 0.025);
+      const floor = new T.Mesh(new T.CircleGeometry(4.2, 72), new T.MeshStandardMaterial({ map: floorTex, roughness: 1 }));
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = TOP;
+      floor.receiveShadow = true;
+      island.add(floor);
+      // A thin lip so the floor has an edge.
+      const lip = new T.Mesh(new T.CylinderGeometry(4.2, 4.15, 0.14, 72, 1, true), new T.MeshBasicMaterial({ color: 0xb7a9d9 }));
+      lip.position.y = TOP - 0.07;
+      island.add(lip);
+      // The rock: the strip wraps round a cone, mirrored at every join so the seams match.
+      const sideTex = load(`${painted}/side.webp`);
+      sideTex.wrapS = T.MirroredRepeatWrapping;
+      sideTex.repeat.set(4, 1);
+      const H = 3.8;
+      const rockMat = new T.MeshBasicMaterial({ map: sideTex, transparent: true, alphaTest: 0.4, side: T.DoubleSide });
+      const under = new T.Mesh(new T.CylinderGeometry(4.15, 3.3, H, 72, 1, true), rockMat);
+      under.position.y = TOP - 0.14 - H / 2;
+      island.add(under);
+      // A solid core inside, so the gaps between the hanging crystals show rock, not the far side.
+      const coreTex = load(`${painted}/side.webp`);
+      coreTex.wrapS = T.MirroredRepeatWrapping;
+      coreTex.repeat.set(4, 0.45);
+      coreTex.offset.set(0, 0.55);
+      const core = new T.Mesh(
+        new T.CylinderGeometry(4.0, 2.2, 2.6, 48, 1, true),
+        new T.MeshBasicMaterial({ map: coreTex, color: 0x9a90b8 }),
+      );
+      core.position.y = TOP - 0.14 - 1.3;
+      island.add(core);
+    }
     const top = shadowy(new T.Mesh(rough(new T.CylinderGeometry(4.2, 4.35, 0.3, 12), 0.15), mat(theme.ground, 0.85)));
     top.position.y = TOP - 0.15;
-    island.add(top);
+    if (!painted) island.add(top);
     const soil = shadowy(new T.Mesh(rough(new T.CylinderGeometry(4.35, 3.7, 0.5, 12), 0.2), flat(0x7a5230)));
     soil.position.y = TOP - 0.55;
-    island.add(soil);
+    if (!painted) island.add(soil);
     const rock = shadowy(new T.Mesh(rough(new T.CylinderGeometry(3.7, 2.8, 2.2, 11, 2), 0.3), flat(theme.rock)));
     rock.position.y = TOP - 1.9;
-    island.add(rock);
+    if (!painted) island.add(rock);
     const cap = shadowy(new T.Mesh(rough(new T.SphereGeometry(2.8, 11, 5, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), 0.25), flat(theme.rock)));
     cap.scale.y = 0.5;
     cap.position.y = TOP - 3;
-    island.add(cap);
+    if (!painted) island.add(cap);
     // A path ring joining the plots.
     const path = new T.Mesh(new T.RingGeometry(2.45, 3.05, 40), mat(0xd9c9a3, 0.95));
     path.rotation.x = -Math.PI / 2;
     path.position.y = TOP + 0.03;
     path.receiveShadow = true;
-    island.add(path);
+    if (!painted) island.add(path);
     // The centre piece, by theme.
     // The theme's centre piece sits a little back and smaller when a monster lives in the middle.
     const mid = new T.Group();
@@ -411,8 +454,8 @@ export function createCityScene(
   type Job = { plot: number; at: number; from: [number, number]; to: [number, number]; walk: number; work: number; struck: number };
   const walkers: { g: any; a: number; speed: number; r: number; phase: number; mixer?: any; model?: any; hammer?: any; job?: Job }[] = [];
   if (theme.art) {
-    // Paving stones over the island top.
-    {
+    // Paving stones over the island top (not on a painted island).
+    if (!theme.art.island) {
       const c = document.createElement("canvas");
       c.width = c.height = 256;
       const x = c.getContext("2d")!;

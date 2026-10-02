@@ -26,6 +26,9 @@ export type ThemeArt = {
   boatSize?: number;
   /** Outer space instead of the sea (Sky 2026-10-02): `space.webp` behind the island, meteors and comets, no boat or gulls. */
   space?: boolean;
+  /** Painted island (Sky 2026-10-02): `top.webp` (round floor seen from above) and `side.webp` (the rock
+   *  underneath, sky cut away) instead of the plain white island. */
+  island?: boolean;
 };
 
 export type Theme = {
@@ -59,6 +62,7 @@ export const CRYSTAL: Theme = {
     dir: "/art/city/crystal",
     names: ["house", "mine", "observatory", "tower", "palace"],
     space: true,
+    island: true,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {
