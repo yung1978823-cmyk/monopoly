@@ -646,8 +646,8 @@ type SpacePicture = { url: string; w: number; h: number; planet: { url: string; 
 /** The first-layer board's picture (the small blue planet top right is cut out so it can float). */
 export const BOARD_SPACE: SpacePicture = { url: "/art/space.webp", w: 941, h: 1672, planet: { url: "/art/space-planet.webp", x: 826, y: 162, px: 114, depth: 1.35 } };
 /** The public table's picture (its striped planet top right is cut out). */
-/** 領地 (Sky 2026-10-01): her silver galaxy on black, no planet. */
-export const GALAXY_SPACE: SpacePicture = { url: "/art/galaxy.webp", w: 941, h: 1553, planet: { url: "", x: 0, y: 0, px: 1, depth: 1 } };
+/** 領地 (Sky 2026-10-02): her soft purple-blue nebula with ringed planets in the corners, no separate planet. */
+export const GALAXY_SPACE: SpacePicture = { url: "/art/space-realm.webp", w: 941, h: 1672, planet: { url: "", x: 0, y: 0, px: 1, depth: 1 } };
 export const TABLE_SPACE: SpacePicture = { url: "/art/table-space.webp", w: 941, h: 1672, planet: { url: "/art/table-planet.webp", x: 792, y: 174, px: 154, depth: 1 } };
 
 export function createSpace(

@@ -152,8 +152,8 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
   return (
     <main
       className="relative flex h-dvh w-full flex-col overflow-hidden bg-[#2A1A5E] bg-cover bg-center text-[#1E3A8A]"
-      // Sky's silver galaxy (2026-10-01), the same sky as the island board in a game.
-      style={{ backgroundImage: "linear-gradient(rgba(5,5,20,0.15), rgba(5,5,20,0.35)), url(/art/galaxy.webp)" }}
+      // Sky's purple-blue nebula (2026-10-02), the same sky as the island board in a game.
+      style={{ backgroundImage: "linear-gradient(rgba(10,8,40,0.1), rgba(10,8,40,0.3)), url(/art/space-realm.webp)" }}
       data-testid="realm"
     >
       <header className="z-10 mx-auto flex w-full max-w-xl flex-col gap-2 px-3 pt-[max(env(safe-area-inset-top),0.6rem)]">
