@@ -268,6 +268,8 @@ const DICT: Record<string, { hans: string; en: string }> = {
   "撳已起嘅建築可以拆走（材料唔退返）": { hans: "点已盖的建筑可以拆掉（材料不退还）", en: "Tap a building to remove it (materials aren't refunded)" },
   材料店: { hans: "材料店", en: "Materials" },
   開局設定: { hans: "开局设定", en: "Game setup" },
+  睇故事: { hans: "看故事", en: "Watch the story" },
+  跳過: { hans: "跳过", en: "Skip" },
   而家起緊呢款: { hans: "现在盖的就是这款", en: "Already built here" },
   "換走或者拆咗{b}": { hans: "换掉或拆掉{b}", en: "Swap or remove {b}" },
   換做第二款: { hans: "换成别的", en: "Swap for another" },

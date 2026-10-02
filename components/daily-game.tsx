@@ -4,6 +4,7 @@ import { juice } from "@/components/juice";
 import { isCalm, isMusicOn, setCalm, setMusicOn } from "@/lib/music";
 import { AttackScreen } from "@/components/attack-screen";
 import { PetScreen } from "@/components/pet-screen";
+import { StoryVideo } from "@/components/story-video";
 import { StealScreen } from "@/components/steal-screen";
 import { AttackIntro, ATTACK_INTRO_MS } from "@/components/attack-intro";
 import { HatchIntro, HATCH_MS } from "@/components/hatch-intro";
@@ -188,6 +189,7 @@ export function DailyGame() {
   /** Whether the public table (第二層) is showing instead of the board. */
   const [tableOpen, setTableOpen] = useState(false);
   const [realmOpen, setRealmOpen] = useState(false);
+  const [storyOpen, setStoryOpen] = useState(false);
   /** Whether your monster's screen (🐾) is showing. */
   const [petOpen, setPetOpen] = useState(false);
   /** A dragon that just hatched on the board, shown in a banner for a moment. */
@@ -582,6 +584,7 @@ export function DailyGame() {
       ) : null}
       {/* 孵化: a wordless full-screen show (Sky 2026-10-01). */}
       {hatchedNow !== null ? <HatchIntro element={hatchedNow} /> : null}
+      {storyOpen ? <StoryVideo onDone={() => setStoryOpen(false)} /> : null}
       {/* First time: point at the GO stone in the middle. */}
       {state.rollCount === 0 && !pending ? <TipHand className="left-1/2 top-[42%] z-20 -translate-x-1/2" /> : null}
       {/* Top bar: dice and points only; everything else lives behind the menu. */}
@@ -757,6 +760,17 @@ export function DailyGame() {
                 </button>
               ))}
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                setStoryOpen(true);
+              }}
+              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border-[3px] border-[#FBD000] bg-[#FFF8D6] py-2 text-sm font-black text-[#1E3A8A]"
+              data-testid="watch-story"
+            >
+              🎬 {t("睇故事")}
+            </button>
             <LangPicker />
             <div className="grid grid-cols-4 gap-2" data-testid="daily-character-pick">
               {CHARACTERS.map((c, i) => (

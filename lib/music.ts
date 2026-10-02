@@ -14,6 +14,8 @@ const VOLUME = 0.32;
 
 let player: HTMLAudioElement | null = null;
 let ready = false;
+/** Held quiet while something else plays its own sound (the story video). */
+let held = false;
 
 export function isMusicOn(): boolean {
   try {
@@ -25,7 +27,7 @@ export function isMusicOn(): boolean {
 
 function sync() {
   if (!player) return;
-  if (isMusicOn() && ready && document.visibilityState === "visible") void player.play().catch(() => undefined);
+  if (isMusicOn() && ready && !held && document.visibilityState === "visible") void player.play().catch(() => undefined);
   else player.pause();
 }
 
@@ -35,6 +37,13 @@ export function setMusicOn(on: boolean): void {
   } catch {
     // Not remembered on this device.
   }
+  sync();
+}
+
+/** Quiet the music while the story video plays, and bring it back after. */
+export function holdMusic(on: boolean): void {
+  held = on;
+  if (on) ready = true;
   sync();
 }
 
