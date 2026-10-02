@@ -939,6 +939,32 @@ export function createCityScene(
   const addFx = (delay: number, ms: number, step: Fx["step"], end: Fx["end"] = () => undefined) =>
     fxs.push({ start: performance.now() + delay, ms, step, end });
   const fireTex = soft("rgba(255,244,200,1)", "rgba(255,90,0,0)");
+  // 瞄準虛線 (Sky 2026-10-02, in place of the red rings): while choosing what to attack, a blinking dotted line of
+  // little flames runs from your dragon to one building at a time, hopping round every building you can hit.
+  const AIM_DOTS = 12, AIM_HOP = 1300;
+  const aimTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "#ffffff";
+    x.beginPath();
+    x.arc(32, 32, 26, 0, Math.PI * 2);
+    x.fill();
+    x.fillStyle = "#ff4a1c";
+    x.beginPath();
+    x.arc(32, 32, 19, 0, Math.PI * 2);
+    x.fill();
+    const t = new T.CanvasTexture(c);
+    t.encoding = T.sRGBEncoding;
+    return t;
+  })();
+  const aimDots = Array.from({ length: AIM_DOTS }, () => {
+    const d = new T.Sprite(new T.SpriteMaterial({ map: aimTex, transparent: true, depthWrite: false, depthTest: false, opacity: 0 }));
+    d.renderOrder = 9;
+    scene.add(d);
+    return d;
+  });
+  let aimAt = -1;
   // A solid-looking ball of flame (normal blending, so it still reads on the white island).
   const flameTex = (() => {
     const c = document.createElement("canvas");
@@ -1166,8 +1192,7 @@ export function createCityScene(
       if (p.body) p.body.scale.setScalar(s);
       const shake = Math.max(0, 1 - (now - p.shakeAt) / 400);
       if (p.body) p.body.rotation.z = shake ? Math.sin(now / 25) * 0.12 * shake : 0;
-      const on = targets && p.level > 0;
-      p.ring.material.opacity = on ? 0.6 + 0.4 * Math.sin(now / 200) : 0;
+      p.ring.material.opacity = 0;
       p.plus.scale.setScalar(0.5 + Math.sin(now / 400 + p.holder.position.x) * 0.04);
     }
     for (let i = bits.length - 1; i >= 0; i--) {
@@ -1218,6 +1243,30 @@ export function createCityScene(
         attacker.group.position.set(attackerHome.x, attackerHome.y + Math.sin(now / 600) * 0.15, attackerHome.z);
         attacker.group.rotation.y = ATTACK_YAW;
       }
+    }
+    {
+      const standing = plots.map((p, i) => (p.level > 0 ? i : -1)).filter((i) => i >= 0);
+      const aiming = targets && !!attacker && standing.length > 0 && now - lungeState.at > 900;
+      aimAt = aiming ? standing[Math.floor(now / AIM_HOP) % standing.length] : -1;
+      if (aimAt >= 0 && attacker) {
+        const from = attacker.group.position.clone().add(new T.Vector3(0, 0.6, 0));
+        const to = worldOf(aimAt, Math.max(0.5, heightOf(plots[aimAt].level, aimAt) * 0.6));
+        // The dragon looks where it's aiming.
+        attacker.group.rotation.y = Math.atan2(to.x - from.x, to.z - from.z);
+        const hop = (now % AIM_HOP) / AIM_HOP;
+        const reach = Math.min(1, hop / 0.3);
+        const blink = 0.55 + 0.45 * Math.abs(Math.sin(now / 160));
+        aimDots.forEach((d, n) => {
+          const k = ((n + (now / 90) % 1) / AIM_DOTS) * reach;
+          d.position.lerpVectors(from, to, k);
+          d.position.y += Math.sin(k * Math.PI) * 1.1;
+          d.scale.setScalar(n === AIM_DOTS - 1 ? 0.42 : 0.22);
+          d.material.opacity = blink * (k <= reach ? 1 : 0) * (hop > 0.92 ? (1 - hop) / 0.08 : 1);
+        });
+        // The building being aimed at throbs a little.
+        const b = plots[aimAt].body;
+        if (b && now - plots[aimAt].popAt > 450) b.scale.setScalar(1 + 0.06 * Math.abs(Math.sin(now / 140)));
+      } else aimDots.forEach((d) => (d.material.opacity = 0));
     }
     view.idle += dt;
     view.yaw += (view.goalYaw - view.yaw) * Math.min(1, dt * 8);
