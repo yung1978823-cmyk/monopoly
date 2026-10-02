@@ -26,6 +26,8 @@ export const CROSS_PAY = 1;
 export const TAX = 2;
 // 2026-09-27: building up is cheaper (was 2) so more lots grow into bigger buildings.
 export const UPGRADE_PRICE = 1;
+/** Sky (2026-10-03): buying a lot (its first building) costs 1 DST too. */
+export const LOT_PRICE = 1;
 /** Buying or building only happens if at least this much cash is left afterwards (keeps players out of easy bankruptcy). */
 export const BUY_RESERVE = 2;
 export const MAX_LEVEL = 4;
@@ -98,7 +100,7 @@ export const SQUARES: Record<string, Square> = (() => {
     const key = `o${i}`;
     const segment = Math.floor(i / EDGE_STEPS);
     const kind = SPECIAL[i] ?? "lot";
-    squares[key] = { key, kind, price: kind === "lot" ? (segment % 4 === 3 ? 3 : 2) : 0, gold: false, group: segment };
+    squares[key] = { key, kind, price: kind === "lot" ? LOT_PRICE : 0, gold: false, group: segment };
   }
   return squares;
 })();
@@ -131,7 +133,7 @@ const ISLAND_SQUARES: Record<string, Square> = (() => {
   for (let i = 0; i < ISLAND_LOOP; i += 1) {
     const kind = ISLAND_SPECIAL[i] ?? "lot";
     const group = Math.floor(i / 5);
-    squares[`o${i}`] = { key: `o${i}`, kind, price: kind === "lot" ? (group === 3 ? 3 : 2) : 0, gold: false, group };
+    squares[`o${i}`] = { key: `o${i}`, kind, price: kind === "lot" ? LOT_PRICE : 0, gold: false, group };
   }
   return squares;
 })();
@@ -195,6 +197,8 @@ export type Seat = {
   turnsTaken: number;
   /** Power cards in hand (at most MAX_POWERS). */
   powers: Power[];
+  /** 雙倍租: turns left (anyone's) during which this player's lots collect double rent. */
+  doubleRent?: number;
 };
 
 /** `locked`: turns left (anyone's) during which the lot collects no rent — a 封地 card. */
@@ -207,14 +211,21 @@ export type Deed = { owner: number; level: number; locked?: number };
  * bank) · swap 換位: trade places with an opponent · shield 免租牌: the next rent you'd pay is let off
  * (used by itself when it happens).
  */
-export type Power = "boost" | "lock" | "wreck" | "swap" | "shield" | "monster";
-export const POWERS: readonly Power[] = ["boost", "lock", "wreck", "swap", "shield", "monster"];
+export type Power = "boost" | "lock" | "wreck" | "swap" | "shield" | "monster" | "levy" | "double";
+/**
+ * Sky (2026-10-03), two more: levy 收保護費 — every opponent pays you LEVY at once · double 雙倍租 —
+ * your lots collect double rent for two rounds.
+ */
+export const POWERS: readonly Power[] = ["boost", "lock", "wreck", "swap", "shield", "monster", "levy", "double"];
+export const LEVY = 1;
 /** 怪獸卡: the monster on the target's side fires at them — they lose this much to you… */
 export const MONSTER_STEAL = 2;
 /** …and are knocked this many squares back. 護盾 (shield) blocks it. */
 export const MONSTER_KNOCK = 3;
 /** At most this many power cards lie on the board at once. */
-export const MAX_PICKUPS = 4;
+export const MAX_PICKUPS = 6;
+/** Sky (2026-10-03): three new power cards appear on the board each round. */
+export const PICKUPS_PER_ROUND = 3;
 
 /**
  * Which monster watches a loop square: the left diamond's or the right's; the middle square where
@@ -224,7 +235,8 @@ export function sideOf(spot: Spot): "left" | "right" {
   if (spot.on !== "loop") return spot.on === "L" ? "left" : "right";
   return spot.i > MIDDLE && spot.i < MIDDLE_AGAIN ? "right" : "left";
 }
-export const MAX_POWERS = 2;
+/** Sky (2026-10-03): a hand holds up to six power cards. */
+export const MAX_POWERS = 6;
 /** The two power cards every player starts the table with. */
 export const START_POWERS: readonly Power[] = ["boost", "monster"];
 /** Out of 10 chance draws, how many give a power card instead; and out of 10 chests. */
@@ -273,7 +285,9 @@ export type TableEvent =
   /** Drew a power card at a chance square. */
   | { kind: "power"; seat: number; power: Power }
   /** Played a power card. `levels`: each lot's new level (boost, wreck; 0 = back to the bank). */
-  | { kind: "played"; seat: number; power: Power; target?: number; key?: string; levels?: Record<string, number> }
+  | { kind: "played"; seat: number; power: Power; target?: number; key?: string; levels?: Record<string, number>; paid?: Record<number, number> }
+  /** A 雙倍租 ran out. */
+  | { kind: "doubleOver"; seat: number }
   /** A 免租牌 let this rent off. */
   | { kind: "shielded"; seat: number; to: number; key: string }
   /** Landed on a 封地-locked lot: no rent. */
@@ -513,7 +527,7 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
         events.push({ kind: "shielded", seat, to: deed.owner, key });
         return withSeat(state, seat, { powers: player.powers.filter((_, i) => i !== shield) });
       }
-      const rent = rentOf(key, deed.level, state.board);
+      const rent = rentOf(key, deed.level, state.board) * (state.seats[deed.owner]?.doubleRent ? 2 : 1);
       events.push({ kind: "rent", seat, to: deed.owner, amount: Math.min(rent, player.cash), key });
       return pay(state, seat, rent, deed.owner, events);
     }
@@ -579,12 +593,20 @@ function finishTurn(state: TableState, events: TableEvent[]): TableState {
     if (locked <= 0) events.push({ kind: "unlocked", key });
   }
   let done = withSeat({ ...state, deeds }, state.current, { turnsTaken: state.seats[state.current].turnsTaken + 1 });
-  // Everyone still playing has had another turn: a new round, and one more power card on the board
+  // 雙倍租 counts down with every turn, like a lock.
+  done.seats.forEach((seat, i) => {
+    if (!seat.doubleRent) return;
+    const left = seat.doubleRent - 1;
+    done = withSeat(done, i, { doubleRent: left > 0 ? left : undefined });
+    if (left <= 0) events.push({ kind: "doubleOver", seat: i });
+  });
+  // Everyone still playing has had another turn: a new round, and three more power cards on the board
   // (they stay until taken, up to MAX_PICKUPS at once).
   const round = (s: TableState) => Math.min(...alive(s).map((i) => s.seats[i].turnsTaken));
-  if (alive(done).length > 0 && round(done) > round(state) && round(done) < done.rules.turnsEach && done.pickups.length < MAX_PICKUPS) {
-    const pickup = nextPickup(done, round(done));
-    if (pickup) {
+  if (alive(done).length > 0 && round(done) > round(state) && round(done) < done.rules.turnsEach) {
+    for (let n = 0; n < PICKUPS_PER_ROUND && done.pickups.length < MAX_PICKUPS; n += 1) {
+      const pickup = nextPickup(done, round(done), n);
+      if (!pickup) break;
       events.push({ kind: "spawn", ...pickup });
       done = { ...done, pickups: [...done.pickups, pickup] };
     }
@@ -649,11 +671,11 @@ function firstPickup(board: BoardId, players: number): { key: string; power: Pow
 }
 
 /** The new round's card: on a square with no card yet, picked from the last roll's draw. */
-function nextPickup(state: TableState, round: number): { key: string; power: Power } | null {
+function nextPickup(state: TableState, round: number, nth = 0): { key: string; power: Power } | null {
   const taken = new Set(state.pickups.map((p) => p.key));
   const squares = pickupSquares(state.board, state.rules.houses).filter((key) => !taken.has(key));
   if (squares.length === 0) return null;
-  const seed = Math.abs(Math.floor(state.draw.power ?? state.draw.card)) + round * 131 + state.tick * 17;
+  const seed = Math.abs(Math.floor(state.draw.power ?? state.draw.card)) + round * 131 + state.tick * 17 + nth * 977;
   return { key: squares[seed % squares.length], power: POWERS[Math.floor(seed / 7) % POWERS.length] };
 }
 
@@ -682,6 +704,8 @@ export function canPlay(state: TableState, seat: number, power: Power): boolean 
   if (power === "shield") return false;
   if (power === "boost") return Object.values(state.deeds).some((d) => d.owner === seat && d.level < MAX_LEVEL);
   if (power === "swap" || power === "monster") return opponents(state, seat).length > 0;
+  if (power === "levy") return opponents(state, seat).some((other) => state.seats[other].cash > 0);
+  if (power === "double") return !state.seats[seat].doubleRent && Object.values(state.deeds).some((d) => d.owner === seat);
   if (power === "lock") {
     const key = bestTarget(state, seat);
     return key !== null && !state.deeds[key].locked;
@@ -704,6 +728,25 @@ function playPower(state: TableState, seat: number, index: number, target: numbe
     }
     events.push({ kind: "played", seat, power, levels });
     return { ...withSeat(state, seat, hand), deeds };
+  }
+  if (power === "levy") {
+    let next = withSeat(state, seat, hand);
+    const paid: Record<number, number> = {};
+    let total = 0;
+    for (const other of opponents(state, seat)) {
+      const amount = Math.min(LEVY, next.seats[other].cash);
+      if (amount <= 0) continue;
+      paid[other] = amount;
+      total += amount;
+      next = withSeat(next, other, { cash: money(next.seats[other].cash - amount) });
+    }
+    events.push({ kind: "played", seat, power, paid });
+    return withSeat(next, seat, { cash: money(next.seats[seat].cash + total) });
+  }
+  if (power === "double") {
+    // Two rounds: every seat still playing gets two turns before it wears off.
+    events.push({ kind: "played", seat, power });
+    return withSeat(state, seat, { ...hand, doubleRent: alive(state).length * 2 });
   }
   if (power === "lock" || power === "wreck") {
     const key = bestTarget(state, seat)!;

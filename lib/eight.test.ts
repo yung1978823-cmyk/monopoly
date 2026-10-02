@@ -19,6 +19,8 @@ import {
   reduceTable,
   standings,
   MAX_PICKUPS,
+  MAX_POWERS,
+  PICKUPS_PER_ROUND,
   MONSTER_STEAL,
   sideOf,
   type Power,
@@ -108,8 +110,8 @@ describe("public table on the 八字 board", () => {
     assert.equal(state.seats[0].cash, 17.4, "three 0.2 rents, no floating-point crumbs");
     // Whole-number costs and prizes on top of a decimal balance stay tidy too (17.6 − 3 is not 14.600000000000001).
     let odd = { ...start(), seats: start().seats.map((seat, i) => (i === 0 ? { ...seat, cash: 17.6 } : seat)) };
-    odd = reduceTable(quiet(odd, 0, "o1"), { type: "roll", dice: [1, 1] }); // buys o2 for 2
-    assert.equal(odd.seats[0].cash, 15.6);
+    odd = reduceTable(quiet(odd, 0, "o1"), { type: "roll", dice: [1, 1] }); // buys o2 for 1
+    assert.equal(odd.seats[0].cash, 16.6);
     let seed = 3;
     const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     let game = start(4);
@@ -185,14 +187,15 @@ describe("public table on the 八字 board", () => {
     assert.ok(!flown.events.some((event) => event.kind === "second"));
   });
 
-  it("power cards: drawn at chance 3 times in 10, two at most, and each one works", () => {
+  it("power cards: drawn at chance 3 times in 10, six at most, and each one works", () => {
     const onChance = (state: TableState, power: number) => reduceTable(quiet(at(state, 0, { on: "loop", i: 18 }), 0, "o19"), { type: "roll", dice: [1, 1], power });
     const got = onChance(start(), 10); // 10 % 10 = 0 → a card; 10 / 10 = 1 → POWERS[1]
     assert.deepEqual(got.seats[0].powers, ["lock"]);
     assert.ok(got.events.some((e) => e.kind === "power"));
     assert.deepEqual(onChance(start(), 7).seats[0].powers, [], "7 in 10 is an ordinary card");
-    const full = { ...start(), seats: start().seats.map((s, i) => (i === 0 ? { ...s, powers: ["boost", "swap"] as Power[] } : s)) };
-    assert.equal(onChance(full, 0).seats[0].powers.length, 2, "no room for a third");
+    const six = ["boost", "swap", "lock", "wreck", "levy", "double"] as Power[];
+    const full = { ...start(), seats: start().seats.map((s, i) => (i === 0 ? { ...s, powers: six } : s)) };
+    assert.equal(onChance(full, 0).seats[0].powers.length, MAX_POWERS, "no room for a seventh");
 
     const withHand = (powers: Power[], deeds: TableState["deeds"]) => ({
       ...start(3),
@@ -225,31 +228,46 @@ describe("public table on the 八字 board", () => {
     assert.equal(saved.seats[0].cash, STAKE);
     assert.deepEqual(saved.seats[0].powers, []);
     assert.ok(saved.events.some((e) => e.kind === "shielded"));
+    // 收保護費: every opponent pays 1 at once (all they have, if less).
+    const levied = withHand(["levy"], {});
+    const poorOne = { ...levied, seats: levied.seats.map((s, i) => (i === 2 ? { ...s, cash: 0.5 } : s)) };
+    const levy = reduceTable(poorOne, { type: "power", index: 0 });
+    assert.deepEqual(levy.seats.map((s) => s.cash), [STAKE + 1.5, STAKE - 1, 0]);
+    // 雙倍租: your lots collect double rent for two rounds, then it wears off.
+    let double = reduceTable(withHand(["double"], { o2: { owner: 0, level: 2 } }), { type: "power", index: 0 });
+    assert.equal(double.seats[0].doubleRent, 6);
+    double = reduceTable({ ...quiet(at(double, 1, { on: "loop", i: 0 }), 1, "o1"), current: 1 }, { type: "roll", dice: [1, 1] });
+    assert.equal(double.seats[1].cash, STAKE - 2 * RENTS[2], "double rent");
+    assert.equal(reduceTable(withHand(["double"], {}), { type: "power", index: 0 }).seats[0].powers.length, 1, "no lots: nothing to double");
     // Only before rolling.
     const forked = { ...withHand(["boost"], { o1: { owner: 0, level: 1 } }), phase: "fork" as const };
     assert.equal(reduceTable(forked, { type: "power", index: 0 }), forked);
   });
 
-  it("power cards wait on the board until taken; one more each round, four at most", () => {
+  it("power cards wait on the board until taken; three more each round, six at most", () => {
     let state: TableState = { ...quiet(start(), 0, "o1"), pickups: [{ key: "o2", power: "wreck" as Power }] };
     state = reduceTable(state, { type: "roll", dice: [1, 1] });
     assert.deepEqual(state.seats[0].powers, ["wreck"]);
     assert.deepEqual(state.pickups, []);
     assert.ok(state.events.some((e) => e.kind === "pickup"));
-    // Seat 1 finishes the round: one more card appears, not on start or jail.
+    // Seat 1 finishes the round: three more cards appear, on different squares, not on start or jail.
     state = reduceTable(state, { type: "roll", dice: [3, 4] });
-    assert.equal(state.pickups.length, 1);
-    assert.notEqual(SQUARES[state.pickups[0].key].kind, "start");
-    assert.notEqual(SQUARES[state.pickups[0].key].kind, "jail");
-    // Cards left lying about stay; a round adds one only while there are fewer than four.
+    assert.equal(state.pickups.length, PICKUPS_PER_ROUND);
+    assert.equal(new Set(state.pickups.map((p) => p.key)).size, PICKUPS_PER_ROUND);
+    for (const p of state.pickups) {
+      assert.notEqual(SQUARES[p.key].kind, "start");
+      assert.notEqual(SQUARES[p.key].kind, "jail");
+    }
+    // Cards left lying about stay; a round only tops the board up to six.
     const four = { key: "o25", power: "boost" as Power };
     let crowded: TableState = { ...start(), pickups: [four, { ...four, key: "o26" }, { ...four, key: "o27" }] };
     crowded = reduceTable(reduceTable(crowded, { type: "roll", dice: [1, 1] }), { type: "roll", dice: [1, 1] });
     assert.equal(crowded.pickups.length, MAX_PICKUPS);
     crowded = reduceTable(reduceTable(crowded, { type: "roll", dice: [1, 1] }), { type: "roll", dice: [1, 1] });
-    assert.equal(crowded.pickups.length, MAX_PICKUPS, "no fifth");
+    assert.equal(crowded.pickups.length, MAX_PICKUPS, "no seventh");
     // A full hand leaves it where it is.
-    const full = { ...start(), pickups: [{ key: "o2", power: "swap" as Power }], seats: start().seats.map((seat, i) => (i === 0 ? { ...seat, powers: ["boost", "lock"] as Power[] } : seat)) };
+    const fullHand = ["boost", "lock", "wreck", "swap", "levy", "double"] as Power[];
+    const full = { ...start(), pickups: [{ key: "o2", power: "swap" as Power }], seats: start().seats.map((seat, i) => (i === 0 ? { ...seat, powers: fullHand } : seat)) };
     const left = reduceTable(quiet(full, 0, "o1"), { type: "roll", dice: [1, 1] });
     assert.deepEqual(left.pickups, [{ key: "o2", power: "swap" }]);
   });

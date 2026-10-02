@@ -90,7 +90,20 @@ const POWER_INFO: Record<Power, { name: string; icon: string; what: string }> = 
   swap: { name: "換位", icon: "🔄", what: "同一個對手交換位置" },
   shield: { name: "護盾", icon: "🛡️", what: "擋一次交租或者怪獸（自動用）" },
   monster: { name: "怪獸卡", icon: "👹", what: "叫怪獸打對手：搶 2、打退 3 格" },
+  levy: { name: "收保護費", icon: "🤑", what: "每個對手即刻俾你 1 粒" },
+  double: { name: "雙倍租", icon: "💰", what: "兩圈內你啲地收雙倍租" },
 };
+
+/** Cards with a drawn picture; the newer ones show their emoji until they get one. */
+const CARD_ART = new Set<Power>(["boost", "lock", "wreck", "swap", "shield", "monster"]);
+function CardPic({ power, className }: { power: Power; className?: string }) {
+  if (CARD_ART.has(power)) return <img src={`/art/cards/${power}.webp`} alt="" draggable={false} className={cn("object-contain", className)} />;
+  return (
+    <span className={cn("flex items-center justify-center leading-none", className)} style={{ fontSize: "0.8em" }} aria-hidden>
+      {POWER_INFO[power].icon}
+    </span>
+  );
+}
 
 /** A player's face: the drawn avatar, or an emoji in a coloured circle. */
 function Face({ seat, className }: { seat: { name: string; avatar: string; colour: string }; className?: string }) {
@@ -524,6 +537,21 @@ export function EightBoard({
               const level = event.levels?.[event.key] ?? 0;
               if (level > 0) await scene.own(event.key, event.target ?? 0, level);
               else scene.clear(event.key);
+            } else if (event.power === "levy") {
+              play("coin");
+              const payers = Object.entries(event.paid ?? {});
+              let total = 0;
+              for (const [other, amount] of payers) {
+                total += amount;
+                void scene.floatText(Number(other), `−${amount}`);
+              }
+              await Promise.all(payers.map(([other, amount]) => scene.coinsFly(Number(other), event.seat, amount)));
+              if (total > 0) void scene.floatText(event.seat, `+${Math.round(total * 10) / 10}`, "#16A34A");
+              scene.cheer(event.seat);
+            } else if (event.power === "double") {
+              play("lucky");
+              say("{name} 啲地兩圈內收雙倍租！", { name: who(event.seat) });
+              await Promise.all([scene.pulse(event.seat, true), scene.sparkle(event.seat)]);
             } else if (event.power === "swap" && event.target !== undefined) {
               play("lucky");
               await Promise.all([scene.puff(event.seat), scene.puff(event.target)]);
@@ -551,6 +579,9 @@ export function EightBoard({
             }
             break;
           }
+          case "doubleOver":
+            say("{name} 嘅雙倍租完咗", { name: who(event.seat) });
+            break;
           case "shielded":
             play("lucky");
             say("{name} 用護盾，唔使交租！", { name: who(event.seat) });
@@ -772,9 +803,9 @@ export function EightBoard({
               </span>
               {seat.jailed ? <span className="text-xs">🔒</span> : null}
               {seat.powers.length ? (
-                <span className="flex gap-0.5" aria-label={t("功能卡 {n} 張", { n: seat.powers.length })}>
+                <span className="flex max-w-full flex-wrap justify-center gap-0.5" aria-label={t("功能卡 {n} 張", { n: seat.powers.length })}>
                   {seat.powers.map((power, k) => (
-                    <img key={k} src={`/art/cards/${power}.webp`} alt="" draggable={false} className="size-5 object-contain" />
+                    <CardPic key={k} power={power} className={seat.powers.length > 3 ? "size-4 text-base" : "size-5 text-xl"} />
                   ))}
                 </span>
               ) : null}
@@ -784,7 +815,7 @@ export function EightBoard({
                   className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 flex -translate-x-1/2 animate-[pop_0.35s_ease-out] flex-col items-center whitespace-nowrap rounded-xl border-[3px] border-[#FBD000] bg-[#7C3AED] px-2 py-1 text-white shadow-xl"
                   data-testid="got-card"
                 >
-                  <img src={`/art/cards/${gotCard.power}.webp`} alt="" draggable={false} className="size-12 object-contain drop-shadow" />
+                  <CardPic power={gotCard.power} className="size-12 text-5xl drop-shadow" />
                   <span className="text-[11px] font-black">{t(POWER_INFO[gotCard.power].name)}</span>
                 </span>
               ) : null}
@@ -857,7 +888,13 @@ export function EightBoard({
 
       {/* Your 功能卡: play one before rolling. */}
       {me.powers.length && table.phase !== "over" ? (
-        <div className="absolute inset-x-0 bottom-[calc(max(env(safe-area-inset-bottom),1rem)+10.5rem)] z-20 flex justify-center gap-2 px-4" data-testid="power-hand">
+        <div
+          className={cn(
+            "absolute inset-x-0 bottom-[calc(max(env(safe-area-inset-bottom),1rem)+10.5rem)] z-20 flex gap-2 overflow-x-auto px-4 pb-1",
+            me.powers.length > 3 ? "justify-start" : "justify-center",
+          )}
+          data-testid="power-hand"
+        >
           {me.powers.map((power, index) => {
             const info = POWER_INFO[power];
             const usable = mine && table.phase === "roll" && canPlay(table, 0, power);
@@ -871,10 +908,10 @@ export function EightBoard({
                   if ((power === "swap" || power === "monster") && others.length > 1) setPicking(index);
                   else void run({ type: "power", index, target: others[0] });
                 }}
-                className="flex w-28 cursor-pointer flex-col items-center rounded-2xl border-[3px] border-[#7C3AED] bg-white/95 px-2 py-1 text-[#1E3A8A] shadow-[0_4px_0_#4C1D95] disabled:cursor-default disabled:opacity-60 enabled:animate-[glow_1.8s_ease-in-out_infinite]"
+                className="flex w-24 shrink-0 cursor-pointer flex-col items-center rounded-2xl border-[3px] border-[#7C3AED] bg-white/95 px-2 py-1 text-[#1E3A8A] shadow-[0_4px_0_#4C1D95] disabled:cursor-default disabled:opacity-60 enabled:animate-[glow_1.8s_ease-in-out_infinite]"
                 data-testid={`power-${power}`}
               >
-                <img src={`/art/cards/${power}.webp`} alt="" draggable={false} className="size-12 object-contain drop-shadow" />
+                <CardPic power={power} className="size-12 text-5xl drop-shadow" />
                 <span className="text-sm font-black">{t(info.name)}</span>
                 <span className="text-[10px] font-bold leading-tight">{t(info.what)}</span>
               </button>
