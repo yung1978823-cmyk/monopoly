@@ -727,7 +727,7 @@ export function createBoardScene(
 
   /** Painted tile pictures by square kind (public table). */
   const TILE_ART: Record<string, string> = { chance: "/art/tiles/crystal/chance.webp", chest: "/art/tiles/crystal/chest.webp", start: "/art/tiles/crystal/start.webp",
-    tax: "/art/tiles/crystal/tax.webp", jail: "/art/tiles/crystal/jail.webp", fly: "/art/tiles/crystal/fly.webp", lot: "/art/tiles/crystal/lot.webp" };
+    tax: "/art/tiles/crystal/tax.webp", jail: "/art/tiles/crystal/jail.webp", fly: "/art/tiles/crystal/fly.webp", lot: "/art/tiles/crystal/lot.webp", cross: "/art/tiles/crystal/cross.webp" };
   /** The painted tile's own colour when nobody owns it; an owner tints it toward their colour. */
   const PIC_WHITE = 0xeeeeee;
   const tilePics = new Map<string, any>();
