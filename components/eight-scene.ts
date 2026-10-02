@@ -285,7 +285,32 @@ export function createBoardScene(
 
   // 海島: water and a sand deck. 八字: no deck at all — every square floats on its own over a misty
   // forest floor far below, with the two monsters' islands in the middle of the diamonds.
-  const islandMesh = (size: number, seed: number, top: number) => {
+  // 公開桌 (Sky 2026-10-03): every island is a crystal-planet island — the painted crystal rock hangs
+  // underneath, and the big ones (monsters, gate, treasure) wear the painted crystal floor on top.
+  const crystal = !island;
+  const paint = (url: string) => {
+    const t = new T.TextureLoader().load(url);
+    t.encoding = T.sRGBEncoding;
+    return t;
+  };
+  const crystalFloor = crystal ? paint("/art/city/crystal/top.webp") : null;
+  if (crystalFloor) {
+    crystalFloor.repeat.set(0.96, 0.96);
+    crystalFloor.offset.set(0.02, 0.025);
+  }
+  const rockMats = new Map<number, any>();
+  /** The painted rock, repeated (an even number of times, mirrored, so the seams meet) to suit the size. */
+  const rockMat = (repeat: number) => {
+    if (!rockMats.has(repeat)) {
+      // Its own load per repeat count (a clone made before the picture arrives would never show it).
+      const t = paint("/art/city/crystal/side.webp");
+      t.wrapS = T.MirroredRepeatWrapping;
+      t.repeat.set(repeat, 1);
+      rockMats.set(repeat, new T.MeshBasicMaterial({ map: t, transparent: true, alphaTest: 0.04, side: T.DoubleSide }));
+    }
+    return rockMats.get(repeat);
+  };
+  const islandMesh = (size: number, seed: number, top: number, floor = false) => {
     const g = new T.Group();
     let s = seed;
     const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647 - 0.5);
@@ -301,6 +326,24 @@ export function createBoardScene(
       return geo;
     };
     const flat = (c: number) => new T.MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true });
+    if (crystal) {
+      const trim = new T.MeshStandardMaterial({ color: 0xa99ad6, roughness: 0.8 });
+      const grass = floor
+        ? shadowy(new T.Mesh(new T.CylinderGeometry(0.5 * size, 0.52 * size, 0.14, 48), [trim, new T.MeshStandardMaterial({ map: crystalFloor, color: 0xc4c4c4, roughness: 1 }), trim]))
+        : shadowy(new T.Mesh(rough(new T.CylinderGeometry(0.5 * size, 0.53 * size, 0.14, 8), 0.04 * size), mat(top, 0.7)));
+      grass.position.y = TOP - 0.07;
+      g.add(grass);
+      const H = 0.85 * size;
+      const repeat = 2 * Math.max(1, Math.round((Math.PI * size) / 6));
+      const under = new T.Mesh(new T.CylinderGeometry(0.52 * size, 0.34 * size, H, floor ? 48 : 16, 1, true), rockMat(repeat));
+      under.position.y = TOP - 0.14 - H / 2;
+      g.add(under);
+      const coreH = 0.6 * size;
+      const core = new T.Mesh(new T.CylinderGeometry(0.48 * size, 0.16 * size, coreH, floor ? 32 : 10, 1, true), new T.MeshBasicMaterial({ color: 0x4a4266 }));
+      core.position.y = TOP - 0.14 - coreH / 2;
+      g.add(core);
+      return { group: g, top: grass };
+    }
     const grass = shadowy(new T.Mesh(rough(new T.CylinderGeometry(0.5 * size, 0.53 * size, 0.14, 8), 0.04 * size), mat(top, 0.7)));
     grass.position.y = TOP - 0.07;
     g.add(grass);
@@ -533,7 +576,7 @@ export function createBoardScene(
     scene.add(motes);
     // The monsters' two big islands, with a few trees round the edge.
     for (const x of [-D, D]) {
-      const big = islandMesh(3.4, x < 0 ? 901 : 902, 0x4f9e34);
+      const big = islandMesh(3.4, x < 0 ? 901 : 902, 0x4f9e34, true);
       big.group.position.set(x, -0.3, 0);
       scene.add(big.group);
       breathers.push({ obj: big.group, base: -0.3, phase: x < 0 ? 0 : 2, period: 5.5 });
@@ -694,7 +737,9 @@ export function createBoardScene(
     // Grass on top for lots; the special squares keep their colour so they're easy to spot.
     // Lots are bare grey stones like the single-player board (Sky 2026-10-01), each a slightly different grey;
     // the special squares keep their colour so they're easy to spot.
-    const base = square.kind === "lot" ? (square.gold ? 0xd6c24a : [0x9a958c, 0xa39e94, 0x8f8a82, 0xaaa59a][Object.keys(tiles).length % 4]) : PLAIN[square.kind];
+    // On the crystal islands (public table) the lots are pale crystal stone instead of grey.
+    const stones = crystal ? [0xc9c0e6, 0xd2c9ee, 0xc1b7df, 0xd8d0f1] : [0x9a958c, 0xa39e94, 0x8f8a82, 0xaaa59a];
+    const base = square.kind === "lot" ? (square.gold ? 0xd6c24a : stones[Object.keys(tiles).length % 4]) : PLAIN[square.kind];
     const big = ["start", "jail", "chest", "fly", "dock", "cross"].includes(square.kind);
     const isle = islandMesh((big ? 1.36 : 1.08) * ISLE, 100 + Object.keys(tiles).length * 17, base);
     group.add(isle.group);
@@ -706,7 +751,7 @@ export function createBoardScene(
     shadow.position.set(x, FLOOR + 0.02, z);
     shadow.visible = island; // nothing below to cast on in space
     scene.add(shadow);
-    const glow = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: square.kind === "start" ? 0x6fe3ff : 0x9dffb0, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.5 }));
+    const glow = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: square.kind === "start" ? 0x6fe3ff : crystal ? 0xc9a6ff : 0x9dffb0, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.5 }));
     glow.scale.set(1.4 * ISLE, 0.9, 1);
     glow.position.set(x, TOP - 1.2, z);
     scene.add(glow);
@@ -863,7 +908,7 @@ export function createBoardScene(
     c.add(door);
     c.scale.setScalar(0.7);
     // The castle has its own floating island in the top notch.
-    const castleIsle = islandMesh(2.9, 903, 0x5aa83c);
+    const castleIsle = islandMesh(2.9, 903, 0x5aa83c, true);
     castleIsle.group.position.set(0, -0.2, castleZ);
     scene.add(castleIsle.group);
     breathers.push({ obj: castleIsle.group, base: -0.2, phase: 4, period: 6 });
@@ -915,7 +960,7 @@ export function createBoardScene(
       pile.add(coin);
     }
     pile.scale.setScalar(0.8);
-    const pileIsle = islandMesh(2, 904, 0x5aa83c);
+    const pileIsle = islandMesh(2, 904, 0x5aa83c, true);
     pileIsle.group.position.set(0, -0.15, D - 0.7);
     scene.add(pileIsle.group);
     breathers.push({ obj: pileIsle.group, base: -0.15, phase: 1, period: 4.6 });
