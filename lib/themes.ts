@@ -123,6 +123,9 @@ export const CANDY: Theme = {
     dir: "/art/city/candy",
     names: ["house", "icecream", "choc", "bakery", "castle"],
     space: true,
+    island: true,
+    islandDepth: 3.6,
+    islandCore: 0x3b2216,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {

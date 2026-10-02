@@ -345,7 +345,7 @@ export function createCityScene(
       // The picture's circle almost fills the square; pull in a hair so no black shows at the rim.
       floorTex.repeat.set(0.96, 0.96);
       floorTex.offset.set(0.02, 0.025);
-      const floor = new T.Mesh(new T.CircleGeometry(4.2, 72), new T.MeshStandardMaterial({ map: floorTex, roughness: 1 }));
+      const floor = new T.Mesh(new T.CircleGeometry(4.2, 72), new T.MeshStandardMaterial({ map: floorTex, roughness: 1, color: 0xc4c4c4 }));
       floor.rotation.x = -Math.PI / 2;
       floor.position.y = TOP;
       floor.receiveShadow = true;
