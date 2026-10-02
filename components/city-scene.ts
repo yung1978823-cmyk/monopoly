@@ -351,7 +351,7 @@ export function createCityScene(
       floor.receiveShadow = true;
       island.add(floor);
       // A thin lip so the floor has an edge.
-      const lip = new T.Mesh(new T.CylinderGeometry(4.2, 4.15, 0.14, 72, 1, true), new T.MeshBasicMaterial({ color: new T.Color(theme.art!.islandCore ?? 0x4a4266).multiplyScalar(2.2) }));
+      const lip = new T.Mesh(new T.CylinderGeometry(4.2, 4.15, 0.14, 72, 1, true), new T.MeshBasicMaterial({ color: new T.Color(theme.art!.islandCore ?? 0x4a4266).lerp(new T.Color(0xffffff), 0.4) }));
       lip.position.y = TOP - 0.07;
       island.add(lip);
       // The rock: the strip wraps round a cone, mirrored at every join so the seams match.
@@ -621,7 +621,7 @@ export function createCityScene(
   if (who.resident) {
     const m = buildMonster(T, who.resident.element, who.resident.stage, who.resident.legend);
     // On a painted island the stone takes the island's colour instead of plain white.
-    const standColour = theme.art?.island ? new T.Color(theme.art.islandCore ?? 0x4a4266).multiplyScalar(2.2).getHex() : 0xcfc6b5;
+    const standColour = theme.art?.island ? new T.Color(theme.art.islandCore ?? 0x4a4266).lerp(new T.Color(0xffffff), 0.4).getHex() : 0xcfc6b5;
     const stand = shadowy(new T.Mesh(new T.CylinderGeometry(0.75, 0.85, 0.16, 20), mat(standColour, 0.8)));
     stand.position.set(Math.sin(HOME_YAW) * 0.35, TOP + 0.08, Math.cos(HOME_YAW) * 0.35);
     island.add(stand);

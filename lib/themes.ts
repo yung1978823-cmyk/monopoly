@@ -153,6 +153,9 @@ export const ICE: Theme = {
     dir: "/art/city/ice",
     names: ["house", "penguin", "rink", "dragon", "castle"],
     space: true,
+    island: true,
+    islandDepth: 3.4,
+    islandCore: 0x2c4f7a,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {
