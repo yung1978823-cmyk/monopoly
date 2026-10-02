@@ -95,7 +95,7 @@ const POWER_INFO: Record<Power, { name: string; icon: string; what: string }> = 
 };
 
 /** Cards with a drawn picture; the newer ones show their emoji until they get one. */
-const CARD_ART = new Set<Power>(["boost", "lock", "wreck", "swap", "shield", "monster"]);
+const CARD_ART = new Set<Power>(["boost", "lock", "wreck", "swap", "shield", "monster", "levy", "double"]);
 function CardPic({ power, className }: { power: Power; className?: string }) {
   if (CARD_ART.has(power)) return <img src={`/art/cards/${power}.webp`} alt="" draggable={false} className={cn("object-contain", className)} />;
   return (
