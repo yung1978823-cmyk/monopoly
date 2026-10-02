@@ -603,7 +603,7 @@ export function createBoardScene(
   }
 
   // ---------- Tiles ----------
-  type Tile = { group: any; body: any; base: number; inward: any; house: any; yaw: number };
+  type Tile = { group: any; body: any; base: number; inward: any; house: any; yaw: number; pic?: any };
   const tiles: Record<string, Tile> = {};
   const floaters: { obj: any; base?: number; spin?: boolean; bat?: number }[] = [];
   /** Power cards hovering over their squares, by square. */
@@ -726,7 +726,10 @@ export function createBoardScene(
   }
 
   /** Painted tile pictures by square kind (public table). */
-  const TILE_ART: Record<string, string> = { chance: "/art/tiles/crystal/chance.webp", chest: "/art/tiles/crystal/chest.webp", start: "/art/tiles/crystal/start.webp" };
+  const TILE_ART: Record<string, string> = { chance: "/art/tiles/crystal/chance.webp", chest: "/art/tiles/crystal/chest.webp", start: "/art/tiles/crystal/start.webp",
+    tax: "/art/tiles/crystal/tax.webp", jail: "/art/tiles/crystal/jail.webp", fly: "/art/tiles/crystal/fly.webp", lot: "/art/tiles/crystal/lot.webp" };
+  /** The painted tile's own colour when nobody owns it; an owner tints it toward their colour. */
+  const PIC_WHITE = 0xeeeeee;
   const tilePics = new Map<string, any>();
   const tilePic = (url: string) => {
     if (!tilePics.has(url)) {
@@ -753,7 +756,7 @@ export function createBoardScene(
     const stones = crystal ? [0xc9c0e6, 0xd2c9ee, 0xc1b7df, 0xd8d0f1] : [0x9a958c, 0xa39e94, 0x8f8a82, 0xaaa59a];
     // Sky's painted tiles (2026-10-03): the picture lies on the square's top instead of the little 3D sign.
     const art = crystal ? TILE_ART[square.kind] : undefined;
-    const base = art ? 0x3d2c78 : square.kind === "lot" ? (square.gold ? 0xd6c24a : stones[Object.keys(tiles).length % 4]) : PLAIN[square.kind];
+    const base = art && square.kind !== "lot" ? 0x3d2c78 : square.kind === "lot" ? (square.gold ? 0xd6c24a : stones[Object.keys(tiles).length % 4]) : PLAIN[square.kind];
     const big = ["start", "jail", "chest", "fly", "dock", "cross"].includes(square.kind);
     const isle = islandMesh((big ? 1.36 : 1.08) * ISLE, 100 + Object.keys(tiles).length * 17, base);
     group.add(isle.group);
@@ -795,7 +798,7 @@ export function createBoardScene(
       const size = (big ? 1.36 : 1.08) * ISLE * 0.98;
       const pic = new T.Mesh(
         new T.PlaneGeometry(size, size),
-        new T.MeshStandardMaterial({ map: tilePic(art), color: 0xeeeeee, roughness: 0.9, transparent: true, alphaTest: 0.3, polygonOffset: true, polygonOffsetFactor: -2 }),
+        new T.MeshStandardMaterial({ map: tilePic(art), color: PIC_WHITE, roughness: 0.9, transparent: true, alphaTest: 0.3, polygonOffset: true, polygonOffsetFactor: -2 }),
       );
       pic.rotation.x = -Math.PI / 2;
       pic.receiveShadow = true;
@@ -810,6 +813,7 @@ export function createBoardScene(
       flat.position.y = TOP + 0.004;
       flat.add(pic);
       group.add(flat);
+      tile.pic = pic.material;
     } else {
       decorate(square.kind, holder, yaw);
     }
@@ -1725,8 +1729,11 @@ export function createBoardScene(
       g.scale.set(size, 0.01, size);
       tile.group.add(g);
       tile.house = g;
+      // A painted lot takes the owner's colour too (lighter, so the picture still shows).
+      const pic = tile.pic, picFrom = pic?.color.clone(), picTo = new T.Color(color).lerp(new T.Color(0xffffff), 0.25);
       await tween(700, (k) => {
         m.color.copy(from).lerp(to, Math.min(1, k * 1.5));
+        if (pic) pic.color.copy(picFrom).lerp(picTo, Math.min(1, k * 1.5));
         const s = k < 0.75 ? (k / 0.75) * 1.2 : 1.2 - ((k - 0.75) / 0.25) * 0.2;
         g.scale.set(size, Math.max(0.01, s * size), size);
       });
@@ -1737,6 +1744,7 @@ export function createBoardScene(
       if (tile.house) tile.group.remove(tile.house);
       tile.house = null;
       tile.body.material.color.setHex(tile.base);
+      tile.pic?.color.setHex(PIC_WHITE);
     },
     async coinsFly(fromSeat, toSeat, count) {
       const from = tokens[fromSeat].position.clone();
