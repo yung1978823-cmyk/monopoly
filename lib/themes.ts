@@ -149,6 +149,33 @@ export const ICE: Theme = {
     },
   },
 };
+/** 熔岩星 (Sky 2026-10-02): the fifth page, in 杜拜's place — volcanic stone, lava, fire and a phoenix statue in a
+ *  red-orange nebula. */
+export const LAVA: Theme = {
+  id: "lava",
+  name: "熔岩星",
+  style: "art",
+  ground: 0xe9ddd6,
+  rock: 0x4a3a3a,
+  wall: 0xf3e3dc,
+  roof: 0x3a2a2a,
+  trim: 0xd4a72c,
+  sky: "#c2361e",
+  art: {
+    dir: "/art/city/lava",
+    names: ["house", "forge", "phoenix", "spa", "temple"],
+    space: true,
+    boatAspect: 1,
+    gullAspect: 1,
+    sizes: {
+      house: [[113, 108], [161, 181], [198, 265], [266, 340], [300, 419]],
+      forge: [[109, 90], [164, 174], [212, 229], [274, 297], [300, 389]],
+      phoenix: [[105, 129], [113, 173], [141, 228], [213, 304], [300, 428]],
+      spa: [[96, 65], [124, 93], [208, 178], [212, 200], [300, 263]],
+      temple: [[108, 104], [160, 153], [187, 221], [262, 271], [300, 356]],
+    },
+  },
+};
 /** 希臘藍白海岸 (no longer in the list): the old first page, drawn from pictures (also shown on any page with the preview link ?city=greece). */
 export const GREECE: Theme = {
   id: "greece",
@@ -319,7 +346,7 @@ export const THEMES: readonly Theme[] = [
   MECH,
   CANDY,
   ICE,
-  DUBAI,
+  LAVA,
   VICTORIA,
 ];
 
