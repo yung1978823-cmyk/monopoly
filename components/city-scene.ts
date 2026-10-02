@@ -359,7 +359,7 @@ export function createCityScene(
       sideTex.wrapS = T.MirroredRepeatWrapping;
       sideTex.repeat.set(4, 1);
       const H = theme.art!.islandDepth ?? 3.8;
-      const rockMat = new T.MeshBasicMaterial({ map: sideTex, transparent: true, alphaTest: 0.4, side: T.DoubleSide });
+      const rockMat = new T.MeshBasicMaterial({ map: sideTex, transparent: true, alphaTest: 0.04, side: T.DoubleSide });
       const under = new T.Mesh(new T.CylinderGeometry(4.15, 3.3, H, 72, 1, true), rockMat);
       under.position.y = TOP - 0.14 - H / 2;
       island.add(under);

@@ -220,6 +220,9 @@ export const NEON: Theme = {
     dir: "/art/city/neon",
     names: ["house", "port", "rocket", "wheel", "elevator"],
     space: true,
+    island: true,
+    islandCore: 0x1a1f3a,
+    islandTrim: 0x3b4a7a,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {
