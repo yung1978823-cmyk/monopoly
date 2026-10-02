@@ -70,6 +70,32 @@ export const CRYSTAL: Theme = {
     },
   },
 };
+/** 機械星 (Sky 2026-10-02): the second page, in 威尼斯's place — brass, gears and steam in an orange-copper nebula. */
+export const MECH: Theme = {
+  id: "mech",
+  name: "機械星",
+  style: "art",
+  ground: 0xe8dccb,
+  rock: 0x6b5a4c,
+  wall: 0xf3e6d2,
+  roof: 0x23345e,
+  trim: 0xd48a2c,
+  sky: "#c2602a",
+  art: {
+    dir: "/art/city/mech",
+    names: ["house", "factory", "steam", "power", "clock"],
+    space: true,
+    boatAspect: 1,
+    gullAspect: 1,
+    sizes: {
+      house: [[132, 154], [222, 275], [244, 386], [288, 465], [298, 560]],
+      factory: [[104, 98], [174, 170], [229, 284], [262, 370], [300, 478]],
+      steam: [[101, 134], [156, 221], [201, 337], [239, 452], [269, 560]],
+      power: [[100, 115], [177, 183], [218, 246], [253, 382], [300, 546]],
+      clock: [[56, 139], [162, 191], [203, 282], [240, 383], [300, 523]],
+    },
+  },
+};
 /** 希臘藍白海岸 (no longer in the list): the old first page, drawn from pictures (also shown on any page with the preview link ?city=greece). */
 export const GREECE: Theme = {
   id: "greece",
@@ -237,7 +263,7 @@ export const THEMES: readonly Theme[] = [
   // Sky (2026-09-28): only the seaside pages — 工地小鎮, 清朝古鎮 and 沙漠綠洲 are gone. More follow.
   // Sky (2026-10-02): the pages move into outer space one by one, starting with 水晶星 in 希臘's place.
   CRYSTAL,
-  VENICE,
+  MECH,
   HAWAII,
   JIANGNAN,
   DUBAI,

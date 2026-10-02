@@ -413,11 +413,11 @@ export function createCityScene(
   if (theme.art) {
     const id = theme.id;
     const style = {
-      tree: id === "crystal" ? "crystal" : id === "hawaii" || id === "dubai" ? "palm" : id === "jiangnan" ? "willow" : "cypress",
-      planter: ({ crystal: 0xd9d2f2, greece: 0xf4f1ea, venice: 0xc0643a, hawaii: 0x8a5a33, jiangnan: 0x9aa0a6, dubai: 0xd9b98a } as Record<string, number>)[id] ?? 0xf4f1ea,
-      flower: ({ crystal: 0x9b7bff, greece: 0xe84a9a, venice: 0xd8342c, hawaii: 0xff5a5f, jiangnan: 0xf2a1c0, dubai: 0xf2c14e } as Record<string, number>)[id] ?? 0xe84a9a,
-      post: ({ crystal: 0xd4a72c, greece: 0x2f6fd0, venice: 0x2a2a2a, hawaii: 0x7a4a24, jiangnan: 0x6b3a22, dubai: 0xb8872e } as Record<string, number>)[id] ?? 0x2a2a2a,
-      light: id === "jiangnan" ? 0xe53935 : id === "hawaii" ? 0xff8a1a : id === "crystal" ? 0x9fd8ff : 0xffe08a,
+      tree: id === "crystal" ? "crystal" : id === "mech" ? "gear" : id === "hawaii" || id === "dubai" ? "palm" : id === "jiangnan" ? "willow" : "cypress",
+      planter: ({ mech: 0x8a6a4a, crystal: 0xd9d2f2, greece: 0xf4f1ea, venice: 0xc0643a, hawaii: 0x8a5a33, jiangnan: 0x9aa0a6, dubai: 0xd9b98a } as Record<string, number>)[id] ?? 0xf4f1ea,
+      flower: ({ mech: 0xffa53a, crystal: 0x9b7bff, greece: 0xe84a9a, venice: 0xd8342c, hawaii: 0xff5a5f, jiangnan: 0xf2a1c0, dubai: 0xf2c14e } as Record<string, number>)[id] ?? 0xe84a9a,
+      post: ({ mech: 0xb87333, crystal: 0xd4a72c, greece: 0x2f6fd0, venice: 0x2a2a2a, hawaii: 0x7a4a24, jiangnan: 0x6b3a22, dubai: 0xb8872e } as Record<string, number>)[id] ?? 0x2a2a2a,
+      light: id === "jiangnan" ? 0xe53935 : id === "hawaii" ? 0xff8a1a : id === "crystal" ? 0x9fd8ff : id === "mech" ? 0xffb347 : 0xffe08a,
     };
     // Paving stones over the island top.
     {
@@ -474,6 +474,26 @@ export function createCityScene(
           blob.position.set(dx, dy, dz);
           g.add(blob);
         }
+      } else if (style.tree === "gear") {
+        // 機械星: a brass gear standing on a little post, in place of a tree.
+        const post = shadowy(new T.Mesh(new T.CylinderGeometry(0.03, 0.04, 0.32, 6), mat(0x6b5a4c, 0.6, { metalness: 0.4 })));
+        post.position.y = 0.16;
+        g.add(post);
+        const gear = shadowy(new T.Mesh(new T.CylinderGeometry(0.2, 0.2, 0.05, 10), mat(0xd4a72c, 0.35, { metalness: 0.6 })));
+        gear.rotation.x = Math.PI / 2;
+        gear.position.y = 0.48;
+        g.add(gear);
+        for (let t2 = 0; t2 < 10; t2++) {
+          const tooth = shadowy(new T.Mesh(new T.BoxGeometry(0.07, 0.07, 0.05), mat(0xd4a72c, 0.35, { metalness: 0.6 })));
+          const a2 = (t2 / 10) * Math.PI * 2;
+          tooth.position.set(Math.cos(a2) * 0.22, 0.48 + Math.sin(a2) * 0.22, 0);
+          tooth.rotation.z = a2;
+          g.add(tooth);
+        }
+        const hub = new T.Mesh(new T.CylinderGeometry(0.06, 0.06, 0.07, 8), mat(0xb87333, 0.4, { metalness: 0.5 }));
+        hub.rotation.x = Math.PI / 2;
+        hub.position.y = 0.48;
+        g.add(hub);
       } else if (style.tree === "crystal") {
         // 水晶星: a little cluster of glowing crystals in place of a tree.
         for (const [dx, dz, h, tilt, c] of [[0, 0, 0.75, 0, 0x8fd3ff], [0.12, 0.05, 0.45, 0.35, 0xb79bff], [-0.1, 0.06, 0.4, -0.4, 0x9fe6ff], [0.02, -0.11, 0.32, 0.25, 0xc9b6ff]] as const) {
