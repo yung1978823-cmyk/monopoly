@@ -33,6 +33,8 @@ export type ThemeArt = {
   islandDepth?: number;
   /** Colour of the solid rock core seen between the hanging bits. */
   islandCore?: number;
+  /** Colour of the floor's edge and the dragon's stone in the middle. */
+  islandTrim?: number;
 };
 
 export type Theme = {
@@ -68,6 +70,7 @@ export const CRYSTAL: Theme = {
     space: true,
     island: true,
     islandCore: 0x4a4266,
+    islandTrim: 0xa99ad6,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {
@@ -97,6 +100,7 @@ export const MECH: Theme = {
     island: true,
     islandDepth: 3.6,
     islandCore: 0x3a2716,
+    islandTrim: 0x8a5a2b,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {
@@ -126,6 +130,7 @@ export const CANDY: Theme = {
     island: true,
     islandDepth: 3.6,
     islandCore: 0x3b2216,
+    islandTrim: 0xd9a46a,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {
@@ -156,6 +161,7 @@ export const ICE: Theme = {
     island: true,
     islandDepth: 3.4,
     islandCore: 0x2c4f7a,
+    islandTrim: 0xbfdcf2,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {
@@ -183,6 +189,10 @@ export const LAVA: Theme = {
     dir: "/art/city/lava",
     names: ["house", "forge", "phoenix", "spa", "temple"],
     space: true,
+    island: true,
+    islandDepth: 3.6,
+    islandCore: 0x2a1410,
+    islandTrim: 0x5a2e1c,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {
