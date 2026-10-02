@@ -96,6 +96,32 @@ export const MECH: Theme = {
     },
   },
 };
+/** 糖果星 (Sky 2026-10-02): the third page, in 夏威夷's place — sweets and cakes in a pink cotton-candy nebula. */
+export const CANDY: Theme = {
+  id: "candy",
+  name: "糖果星",
+  style: "art",
+  ground: 0xf6e3ea,
+  rock: 0x8a5a4a,
+  wall: 0xfff2f6,
+  roof: 0xe86aa0,
+  trim: 0xd4a72c,
+  sky: "#e07ab8",
+  art: {
+    dir: "/art/city/candy",
+    names: ["house", "icecream", "choc", "bakery", "castle"],
+    space: true,
+    boatAspect: 1,
+    gullAspect: 1,
+    sizes: {
+      house: [[132, 142], [203, 227], [219, 306], [257, 373], [300, 481]],
+      icecream: [[126, 165], [192, 234], [207, 310], [221, 426], [281, 560]],
+      choc: [[111, 111], [172, 198], [193, 256], [233, 337], [300, 522]],
+      bakery: [[150, 160], [206, 226], [226, 277], [259, 394], [300, 560]],
+      castle: [[119, 132], [176, 187], [207, 260], [251, 351], [300, 534]],
+    },
+  },
+};
 /** 希臘藍白海岸 (no longer in the list): the old first page, drawn from pictures (also shown on any page with the preview link ?city=greece). */
 export const GREECE: Theme = {
   id: "greece",
@@ -264,7 +290,7 @@ export const THEMES: readonly Theme[] = [
   // Sky (2026-10-02): the pages move into outer space one by one, starting with 水晶星 in 希臘's place.
   CRYSTAL,
   MECH,
-  HAWAII,
+  CANDY,
   JIANGNAN,
   DUBAI,
   VICTORIA,

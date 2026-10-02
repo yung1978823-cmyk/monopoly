@@ -413,11 +413,11 @@ export function createCityScene(
   if (theme.art) {
     const id = theme.id;
     const style = {
-      tree: id === "crystal" ? "crystal" : id === "mech" ? "gear" : id === "hawaii" || id === "dubai" ? "palm" : id === "jiangnan" ? "willow" : "cypress",
-      planter: ({ mech: 0x8a6a4a, crystal: 0xd9d2f2, greece: 0xf4f1ea, venice: 0xc0643a, hawaii: 0x8a5a33, jiangnan: 0x9aa0a6, dubai: 0xd9b98a } as Record<string, number>)[id] ?? 0xf4f1ea,
-      flower: ({ mech: 0xffa53a, crystal: 0x9b7bff, greece: 0xe84a9a, venice: 0xd8342c, hawaii: 0xff5a5f, jiangnan: 0xf2a1c0, dubai: 0xf2c14e } as Record<string, number>)[id] ?? 0xe84a9a,
-      post: ({ mech: 0xb87333, crystal: 0xd4a72c, greece: 0x2f6fd0, venice: 0x2a2a2a, hawaii: 0x7a4a24, jiangnan: 0x6b3a22, dubai: 0xb8872e } as Record<string, number>)[id] ?? 0x2a2a2a,
-      light: id === "jiangnan" ? 0xe53935 : id === "hawaii" ? 0xff8a1a : id === "crystal" ? 0x9fd8ff : id === "mech" ? 0xffb347 : 0xffe08a,
+      tree: id === "crystal" ? "crystal" : id === "mech" ? "gear" : id === "candy" ? "lollipop" : id === "hawaii" || id === "dubai" ? "palm" : id === "jiangnan" ? "willow" : "cypress",
+      planter: ({ candy: 0xf7c6d9, mech: 0x8a6a4a, crystal: 0xd9d2f2, greece: 0xf4f1ea, venice: 0xc0643a, hawaii: 0x8a5a33, jiangnan: 0x9aa0a6, dubai: 0xd9b98a } as Record<string, number>)[id] ?? 0xf4f1ea,
+      flower: ({ candy: 0xff5fa2, mech: 0xffa53a, crystal: 0x9b7bff, greece: 0xe84a9a, venice: 0xd8342c, hawaii: 0xff5a5f, jiangnan: 0xf2a1c0, dubai: 0xf2c14e } as Record<string, number>)[id] ?? 0xe84a9a,
+      post: ({ candy: 0xffffff, mech: 0xb87333, crystal: 0xd4a72c, greece: 0x2f6fd0, venice: 0x2a2a2a, hawaii: 0x7a4a24, jiangnan: 0x6b3a22, dubai: 0xb8872e } as Record<string, number>)[id] ?? 0x2a2a2a,
+      light: id === "jiangnan" ? 0xe53935 : id === "hawaii" ? 0xff8a1a : id === "crystal" ? 0x9fd8ff : id === "mech" ? 0xffb347 : id === "candy" ? 0xff9ad0 : 0xffe08a,
     };
     // Paving stones over the island top.
     {
@@ -474,6 +474,27 @@ export function createCityScene(
           blob.position.set(dx, dy, dz);
           g.add(blob);
         }
+      } else if (style.tree === "lollipop") {
+        // 糖果星: a big swirl lollipop on a striped stick, in place of a tree.
+        const stick = shadowy(new T.Mesh(new T.CylinderGeometry(0.025, 0.025, 0.55, 8), mat(0xffffff, 0.4)));
+        stick.position.y = 0.27;
+        g.add(stick);
+        const c = document.createElement("canvas");
+        c.width = c.height = 64;
+        const x2 = c.getContext("2d")!;
+        for (let k3 = 0; k3 < 12; k3++) {
+          x2.fillStyle = k3 % 2 ? "#ffffff" : ["#ff5fa2", "#b07cff", "#ff8a3d"][k3 % 3];
+          x2.beginPath();
+          x2.moveTo(32, 32);
+          x2.arc(32, 32, 32, (k3 / 12) * Math.PI * 2, ((k3 + 1.2) / 12) * Math.PI * 2 + k3 * 0.15);
+          x2.fill();
+        }
+        const tex2 = new T.CanvasTexture(c);
+        tex2.encoding = T.sRGBEncoding;
+        const candy = shadowy(new T.Mesh(new T.CylinderGeometry(0.2, 0.2, 0.06, 20), [mat(0xff5fa2, 0.3), new T.MeshStandardMaterial({ map: tex2, roughness: 0.3 }), new T.MeshStandardMaterial({ map: tex2, roughness: 0.3 })]));
+        candy.rotation.x = Math.PI / 2;
+        candy.position.y = 0.66;
+        g.add(candy);
       } else if (style.tree === "gear") {
         // 機械星: a brass gear standing on a little post, in place of a tree.
         const post = shadowy(new T.Mesh(new T.CylinderGeometry(0.03, 0.04, 0.32, 6), mat(0x6b5a4c, 0.6, { metalness: 0.4 })));
