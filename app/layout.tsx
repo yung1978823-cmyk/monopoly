@@ -40,6 +40,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=M+PLUS+Rounded+1c:wght@500;800&display=swap"
         />
         {children}
+        {/* Portrait only (Sky 2026-10-02): a phone turned sideways sees just this — a phone turning upright. */}
+        <div className="rotate-lock" aria-hidden="true">
+          <span className="rotate-lock-phone" />
+        </div>
         <RegisterServiceWorker />
       </body>
     </html>

@@ -4,7 +4,7 @@
  * Used for your own town (tap a plot to build) and a rival's town (tap a building to strike).
  * Drag left and right to turn the island; the tilt and distance stay fixed.
  */
-import { createBackdrop, createSea } from "@/components/backdrop";
+import { createBackdrop, createSea, createSpace } from "@/components/backdrop";
 import { ACTORS, loadGltfLoader } from "@/components/eight-scene";
 import { buildMonster, type Monster } from "@/components/monster";
 import { themeOf, type Theme } from "@/lib/themes";
@@ -412,11 +412,11 @@ export function createCityScene(
   if (theme.art) {
     const id = theme.id;
     const style = {
-      tree: id === "hawaii" || id === "dubai" ? "palm" : id === "jiangnan" ? "willow" : "cypress",
-      planter: ({ greece: 0xf4f1ea, venice: 0xc0643a, hawaii: 0x8a5a33, jiangnan: 0x9aa0a6, dubai: 0xd9b98a } as Record<string, number>)[id] ?? 0xf4f1ea,
-      flower: ({ greece: 0xe84a9a, venice: 0xd8342c, hawaii: 0xff5a5f, jiangnan: 0xf2a1c0, dubai: 0xf2c14e } as Record<string, number>)[id] ?? 0xe84a9a,
-      post: ({ greece: 0x2f6fd0, venice: 0x2a2a2a, hawaii: 0x7a4a24, jiangnan: 0x6b3a22, dubai: 0xb8872e } as Record<string, number>)[id] ?? 0x2a2a2a,
-      light: id === "jiangnan" ? 0xe53935 : id === "hawaii" ? 0xff8a1a : 0xffe08a,
+      tree: id === "crystal" ? "crystal" : id === "hawaii" || id === "dubai" ? "palm" : id === "jiangnan" ? "willow" : "cypress",
+      planter: ({ crystal: 0xd9d2f2, greece: 0xf4f1ea, venice: 0xc0643a, hawaii: 0x8a5a33, jiangnan: 0x9aa0a6, dubai: 0xd9b98a } as Record<string, number>)[id] ?? 0xf4f1ea,
+      flower: ({ crystal: 0x9b7bff, greece: 0xe84a9a, venice: 0xd8342c, hawaii: 0xff5a5f, jiangnan: 0xf2a1c0, dubai: 0xf2c14e } as Record<string, number>)[id] ?? 0xe84a9a,
+      post: ({ crystal: 0xd4a72c, greece: 0x2f6fd0, venice: 0x2a2a2a, hawaii: 0x7a4a24, jiangnan: 0x6b3a22, dubai: 0xb8872e } as Record<string, number>)[id] ?? 0x2a2a2a,
+      light: id === "jiangnan" ? 0xe53935 : id === "hawaii" ? 0xff8a1a : id === "crystal" ? 0x9fd8ff : 0xffe08a,
     };
     // Paving stones over the island top.
     {
@@ -472,6 +472,15 @@ export function createCityScene(
           blob.scale.y = 1.25;
           blob.position.set(dx, dy, dz);
           g.add(blob);
+        }
+      } else if (style.tree === "crystal") {
+        // 水晶星: a little cluster of glowing crystals in place of a tree.
+        for (const [dx, dz, h, tilt, c] of [[0, 0, 0.75, 0, 0x8fd3ff], [0.12, 0.05, 0.45, 0.35, 0xb79bff], [-0.1, 0.06, 0.4, -0.4, 0x9fe6ff], [0.02, -0.11, 0.32, 0.25, 0xc9b6ff]] as const) {
+          const gem = shadowy(new T.Mesh(new T.OctahedronGeometry(0.12, 0), mat(c, 0.15, { emissive: c, emissiveIntensity: 0.35, metalness: 0.1 })));
+          gem.scale.set(0.8, h / 0.24, 0.8);
+          gem.position.set(dx, h / 2, dz);
+          gem.rotation.z = tilt;
+          g.add(gem);
         }
       } else {
         const trunk = shadowy(new T.Mesh(new T.CylinderGeometry(0.03, 0.04, 0.15, 6), flat(0x6b4a2b)));
@@ -600,7 +609,15 @@ export function createCityScene(
   floorShadow.position.y = -7;
   // The busy world far below (the old dark floor's shadow and glow are hidden).
   floorShadow.visible = false;
-  const backdrop = theme.art
+  const backdrop = theme.art?.space
+    ? createSpace(T, scene, camera, {
+        reduceMotion,
+        picture: { url: `${theme.art.dir}/space.webp`, w: 941, h: 1672, planet: { url: "", x: 0, y: 0, px: 1, depth: 1 } },
+        extras: true,
+        meteor: true,
+        far: 200,
+      })
+    : theme.art
     ? createSea(T, scene, camera, {
         url: `${theme.art.dir}/sea.webp`,
         w: 941,

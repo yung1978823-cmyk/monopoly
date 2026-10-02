@@ -315,7 +315,7 @@ describe("daily board", () => {
     assert.deepEqual(state.levels, [0, 0, 0, 0, 0]);
     assert.equal(state.dice, 8, "5 dice for finishing");
     assert.equal(state.points, 100000 - 50 + 20);
-    assert.match(state.log[0]?.text ?? "", /完成咗「希臘藍白海岸」/);
+    assert.match(state.log[0]?.text ?? "", /完成咗「水晶星」/);
     assert.equal(upgradeCost(state, 0), 8, "the second page costs 1.5× (5 → 8)");
     assert.equal(defencePower(state), 20, "the finished page still counts for defence: 10 + 10");
     // The last page, once full, stays full and can't be raided.

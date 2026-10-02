@@ -24,6 +24,8 @@ export type ThemeArt = {
   gullAspect: number;
   /** How wide the boat is, as a share of the sea picture's width. */
   boatSize?: number;
+  /** Outer space instead of the sea (Sky 2026-10-02): `space.webp` behind the island, meteors and comets, no boat or gulls. */
+  space?: boolean;
 };
 
 export type Theme = {
@@ -41,7 +43,34 @@ export type Theme = {
   art?: ThemeArt;
 };
 
-/** 希臘藍白海岸: the second page, drawn from pictures (also shown on any page with the preview link ?city=greece). */
+/** 水晶星 (Sky 2026-10-02): the first page, now in outer space like the rest of the game — crystal buildings
+ *  on a floating island in a blue-violet nebula. Replaces 希臘 in the same place, so saves keep their levels. */
+export const CRYSTAL: Theme = {
+  id: "crystal",
+  name: "水晶星",
+  style: "art",
+  ground: 0xe4def4,
+  rock: 0x7f78a6,
+  wall: 0xf4f1ff,
+  roof: 0x5b4bc4,
+  trim: 0xd4a72c,
+  sky: "#3b2f9f",
+  art: {
+    dir: "/art/city/crystal",
+    names: ["house", "mine", "observatory", "tower", "palace"],
+    space: true,
+    boatAspect: 1,
+    gullAspect: 1,
+    sizes: {
+      house: [[93, 122], [136, 168], [173, 230], [245, 292], [300, 381]],
+      mine: [[140, 117], [186, 179], [214, 242], [281, 289], [300, 450]],
+      observatory: [[94, 98], [130, 154], [179, 268], [242, 360], [300, 474]],
+      tower: [[98, 173], [132, 270], [171, 379], [189, 460], [255, 560]],
+      palace: [[143, 180], [194, 235], [218, 346], [259, 425], [300, 515]],
+    },
+  },
+};
+/** 希臘藍白海岸 (no longer in the list): the old first page, drawn from pictures (also shown on any page with the preview link ?city=greece). */
 export const GREECE: Theme = {
   id: "greece",
   name: "希臘藍白海岸",
@@ -206,7 +235,8 @@ export const VICTORIA: Theme = {
 
 export const THEMES: readonly Theme[] = [
   // Sky (2026-09-28): only the seaside pages — 工地小鎮, 清朝古鎮 and 沙漠綠洲 are gone. More follow.
-  GREECE,
+  // Sky (2026-10-02): the pages move into outer space one by one, starting with 水晶星 in 希臘's place.
+  CRYSTAL,
   VENICE,
   HAWAII,
   JIANGNAN,

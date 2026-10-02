@@ -22,6 +22,7 @@ const DICT: Record<string, { hans: string; en: string }> = {
   阿強: { hans: "阿强", en: "Keung" },
   清朝古鎮: { hans: "清朝古镇", en: "Qing Town" },
   希臘藍白海岸: { hans: "希腊蓝白海岸", en: "Greek Blue Coast" },
+  水晶星: { hans: "水晶星", en: "Crystal Planet" },
   威尼斯水城: { hans: "威尼斯水城", en: "Venice Water City" },
   夏威夷海灘: { hans: "夏威夷海滩", en: "Hawaii Beach" },
   杜拜海灣: { hans: "迪拜海湾", en: "Dubai Bay" },
