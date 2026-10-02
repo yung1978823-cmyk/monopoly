@@ -504,20 +504,68 @@ export function createCityScene(
     }
   }
   // 冰牙守護獸 (Sky 2026-10-02, Meshy "Frostfang Guardian"): an ice wolf trotting round every page on four legs,
-  // about as big as the characters. The model has no skeleton, so the trot is a bounce, a rock and a sway.
-  const wolf = { g: new T.Group(), a: 1.9, speed: -0.11, r: 3.35, model: null as any };
+  // about as big as the characters. The model ships without a skeleton, so four leg bones are added here
+  // (hips found from the mesh: legs hang below y -0.1, front legs ahead of z 0.1) and swung in a trot.
+  const wolf = { g: new T.Group(), a: 1.9, speed: -0.11, r: 3.35, model: null as any, legs: [] as any[] };
   if (theme.art) {
     island.add(wolf.g);
     loadGltfLoader(T)
       .then((Loader) => new Promise<any>((resolve, reject) => new Loader().load("/models/frostfang.glb", resolve, undefined, reject)))
       .then((gltf) => {
         const model = gltf.scene;
+        const meshes: any[] = [];
         model.traverse((o: any) => {
-          if (!o.isMesh) return;
-          o.castShadow = true;
-          o.frustumCulled = false;
-          o.material.metalness = 0;
+          if (o.isMesh && !o.isSkinnedMesh) meshes.push(o);
         });
+        for (const mesh of meshes) {
+          const geo = mesh.geometry;
+          const pos = geo.attributes.position;
+          const n = pos.count;
+          const idx = new Uint16Array(n * 4);
+          const wt = new Float32Array(n * 4);
+          for (let i = 0; i < n; i++) {
+            const x = pos.getX(i);
+            const y = pos.getY(i);
+            const z = pos.getZ(i);
+            // 0 = body; legs 1..4 = front-left, front-right, back-left, back-right.
+            const leg = (z > 0.1 ? 1 : 3) + (x > 0 ? 0 : 1);
+            const w = z < -0.26 ? 0 : Math.max(0, Math.min(1, (-0.1 - y) / 0.08));
+            idx[i * 4] = leg;
+            idx[i * 4 + 1] = 0;
+            wt[i * 4] = w;
+            wt[i * 4 + 1] = 1 - w;
+          }
+          geo.setAttribute("skinIndex", new T.Uint16BufferAttribute(idx, 4));
+          geo.setAttribute("skinWeight", new T.Float32BufferAttribute(wt, 4));
+          const root = new T.Bone();
+          const hips: [number, number][] = [
+            [0.1, 0.22],
+            [-0.1, 0.22],
+            [0.1, -0.15],
+            [-0.1, -0.15],
+          ];
+          const legs = hips.map(([hx, hz]) => {
+            const b = new T.Bone();
+            b.position.set(hx, -0.1, hz);
+            root.add(b);
+            return b;
+          });
+          const mat = mesh.material;
+          mat.skinning = true;
+          mat.metalness = 0;
+          mat.needsUpdate = true;
+          const skinned = new T.SkinnedMesh(geo, mat);
+          skinned.position.copy(mesh.position);
+          skinned.quaternion.copy(mesh.quaternion);
+          skinned.scale.copy(mesh.scale);
+          skinned.castShadow = true;
+          skinned.frustumCulled = false;
+          skinned.add(root);
+          skinned.bind(new T.Skeleton([root, ...legs]));
+          mesh.parent.add(skinned);
+          mesh.parent.remove(mesh);
+          if (!wolf.legs.length) wolf.legs = legs;
+        }
         // 0.74 tall in the file, feet at -0.37: stand it on the ground, about 0.95 tall.
         const k = 1.28;
         model.scale.setScalar(k);
@@ -1239,11 +1287,18 @@ export function createCityScene(
     }
     if (wolf.model) {
       if (!reduceMotion) wolf.a += wolf.speed * dt;
-      const step = now / 115;
-      wolf.g.position.set(Math.cos(wolf.a) * wolf.r, TOP + Math.abs(Math.sin(step)) * 0.07, Math.sin(wolf.a) * wolf.r);
+      // A trot: diagonal pairs swing together (front-left with back-right), the body only dips a touch.
+      const step = reduceMotion ? 0 : now / 220;
+      const swing = Math.sin(step) * 0.32;
+      const [fl, fr, bl, br] = wolf.legs;
+      if (fl) {
+        fl.rotation.x = swing;
+        br.rotation.x = swing;
+        fr.rotation.x = -swing;
+        bl.rotation.x = -swing;
+      }
+      wolf.g.position.set(Math.cos(wolf.a) * wolf.r, TOP - Math.abs(Math.cos(step)) * 0.015, Math.sin(wolf.a) * wolf.r);
       wolf.g.rotation.y = -wolf.a + (wolf.speed > 0 ? 0 : Math.PI);
-      wolf.model.rotation.x = Math.sin(step * 2) * 0.06;
-      wolf.model.rotation.z = Math.sin(step) * 0.05;
     }
     for (const w of walkers) {
       if (w.job) {
