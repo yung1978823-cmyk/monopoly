@@ -4,7 +4,7 @@ export const BOARD_SIDE = 8;
 
 /**
  * What a square does when you stop on it. Every kind is shown as a picture on the board:
- * 🏁 start, 🪙 coins, 🍖 meat (monster food), 🎁 chest, 🎲 lucky die, 🔨 attack, 🦝 steal, 🚔 jail, 🕳️ black hole.
+ * 🏁 start, 🪙 能量 (energy), 🍖 meat (monster food), 🎁 chest, 🎲 lucky die, 🔨 attack, 🦝 steal, 🚔 jail, 🕳️ black hole.
  */
 export type TileKind = "start" | "coin" | "meat" | "chest" | "lucky" | "attack" | "steal" | "jail" | "hole";
 
@@ -18,14 +18,14 @@ export type Tile = {
 export const LANDMARK_NAMES = ["一號樓", "二號樓", "三號樓", "四號樓", "五號樓"] as const;
 
 /**
- * The 28 squares (2026-09-27): start 1, coins 9, 🍖 meat 5, chests 3, lucky dice 2, 攻擊 4 (one per
+ * The 28 squares (2026-09-27): start 1, 能量 9, 🍖 meat 5, chests 3, lucky dice 2, 攻擊 4 (one per
  * side), 🦝 偷嘢 2 (steal 💎 水晶 from a rival's store), jail 1, black hole 1.
  */
 export const ATTACK_SQUARES = [3, 10, 17, 24] as const;
 export const STEAL_SQUARES = [6, 20] as const;
 export const MEAT_SQUARES = [2, 11, 15, 18, 26] as const;
 export const JAIL_SQUARE = 7;
-/** The black hole (replaced the tax office): it sucks away a tenth of your coins. */
+/** The black hole (replaced the tax office): it sucks away a tenth of your 能量. */
 export const HOLE_SQUARE = 21;
 export const CHEST_SQUARES = [4, 12, 25] as const;
 export const LUCKY_SQUARES = [9, 23] as const;
@@ -33,7 +33,7 @@ export const LUCKY_SQUARES = [9, 23] as const;
 /** Each square's name, its emoji stand-in, and its drawn picture once one exists. */
 export const TILE_INFO: Record<TileKind, { name: string; icon: string; art?: string }> = {
   start: { name: "起點", icon: "🏁", art: "/art/tiles/start.png" },
-  coin: { name: "金幣", icon: "🪙", art: "/art/tiles/coin.png" },
+  coin: { name: "能量格", icon: "🪙", art: "/art/tiles/coin.png" },
   meat: { name: "肉", icon: "🍖" },
   chest: { name: "寶箱", icon: "🎁", art: "/art/tiles/chest.png" },
   lucky: { name: "幸運骰", icon: "🎲", art: "/art/tiles/lucky.png" },

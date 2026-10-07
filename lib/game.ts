@@ -1,12 +1,12 @@
 import { LANDMARK_NAMES, TILES, TILE_INFO, type TileKind } from "./board";
 import { CHARACTERS } from "./characters";
+import { coinEnergy, formatEnergy } from "./energy";
 import { THEMES } from "./themes";
 import { ELEMENTS, HATCH_ROLLS, TYPE_EDGE, typeEdge, TOP_STAGE, daysBetween, eatForDay, growNeed, petAttack, petName, STAGE_NAMES, type Pet } from "./pet";
 import {
   CHEST_DEFAULT,
   CHEST_MAX,
   CHEST_MIN,
-  DAILY_DST_CAP,
   DICE_CAP,
   HIT_BASE,
   HIT_MAX,
@@ -45,7 +45,7 @@ export type Phase = "walk" | "search" | "steal";
 
 /**
  * One of the nine crates in a rival's store on 偷嘢 (Sky 2026-10-01): you open three. Mostly 💎 水晶 or 🍖,
- * a rarer bag of coins or a die, now and then the 大寶箱 jackpot — and three dangers: the 老鼠夾 ends the raid
+ * a rarer bag of 能量 or a die, now and then the 大寶箱 jackpot — and three dangers: the 老鼠夾 ends the raid
  * (you keep what you took), the 炸彈 ends it and blows up everything taken so far, the 鬧鐘 costs a pick.
  */
 export type StealKind = "juice" | "meat" | "coins" | "dice" | "jackpot" | "trap" | "bomb" | "alarm";
@@ -54,7 +54,7 @@ export const STEAL_CRATES = 9;
 /** Crates that hurt instead of paying. */
 export const STEAL_DANGERS: StealKind[] = ["trap", "bomb", "alarm"];
 export const STEAL_PICKS = 3;
-/** The 大寶箱 jackpot: this many coins and 💎 at once. */
+/** The 大寶箱 jackpot: this much money (×100 能量 on screen) and 💎 at once. */
 export const JACKPOT = { coins: 20, juice: 3 } as const;
 /** 🍖 each meat square gives. */
 export const MEAT_PER_SQUARE = 2;
@@ -67,6 +67,7 @@ export type WeaponReadout = {
   chance: number;
   enemyLuck: number;
   hit: boolean;
+  /** Legacy: DST was taken on a hit before 能量 replaced it. Always 0 now. */
   dst: number;
   pointsGained: number;
   shieldBreak: boolean;
@@ -124,7 +125,7 @@ export type GameState = {
   rivalHasNft: boolean;
   /** How many NFTs the current rival has placed (0 without an NFT). */
   rivalNfts: number;
-  /** DST this player has taken today. Capped at 5 per day. */
+  /** Legacy: DST taken today, from before 能量 replaced DST. Always 0 now. */
   dstTakenToday: number;
   rollCount: number;
   /** Fights settled so far; the first one gets a pointing hand. */
@@ -193,7 +194,7 @@ export function nftCount(state: Pick<GameState, "nfts">): number {
   return state.nfts.filter((id) => id !== null).length;
 }
 
-/** Placing any NFT counts as holding one: that unlocks DST and the shield. */
+/** Placing any NFT counts as holding one: that unlocks the legendary dragon and adds attack. */
 export function holdsNft(state: Pick<GameState, "nfts">): boolean {
   return nftCount(state) > 0;
 }
@@ -359,7 +360,7 @@ function readBoxes(value: unknown): StealBox[] {
   return ok ? value.map((box) => ({ kind: box.kind, amount: box.amount })) : fallback;
 }
 
-const STEAL_NAMES: Record<StealKind, string> = { juice: "💎 水晶", meat: "🍖 肉", coins: "金幣", dice: "骰仔", jackpot: "大寶箱", trap: "老鼠夾", bomb: "炸彈", alarm: "鬧鐘" };
+const STEAL_NAMES: Record<StealKind, string> = { juice: "💎 水晶", meat: "🍖 肉", coins: "能量", dice: "骰仔", jackpot: "大寶箱", trap: "老鼠夾", bomb: "炸彈", alarm: "鬧鐘" };
 
 /** Picks still to come on 偷嘢: three, less one for each crate opened and one more for each 鬧鐘. */
 export function stealPicksLeft(state: Pick<GameState, "stealBoxes" | "stealOpened">): number {
@@ -414,7 +415,7 @@ function inRange(value: unknown, min: number, max: number): value is number {
 function readWeapon(value: unknown): WeaponReadout | null {
   if (!value || typeof value !== "object") return null;
   const readout = value as Partial<WeaponReadout>;
-  const { weapon, attackTotal, defenseTotal, enemyLuck, hit, dst, pointsGained, shieldBreak } = readout;
+  const { weapon, attackTotal, defenseTotal, enemyLuck, hit, pointsGained, shieldBreak } = readout;
   const chance = inRange(readout.chance, HIT_MIN, HIT_MAX) ? readout.chance : HIT_BASE;
   const smashed = inRange(readout.smashed, 0, BUILDINGS - 1) ? readout.smashed : null;
   const top = 10 + THEMES.length * THEME_ATTACK + BUILDINGS * MAX_LEVEL * LEVEL_ATTACK + NFT_SLOTS * NFT_ATTACK;
@@ -424,14 +425,13 @@ function readWeapon(value: unknown): WeaponReadout | null {
     !inRange(defenseTotal, 10, top) ||
     !inRange(enemyLuck, 2, 12) ||
     typeof hit !== "boolean" ||
-    !inRange(dst, 0, DAILY_DST_CAP) ||
     !inRange(pointsGained, 0, 6) ||
     typeof shieldBreak !== "boolean"
   ) {
     return null;
   }
   const edge = readout.edge === 1 || readout.edge === -1 ? readout.edge : 0;
-  return { weapon, attackTotal, defenseTotal, chance, enemyLuck, hit, dst, pointsGained, shieldBreak, smashed, edge };
+  return { weapon, attackTotal, defenseTotal, chance, enemyLuck, hit, dst: 0, pointsGained, shieldBreak, smashed, edge };
 }
 
 export function sanitizeState(
@@ -484,8 +484,8 @@ export function sanitizeState(
     nfts: readNfts(value.nfts),
     rivalHasNft: value.rivalHasNft !== false,
     rivalNfts: value.rivalHasNft === false ? 0 : clampInt(value.rivalNfts, 1, NFT_SLOTS, 1),
-    // Saves from before the rename kept this under rivalStolenToday.
-    dstTakenToday: clampInt(value.dstTakenToday ?? value.rivalStolenToday, 0, DAILY_DST_CAP, 0),
+    // DST is gone (能量 only); old saves' counts are dropped.
+    dstTakenToday: 0,
     rollCount: clampInt(value.rollCount, 0, 1_000_000, 0),
     strikes: clampInt(value.strikes, 0, 1_000_000, 0),
     log,
@@ -573,7 +573,7 @@ function rollDay(state: GameState, now: number, dayKey: string): GameState {
   next = pushLog(
     { ...next, dayKey, dstTakenToday: 0 },
     "rule",
-    "新的一天。今日搬走的 DST 從 0 再算，一日最多 5。",
+    "新的一天。",
   );
   // The monster eats once for each day gone by (at most a week's worth).
   if (!next.pet) return next;
@@ -627,8 +627,8 @@ export function reduce(state: GameState, action: Action): GameState {
         },
         "rule",
         action.value
-          ? "對手有 NFT，開打時有一面盾。你也有 NFT 時，打中才搬 DST，一日最多 5。"
-          : "對手沒有 NFT，冇盾。這一戰只計分數，DST 0。",
+          ? "對手有 NFT，開打時有一面盾。"
+          : "對手沒有 NFT，冇盾。",
       );
     }
     case "move": {
@@ -716,7 +716,7 @@ export function reduce(state: GameState, action: Action): GameState {
       const walked = pushLog(
         next,
         "you",
-        `你花 1 顆，擲出 ${faces[0]} 和 ${faces[1]}。走 ${steps} 格。${passed}走到${TILE_INFO[tile.kind].icon}${tile.name}。分數 ${change >= 0 ? "+" : ""}${change}，合計 ${next.points}。${effect}`,
+        `你花 1 顆，擲出 ${faces[0]} 和 ${faces[1]}。走 ${steps} 格。${passed}走到${TILE_INFO[tile.kind].icon}${tile.name}。能量 ${change >= 0 ? "+" : "−"}${formatEnergy(Math.abs(coinEnergy(change)))}，合計 ${formatEnergy(coinEnergy(next.points))}。${effect}`,
       );
       return hatched && nextPet ? pushLog(walked, "rule", `龍蛋孵化咗！係一隻${ELEMENTS[nextPet.element].beast}。`) : walked;
     }
@@ -737,17 +737,13 @@ export function reduce(state: GameState, action: Action): GameState {
       const chance = Math.max(HIT_MIN, Math.min(HIT_MAX, hitChance(attackTotal, defenseTotal) + edge * TYPE_EDGE));
       const roll = typeof action.roll === "number" && action.roll >= 0 && action.roll < 1 ? action.roll : 0.5;
       const hit = roll * 100 < chance;
-      const bothNft = holdsNft(state) && state.rivalHasNft;
-      let pointsGained = 0;
-      let dst = 0;
-      let smashed: number | null = null;
+        let pointsGained = 0;
+        let smashed: number | null = null;
       const shieldBreak = hit && state.enemyShield;
       if (hit) {
         const smash = smashPoints(attackTotal, defenseTotal);
-        // Breaking a shield adds 1 point; DST only follows the smash itself.
+        // Breaking a shield adds 1 more.
         pointsGained = smash + (shieldBreak ? 1 : 0);
-        const room = Math.max(0, DAILY_DST_CAP - state.dstTakenToday);
-        dst = bothNft ? Math.min(smash, room) : 0;
         if (standing.length > 0) smashed = target;
       }
       const enemyShield = state.enemyShield && !hit;
@@ -763,21 +759,19 @@ export function reduce(state: GameState, action: Action): GameState {
         chance,
         enemyLuck: state.enemyLuck,
         hit,
-        dst,
+        dst: 0,
         pointsGained,
         shieldBreak,
         smashed,
         edge,
       };
       const verdict = shieldBreak ? "盾破，打中" : hit ? "打中" : "打唔中";
-      const pay = dst > 0 ? `搬走 ${dst} DST。` : "DST 0。";
-      const smashText = smashed === null ? "" : `打低咗${CHARACTERS[state.rivalFace].name}嘅${LANDMARK_NAMES[smashed]}一級。`;
+        const smashText = smashed === null ? "" : `打低咗${CHARACTERS[state.rivalFace].name}嘅${LANDMARK_NAMES[smashed]}一級。`;
       const nextPoints = state.points + pointsGained;
       return pushLog(
         {
           ...state,
           points: nextPoints,
-          dstTakenToday: state.dstTakenToday + dst,
           strikes: state.strikes + 1,
           rivalLevels,
           enemyShield,
@@ -785,7 +779,7 @@ export function reduce(state: GameState, action: Action): GameState {
           weaponReadout,
         },
         "you",
-        `總攻擊 ${attackTotal}，總防守 ${defenseTotal}，${edge > 0 ? "屬性克制，" : edge < 0 ? "屬性被克，" : ""}機會 ${chance}%。${verdict}。${smashText}得 ${pointsGained} 分，合計 ${nextPoints}。${pay}`,
+        `總攻擊 ${attackTotal}，總防守 ${defenseTotal}，${edge > 0 ? "屬性克制，" : edge < 0 ? "屬性被克，" : ""}機會 ${chance}%。${verdict}。${smashText}得 ${formatEnergy(coinEnergy(pointsGained))} 能量，合計 ${formatEnergy(coinEnergy(nextPoints))}。`,
       );
     }
     case "return-walk": {
@@ -819,7 +813,7 @@ export function reduce(state: GameState, action: Action): GameState {
       const three = opened.length === STEAL_PICKS ? opened.map((i) => state.stealBoxes![i]) : null;
       const triple = !!three && three.every((b) => b.kind === three[0].kind && !STEAL_DANGERS.includes(b.kind));
       if (triple) for (const b of three!) next = { ...next, ...gain(next, b, 1) };
-      const what = STEAL_NAMES[box.kind];
+      const what = box.kind === "coins" ? `${formatEnergy(coinEnergy(box.amount))} 能量` : STEAL_NAMES[box.kind];
       const text =
         box.kind === "trap"
           ? "中咗老鼠夾！今次偷嘢完。"
@@ -854,7 +848,7 @@ export function reduce(state: GameState, action: Action): GameState {
       const logged = pushLog(
         next,
         "you",
-        `你花 ${cost} 金幣，${repairing ? "修返" : "升咗"}${LANDMARK_NAMES[building]}，而家第 ${levels[building]} 級。金幣剩 ${next.points}。`,
+        `你花 ${formatEnergy(coinEnergy(cost))} 能量，${repairing ? "修返" : "升咗"}${LANDMARK_NAMES[building]}，而家第 ${levels[building]} 級。能量剩 ${formatEnergy(coinEnergy(next.points))}。`,
       );
       if (!pageDone(levels)) return logged;
       // Page finished: it is locked for good, a reward is paid, and the next theme opens (empty).
@@ -869,7 +863,7 @@ export function reduce(state: GameState, action: Action): GameState {
       return pushLog(
         rewarded,
         "rule",
-        `完成咗「${THEMES[state.theme].name}」！送 ${coins} 金幣同 ${THEME_REWARD_DICE} 粒骰。${last ? "所有主題都完成咗。" : `下一頁：「${THEMES[state.theme + 1].name}」。`}`,
+        `完成咗「${THEMES[state.theme].name}」！送 ${formatEnergy(coinEnergy(coins))} 能量同 ${THEME_REWARD_DICE} 粒骰。${last ? "所有主題都完成咗。" : `下一頁：「${THEMES[state.theme + 1].name}」。`}`,
       );
     }
     case "raided": {

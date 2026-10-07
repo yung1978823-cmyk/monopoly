@@ -3,6 +3,7 @@
 import { createBoardScene, loadThree, type BoardScene, type Decor } from "@/components/eight-scene";
 import { CAST, EightBoard } from "@/components/table-game";
 import { loadWallet, saveWallet } from "@/components/wallet-store";
+import { ENERGY_ICON, formatEnergy, tableEnergy } from "@/lib/energy";
 import { useLang } from "@/lib/i18n";
 import {
   BUILDING_KINDS,
@@ -207,9 +208,9 @@ export function RealmScreen({ onExit }: { onExit: () => void }) {
 function WalletBar({ wallet }: { wallet: Wallet }) {
   const { t } = useLang();
   return (
-    <div className="flex items-center justify-center gap-2 rounded-full bg-white/90 px-3 py-1 text-sm font-black tabular-nums" aria-label={t("我嘅錢同材料")} data-testid="wallet">
+    <div className="flex items-center justify-center gap-2 rounded-full bg-white/90 px-3 py-1 text-sm font-black tabular-nums" aria-label={t("我嘅能量同材料")} data-testid="wallet">
       <span>
-        <img src="/art/ui/coin.webp" alt="" className="inline size-4 align-[-3px]" /> {wallet.points}
+        <img src={ENERGY_ICON} alt={t("能量")} className="inline size-4 align-[-3px]" /> {formatEnergy(tableEnergy(wallet.points))}
       </span>
       {MATERIALS.map((m) => (
         <span key={m}>
@@ -257,7 +258,7 @@ function EmptyLand({ wallet, onBuy }: { wallet: Wallet; onBuy: (land: LandKind) 
                 <>
                   <span>{t("買地")}</span>
                   <span className="text-xs">
-                    <img src="/art/ui/coin.webp" alt="" className="inline size-4 align-[-3px]" /> {info.price}
+                    <img src={ENERGY_ICON} alt="" className="inline size-4 align-[-3px]" /> {formatEnergy(tableEnergy(info.price))}
                   </span>
                 </>
               ) : (
@@ -280,7 +281,7 @@ function RealmList({ realm, wallet, onJoin, onMine }: { realm: Realm; wallet: Wa
       <span className="flex flex-1 flex-col">
         <span className="font-black">{t("{owner} 嘅{land}", { owner: t(owner), land: land.land ? t(LAND_NAMES[land.land]) : "" })}</span>
         <span className="text-xs font-bold text-[#3B5BA9]">
-          {land.ticket === 0 ? t("免費入場") : t("門票 {n}", { n: land.ticket })} · {t("最少 {n} 人開局", { n: land.minPlayers })}
+          {land.ticket === 0 ? t("免費入場") : t("門票 {n}", { n: formatEnergy(tableEnergy(land.ticket)) })} · {t("最少 {n} 人開局", { n: land.minPlayers })}
         </span>
         <span className="text-sm">{land.slots.map((kind, i) => (kind ? <span key={i}>{pic(ICONS[kind], "size-6")}</span> : null))}</span>
       </span>
@@ -314,7 +315,7 @@ function RealmList({ realm, wallet, onJoin, onMine }: { realm: Realm; wallet: Wa
           >
             <span>{t("入場")}</span>
             <span className="text-xs">
-              <img src="/art/ui/coin.webp" alt="" className="inline size-4 align-[-3px]" /> {listing.realm.ticket}
+              <img src={ENERGY_ICON} alt="" className="inline size-4 align-[-3px]" /> {formatEnergy(tableEnergy(listing.realm.ticket))}
             </span>
           </button>,
         ),
@@ -378,7 +379,7 @@ function RealmEditor({
     ({
       facade: t("只改外觀：金色屋頂"),
       table: t("同時多開一張枱"),
-      rent: t("客人踩中要交租俾你（{n}）", { n: HOUSE_RENT }),
+      rent: t("客人踩中要交租俾你（{n} 能量）", { n: formatEnergy(tableEnergy(HOUSE_RENT)) }),
       station: t("每人少 {n} 轉，打得快啲", { n: STATION_TURNS }),
       chance: t("揀用邊套機會卡"),
     })[kind];
@@ -530,13 +531,13 @@ function RealmEditor({
                       onChange({ wallet: buyMaterial(wallet, m) });
                     }}
                     className="flex cursor-pointer flex-col items-center rounded-2xl border-2 border-[#FBD000] bg-[#FFF8D6] py-2 font-black disabled:opacity-50"
-                    aria-label={t("買一件{m}，{n} 分", { m: t(MATERIAL_NAMES[m]), n: MATERIAL_PRICE[m] })}
+                    aria-label={t("買一件{m}，{n} 能量", { m: t(MATERIAL_NAMES[m]), n: formatEnergy(tableEnergy(MATERIAL_PRICE[m])) })}
                     data-testid={`shop-${m}`}
                   >
                     {pic(MATERIAL_ICONS[m], "size-14")}
                     <span className="text-sm">{t(MATERIAL_NAMES[m])}</span>
                     <span className="text-xs text-[#B45309]">
-                      <img src="/art/ui/coin.webp" alt="" className="inline size-4 align-[-3px]" /> {MATERIAL_PRICE[m]}
+                      <img src={ENERGY_ICON} alt="" className="inline size-4 align-[-3px]" /> {formatEnergy(tableEnergy(MATERIAL_PRICE[m]))}
                     </span>
                   </button>
                 ))}
@@ -553,7 +554,8 @@ function RealmEditor({
                 <Stepper
                   label={t("門票")}
                   value={realm.ticket}
-                  note={realm.ticket === 0 ? t("0 = 免費場") : t("最多 {n}", { n: MAX_TICKET })}
+                  shown={formatEnergy(tableEnergy(realm.ticket))}
+                  note={realm.ticket === 0 ? t("0 = 免費場") : t("最多 {n}", { n: formatEnergy(tableEnergy(MAX_TICKET)) })}
                   onDown={() => onChange({ realm: setTicket(realm, realm.ticket - 1) })}
                   onUp={() => onChange({ realm: setTicket(realm, realm.ticket + 1) })}
                   testid="ticket"
@@ -640,6 +642,7 @@ function RealmEditor({
 function Stepper({
   label,
   value,
+  shown,
   note,
   onDown,
   onUp,
@@ -647,6 +650,8 @@ function Stepper({
 }: {
   label: string;
   value: number;
+  /** What to show instead of the raw value (e.g. the ticket as 能量). */
+  shown?: string;
   note: string;
   onDown: () => void;
   onUp: () => void;
@@ -660,8 +665,8 @@ function Stepper({
         <button type="button" onClick={onDown} className="size-8 cursor-pointer rounded-full border-2 border-[#FBD000] bg-white text-lg leading-none" aria-label={t("{x}減一", { x: label })}>
           −
         </button>
-        <span className="w-7 text-xl tabular-nums" data-testid={testid}>
-          {value}
+        <span className={cn("min-w-7 tabular-nums", (shown ?? String(value)).length > 4 ? "text-base" : "text-xl")} data-testid={testid}>
+          {shown ?? value}
         </span>
         <button type="button" onClick={onUp} className="size-8 cursor-pointer rounded-full border-2 border-[#FBD000] bg-white text-lg leading-none" aria-label={t("{x}加一", { x: label })}>
           +

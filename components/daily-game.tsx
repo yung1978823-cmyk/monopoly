@@ -37,7 +37,8 @@ import {
   type StealBox,
   SAVE_PAGES,
 } from "@/lib/game";
-import { BUILDINGS, DAILY_DST_CAP, DICE_CAP, MAX_LEVEL, REFILL_MS, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
+import { ENERGY_ICON, coinEnergy, formatEnergy } from "@/lib/energy";
+import { BUILDINGS, DICE_CAP, MAX_LEVEL, REFILL_MS, dayKeyOf, formatClock, msUntilNextDie, rollDie } from "@/lib/rules";
 import { cn } from "cn";
 import { useLang } from "@/lib/i18n";
 import { isMuted, play, setMuted, type Sound } from "@/lib/sfx";
@@ -571,9 +572,9 @@ export function DailyGame() {
             <p className="mt-2 flex items-center gap-3 rounded-2xl bg-white/95 px-4 py-1.5 text-3xl font-black tabular-nums text-[#1E3A8A] shadow-xl">
               {state.landing.points ? (
                 <span className={cn("flex items-center gap-1", state.landing.points < 0 && "text-[#E52521]")}>
-                  <img src={TILE_INFO.coin.art} alt={t("金幣")} className="size-8" />
+                  <img src={ENERGY_ICON} alt={t("能量")} className="size-8" />
                   {state.landing.points > 0 ? "+" : "−"}
-                  {Math.abs(state.landing.points)}
+                  {formatEnergy(coinEnergy(Math.abs(state.landing.points)))}
                 </span>
               ) : null}
               {state.landing.dice ? <span>+{state.landing.dice}🎲</span> : null}
@@ -587,13 +588,13 @@ export function DailyGame() {
       {storyOpen ? <StoryVideo onDone={() => setStoryOpen(false)} /> : null}
       {/* First time: point at the GO stone in the middle. */}
       {state.rollCount === 0 && !pending ? <TipHand className="left-1/2 top-[42%] z-20 -translate-x-1/2" /> : null}
-      {/* Top bar: dice and points only; everything else lives behind the menu. */}
+      {/* Top bar: dice and 能量 only; everything else lives behind the menu. */}
       <header className="relative z-30 flex items-start justify-between gap-2 px-3 pb-2 pt-[max(env(safe-area-inset-top),0.75rem)]">
-        {/* Left: coins on top, dice under them, the clock to the next free die under that (Sky 2026-09-30). */}
+        {/* Left: 能量 on top, dice under them, the clock to the next free die under that (Sky 2026-09-30). */}
         <div className="flex shrink-0 flex-col items-start gap-2">
           <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-white py-0.5 pl-2 pr-3 text-base font-black tabular-nums text-[#1E3A8A] shadow-md" data-testid="hud-points">
-            <img src="/art/ui/coin.webp" alt={t("金幣")} draggable={false} className="-my-2 -ml-3 size-9 object-contain drop-shadow" />
-            <span key={state.points} className="inline-block animate-[bump_0.35s_ease-out]">{state.points}</span>
+            <img src={ENERGY_ICON} alt={t("能量")} draggable={false} className="-my-2 -ml-3 size-9 object-contain drop-shadow" />
+            <span key={state.points} className="inline-block animate-[bump_0.35s_ease-out]">{formatEnergy(coinEnergy(state.points))}</span>
           </div>
           <div className="relative">
             <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-[#1E3A8A] py-0.5 pl-2 pr-3 text-base font-black tabular-nums text-white shadow-md" data-testid="dice-count">
@@ -798,11 +799,6 @@ export function DailyGame() {
               <span key={power} className="rounded-full bg-[#EAF4FF] px-3 py-1 tabular-nums animate-[bump_0.35s_ease-out]" data-testid="attack-power">
                 ⚔️ {power}
               </span>
-              {holdsNft(state) ? (
-                <span className="rounded-full bg-[#E8F7E8] px-3 py-1 text-[#2E8B3E]" data-testid="dst-today">
-                  DST {state.dstTakenToday}／{DAILY_DST_CAP}
-                </span>
-              ) : null}
             </div>
             <NftSlots
               nfts={state.nfts}

@@ -1,5 +1,5 @@
 /**
- * Practice wallet on this device: points and materials for 第三層. When the real wallet arrives,
+ * Practice wallet on this device: 能量 (shown ×10,000; internal units) and materials for 第三層. When the real wallet arrives,
  * these two functions are the only place that has to change.
  */
 import { WALLET_KEY, newWallet, parseWallet, type Wallet } from "@/lib/realm";

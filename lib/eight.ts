@@ -6,7 +6,7 @@
  * Play is kept simple so the show carries it: land on an empty lot and you buy it, land on your
  * own and it goes up a level, land on someone else's and you pay rent.
  *
- * Each player pays 20 DST to sit down; the house keeps 2 and 18 is the stake. The game ends when
+ * Each player pays 20 (200,000 能量 on screen) to sit down; the house keeps 2 and 18 is the stake. The game ends when
  * one player is left or everyone has had 12 turns; the richest (cash + land + levels) wins.
  *
  * The reducer is pure: dice, cards, where a plane flies and every choice arrive in actions.
@@ -26,7 +26,7 @@ export const CROSS_PAY = 1;
 export const TAX = 2;
 // 2026-09-27: building up is cheaper (was 2) so more lots grow into bigger buildings.
 export const UPGRADE_PRICE = 1;
-/** Sky (2026-10-03): buying a lot (its first building) costs 1 DST too. */
+/** Sky (2026-10-03): buying a lot (its first building) costs 1 (10,000 能量) too. */
 export const LOT_PRICE = 1;
 /** Buying or building only happens if at least this much cash is left afterwards (keeps players out of easy bankruptcy). */
 export const BUY_RESERVE = 2;
@@ -35,7 +35,7 @@ export const MAX_LEVEL = 4;
 // 2026-09-27: every die walks on its own now (two stops a turn), so rent starts at 0.2, not 1.
 export const RENTS = [0, 0.2, 0.5, 1, 1.5] as const;
 
-/** Money is kept to one decimal place (0.2, 0.5 …), without floating-point crumbs. */
+/** Money is kept to one decimal place (0.2, 0.5 …), without floating-point crumbs. The screen shows it ×10,000 as 能量. */
 const money = (value: number) => Math.round(value * 10) / 10;
 
 /** Season points by finishing place, by table size. */
@@ -175,10 +175,10 @@ export type Card =
   | { kind: "jail"; text: string };
 
 export const CARDS: readonly Card[] = [
-  { kind: "money", amount: 2, text: "路邊執到錢 +2" },
-  { kind: "money", amount: 1, text: "中小獎 +1" },
-  { kind: "money", amount: -1, text: "跌咗錢 −1" },
-  { kind: "money", amount: -2, text: "整屋頂 −2" },
+  { kind: "money", amount: 2, text: "路邊執到能量 +20,000" },
+  { kind: "money", amount: 1, text: "中小獎 +10,000" },
+  { kind: "money", amount: -1, text: "跌咗能量 −10,000" },
+  { kind: "money", amount: -2, text: "整屋頂 −20,000" },
   { kind: "forward", steps: 3, text: "向前行三格" },
   { kind: "jail", text: "俾人捉咗，入獄" },
 ];

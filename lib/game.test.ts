@@ -71,7 +71,7 @@ describe("daily board", () => {
     assert.ok(loaded);
     assert.deepEqual(loaded.levels, [3, 1, 0, 0, 0], "an old three-building town gets two empty plots");
     assert.deepEqual(loaded.best, [3, 2, 0, 0, 0]);
-    assert.equal(loaded.dstTakenToday, 3);
+    assert.equal(loaded.dstTakenToday, 0, "DST is gone: the old count is dropped");
     assert.equal(parseSave(JSON.stringify({ v: 1, state: { ...old, levels: [6, 0, 0] } }), NOW, DAY), null);
   });
 
@@ -237,12 +237,12 @@ describe("daily board", () => {
     assert.equal(scored.weaponReadout?.chance, 26);
     assert.equal(scored.weaponReadout?.shieldBreak, true);
     assert.equal(scored.weaponReadout?.pointsGained, 5, "1 for the shield and 4 for smashing a stronger rival");
-    assert.equal(scored.weaponReadout?.dst, 4);
-    assert.equal(scored.dstTakenToday, 4);
+    assert.equal(scored.weaponReadout?.dst, 0, "no DST any more");
+    assert.equal(scored.dstTakenToday, 0);
     assert.equal(scored.enemyShield, false);
     assert.equal(scored.weaponReadout?.smashed, 0);
     assert.equal(scored.rivalLevels[0], 2, "knocked from level 3 to 2");
-    assert.match(scored.log[0]?.text ?? "", /搬走 4 DST/);
+    assert.match(scored.log[0]?.text ?? "", /得 500 能量，合計 500/);
     assert.equal(reduce(scored, { type: "weapon", target: 0 }), scored);
     assert.equal(parseSave(JSON.stringify({ v: 1, state: scored }), NOW, DAY)?.weaponReadout?.chance, 26);
 
@@ -250,8 +250,6 @@ describe("daily board", () => {
     assert.equal(noPlayer.weaponReadout?.dst, 0);
     const noRival = reduce({ ...state, rivalHasNft: false, rivalNfts: 0, enemyShield: false }, { type: "weapon", target: 0, roll: 0 });
     assert.equal(noRival.weaponReadout?.dst, 0);
-    const capped = reduce({ ...state, dstTakenToday: 4 }, { type: "weapon", target: 0, roll: 0 });
-    assert.equal(capped.weaponReadout?.dst, 1);
   });
 
   it("gives 50% when evenly matched, ±4% a point, and never below 15% or above 85%", () => {

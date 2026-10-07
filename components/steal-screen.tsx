@@ -2,6 +2,7 @@
 
 import { juiceAt } from "@/components/juice";
 import { CHARACTERS } from "@/lib/characters";
+import { ENERGY_ICON, coinEnergy, formatEnergy } from "@/lib/energy";
 import { JACKPOT, STEAL_DANGERS, STEAL_PICKS, stealDone, stealPicksLeft, type GameState, type StealBox, type StealKind } from "@/lib/game";
 import { useLang } from "@/lib/i18n";
 import { play } from "@/lib/sfx";
@@ -13,14 +14,14 @@ import { useEffect, useState } from "react";
 const PIC: Partial<Record<StealKind, string>> = {
   juice: "/art/ui/crystal.webp",
   meat: "/art/icons/meat.webp",
-  coins: "/art/ui/coin.webp",
+  coins: ENERGY_ICON,
   dice: "/art/ui/dice.webp",
   jackpot: "/art/icons/chest.webp",
   trap: "/art/ui/trap.webp",
   bomb: "/art/ui/bomb.webp",
   alarm: "/art/ui/alarm.webp",
 };
-const SYMBOL: Record<StealKind, string> = { juice: "💎", meat: "🍖", coins: "🪙", dice: "🎲", jackpot: "🎁", trap: "🪤", bomb: "💣", alarm: "⏰" };
+const SYMBOL: Record<StealKind, string> = { juice: "💎", meat: "🍖", coins: "⚡", dice: "🎲", jackpot: "🎁", trap: "🪤", bomb: "💣", alarm: "⏰" };
 /** How long after the raid ends before heading back to the board by itself. */
 const BACK_MS = 3200;
 
@@ -36,13 +37,13 @@ function Loot({ box, big = false }: { box: StealBox; big?: boolean }) {
 
 function amountOf(box: StealBox): string {
   if (STEAL_DANGERS.includes(box.kind)) return "";
-  if (box.kind === "jackpot") return `+${JACKPOT.coins}🪙 +${JACKPOT.juice}💎`;
-  return `+${box.amount}`;
+  if (box.kind === "jackpot") return `+${formatEnergy(coinEnergy(JACKPOT.coins))}⚡ +${JACKPOT.juice}💎`;
+  return `+${formatEnergy(box.kind === "coins" ? coinEnergy(box.amount) : box.amount)}`;
 }
 
 /**
  * 🦝 偷嘢 (Sky 2026-10-01): a rival's store at night with six crates on the shelves. Open three: mostly 💎 水晶 and
- * 🍖, a rarer bag of coins or a die, sometimes the 大寶箱 jackpot — and one 老鼠夾 that ends the raid at once.
+ * 🍖, a rarer bag of 能量 or a die, sometimes the 大寶箱 jackpot — and one 老鼠夾 that ends the raid at once.
  * Three of a kind pays double. When it's over the rest open up so you can see what you missed.
  */
 export function StealScreen({ state, onPick, onReturn }: { state: GameState; onPick: (index: number) => void; onReturn: () => void }) {

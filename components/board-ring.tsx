@@ -1,4 +1,5 @@
 import { BOARD_ART, BOARD_CENTRE, FX_ART, TILES, TILE_INFO, TILE_POSITIONS, type TileKind } from "@/lib/board";
+import { ENERGY_ICON, coinEnergy, formatEnergy } from "@/lib/energy";
 import { useLang } from "@/lib/i18n";
 import { cn } from "cn";
 import type { CSSProperties, ReactNode } from "react";
@@ -149,8 +150,8 @@ export function BoardRing({
               {burst.money !== 0 ? (
                 <>
                   {burst.money > 0 ? "+" : "−"}
-                  {Math.abs(burst.money)}
-                  <img src={TILE_INFO.coin.art} alt={t("金幣")} className="size-[1.1em]" />
+                  {formatEnergy(coinEnergy(Math.abs(burst.money)))}
+                  <img src={ENERGY_ICON} alt={t("能量")} className="size-[1.1em]" />
                 </>
               ) : null}
               {burst.dice > 0 ? <>+{burst.dice}🎲</> : null}

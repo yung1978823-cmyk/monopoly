@@ -1,7 +1,8 @@
 "use client";
 
 import { TipHand } from "@/components/tip-hand";
-import { LANDMARK_NAMES, TILE_INFO } from "@/lib/board";
+import { LANDMARK_NAMES } from "@/lib/board";
+import { ENERGY_ICON, coinEnergy, formatEnergy } from "@/lib/energy";
 import { CityView } from "@/components/city-view";
 import { CHARACTERS } from "@/lib/characters";
 import { previewTheme, themeOf, THEMES } from "@/lib/themes";
@@ -178,11 +179,10 @@ export function AttackScreen({
           {status}
         </p>
         {readout ? (
-          <p className="flex items-center justify-center gap-2 text-sm font-bold text-[#1E3A8A]" data-testid="dst-pay">
+          <p className="flex items-center justify-center gap-2 text-sm font-bold text-[#1E3A8A]" data-testid="energy-pay">
             <span className="flex items-center gap-1">
-              <img src={TILE_INFO.coin.art} alt={t("金幣")} className="size-5" />+{readout.pointsGained}
+              <img src={ENERGY_ICON} alt={t("能量")} className="size-5" />+{formatEnergy(coinEnergy(readout.pointsGained))}
             </span>
-            {readout.dst > 0 ? <span>· {t("搬走 {n} DST", { n: readout.dst })}</span> : null}
           </p>
         ) : null}
         {state.fightSettled ? (

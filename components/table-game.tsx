@@ -2,7 +2,7 @@
 
 import { juice } from "@/components/juice";
 import { ACTORS, createBoardScene, loadThree, type BoardScene, type Decor } from "@/components/eight-scene";
-import { TILE_INFO } from "@/lib/board";
+import { ENERGY_ICON, compactEnergy, formatEnergy, tableEnergy } from "@/lib/energy";
 import { CHARACTERS, savePick, savedPick } from "@/lib/characters";
 import {
   BUY_RESERVE,
@@ -140,12 +140,15 @@ function Confetti() {
   );
 }
 
-function Coin({ className }: { className?: string }) {
-  return <img src={TILE_INFO.coin.art} alt="" className={cn("inline-block size-[1.1em] align-[-0.15em]", className)} />;
+/** A table amount (one decimal) as 能量 with separators: 18 → "180,000". */
+const E = (n: number) => formatEnergy(tableEnergy(n));
+
+function Energy({ className }: { className?: string }) {
+  return <img src={ENERGY_ICON} alt="" className={cn("inline-block size-[1.1em] align-[-0.15em]", className)} />;
 }
 
 function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onExit: () => void }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [opponents, setOpponents] = useState(3);
   const [pick, setPick] = useState(0);
   useEffect(() => setPick(savedPick()), []);
@@ -174,25 +177,25 @@ function Lobby({ onStart, onExit }: { onStart: (players: Player[]) => void; onEx
         <span className="size-11" />
       </header>
 
-      {/* Entry: 20 in, the house keeps 2 as the ticket, 18 goes on the table. No card round it (Sky 2026-10-01): straight on the picture. */}
+      {/* Entry (shown as 能量): 20 in, the house keeps 2 as the ticket, 18 goes on the table. No card round it (Sky 2026-10-01): straight on the picture. */}
       <section className="w-full px-2 text-white [text-shadow:0_2px_4px_rgba(30,20,80,0.9)]" data-testid="entry">
         <div className="flex items-center justify-between text-center font-black">
           <div className="flex flex-col items-center">
             <span className="text-xs text-white/85">{t("入場")}</span>
-            <span className="text-3xl tabular-nums">{ENTRY_FEE}</span>
+            <span className="flex items-center gap-1 text-3xl tabular-nums"><Energy />{compactEnergy(tableEnergy(ENTRY_FEE), lang)}</span>
           </div>
           <span className="text-xl text-white/70">→</span>
           <div className="flex flex-col items-center">
             <span className="text-xs text-white/85">{t("門票")}</span>
-            <span className="text-3xl tabular-nums text-[#FF9AA8]">−{HOUSE_CUT}</span>
+            <span className="text-3xl tabular-nums text-[#FF9AA8]">{compactEnergy(-tableEnergy(HOUSE_CUT), lang)}</span>
           </div>
           <span className="text-xl text-white/70">→</span>
           <div className="flex flex-col items-center">
             <span className="text-xs text-white/85">{t("落場")}</span>
-            <span className="text-4xl tabular-nums text-[#FFE066]">{STAKE}</span>
+            <span className="text-4xl tabular-nums text-[#FFE066]">{compactEnergy(tableEnergy(STAKE), lang)}</span>
           </div>
         </div>
-        <p className="mt-1 text-center text-xs font-bold text-white/85">{t("練習局：用分數代替 DST，打完清零")}</p>
+        <p className="mt-1 text-center text-xs font-bold text-white/85">{t("練習局：用練習能量，打完清零")}</p>
       </section>
 
       {/* Your character: first come, first served; the computer players get the rest. */}
@@ -336,7 +339,7 @@ export function EightBoard({
   const [view, setView] = useState<View>("near");
   const [picking, setPicking] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const tRef = useRef(t);
   tRef.current = t;
   const viewRef = useRef<View>("near");
@@ -401,7 +404,7 @@ export function EightBoard({
             await scene.wait(700);
             break;
           case "freed":
-            say("{name} 付 {n} 保釋出獄", { name: who(event.seat), n: BAIL });
+            say("{name} 付 {n} 保釋出獄", { name: who(event.seat), n: E(BAIL) });
             await scene.wait(800);
             break;
           case "step":
@@ -409,7 +412,7 @@ export function EightBoard({
             play("step");
             if (event.passedStart) {
               play("coin");
-              say("經過起點 +{n}", { n: START_PAY });
+              say("經過起點 +{n}", { n: E(START_PAY) });
               void scene.coinsBurst(event.seat, 2);
               void scene.rainbow(event.seat);
             }
@@ -424,7 +427,7 @@ export function EightBoard({
             break;
           }
           case "saved":
-            say("{name} 要留返 {n}，今次唔買", { name: who(event.seat), n: BUY_RESERVE });
+            say("{name} 要留返 {n}，今次唔買", { name: who(event.seat), n: E(BUY_RESERVE) });
             await scene.wait(500);
             break;
           case "fork":
@@ -432,7 +435,7 @@ export function EightBoard({
             break;
           case "bought":
             play("coin");
-            say("{name} 買地起樓 −{n}", { name: who(event.seat), n: event.price });
+            say("{name} 買地起樓 −{n}", { name: who(event.seat), n: E(event.price) });
             juice(state.seats[event.seat]?.bot ? "small" : "medium", undefined, window.innerHeight * 0.45);
             special(event.seat, "builds");
             await Promise.all([scene.own(event.key, event.seat, 1), scene.pulse(event.seat)]);
@@ -450,24 +453,24 @@ export function EightBoard({
             break;
           case "rent":
             play("bad");
-            say("{name} 交租 {n} 俾 {owner}", { name: who(event.seat), n: event.amount, owner: who(event.to) });
+            say("{name} 交租 {n} 俾 {owner}", { name: who(event.seat), n: E(event.amount), owner: who(event.to) });
             special(event.seat, "pays");
-            void scene.floatText(event.seat, `−${event.amount}`);
+            void scene.floatText(event.seat, `−${E(event.amount)}`);
             await scene.coinsFly(event.seat, event.to, event.amount);
-            void scene.floatText(event.to, `+${event.amount}`, "#16A34A");
+            void scene.floatText(event.to, `+${E(event.amount)}`, "#16A34A");
             special(event.to, "paid");
             break;
           case "bonus":
             play(event.reason === "chest" ? "chest" : "coin");
-            say(event.reason === "chest" ? "{name} 開寶箱 +{n}" : "{name} 十字路口 +{n}", { name: who(event.seat), n: event.amount });
+            say(event.reason === "chest" ? "{name} 開寶箱 +{n}" : "{name} 十字路口 +{n}", { name: who(event.seat), n: E(event.amount) });
             if (event.reason === "chest") scene.cheer(event.seat);
             await Promise.all([scene.coinsBurst(event.seat, event.amount), event.reason === "chest" ? scene.sparkle(event.seat) : null]);
             break;
           case "tax":
             play("bad");
-            say("{name} 交稅 −{n}", { name: who(event.seat), n: event.amount });
+            say("{name} 交稅 −{n}", { name: who(event.seat), n: E(event.amount) });
             special(event.seat, "pays");
-            void scene.floatText(event.seat, `−${event.amount}`);
+            void scene.floatText(event.seat, `−${E(event.amount)}`);
             await scene.coinsFly(event.seat, null, event.amount);
             break;
           case "card": {
@@ -491,7 +494,7 @@ export function EightBoard({
             break;
           case "house":
             play("coin");
-            say("{name} 交租 {n} 俾主人", { name: who(event.seat), n: event.amount });
+            say("{name} 交租 {n} 俾主人", { name: who(event.seat), n: E(event.amount) });
             special(event.seat, "pays");
             await scene.coinsFly(event.seat, null, event.amount);
             break;
@@ -543,10 +546,10 @@ export function EightBoard({
               let total = 0;
               for (const [other, amount] of payers) {
                 total += amount;
-                void scene.floatText(Number(other), `−${amount}`);
+                void scene.floatText(Number(other), `−${E(amount)}`);
               }
               await Promise.all(payers.map(([other, amount]) => scene.coinsFly(Number(other), event.seat, amount)));
-              if (total > 0) void scene.floatText(event.seat, `+${Math.round(total * 10) / 10}`, "#16A34A");
+              if (total > 0) void scene.floatText(event.seat, `+${E(total)}`, "#16A34A");
               scene.cheer(event.seat);
             } else if (event.power === "double") {
               play("lucky");
@@ -570,8 +573,8 @@ export function EightBoard({
               await scene.sparkle(event.target);
             } else {
               if (event.stolen > 0) {
-                void scene.floatText(event.target, `−${event.stolen}`);
-                void scene.floatText(event.seat, `+${event.stolen}`, "#16A34A");
+                void scene.floatText(event.target, `−${E(event.stolen)}`);
+                void scene.floatText(event.seat, `+${E(event.stolen)}`, "#16A34A");
               }
               special(event.seat, "builds");
               scene.cheer(event.seat);
@@ -794,8 +797,8 @@ export function EightBoard({
               <Face seat={seat} className="size-9 border-[3px] text-lg" />
               <span className="text-[11px] font-black leading-tight">{t(seat.name)}</span>
               <span key={seat.cash} className="flex items-center gap-0.5 text-sm font-black tabular-nums animate-[bump_0.35s_ease-out]">
-                <Coin />
-                {seat.cash}
+                <Energy />
+                {compactEnergy(tableEnergy(seat.cash), lang)}
               </span>
               {/* How much land and how many building levels they hold. */}
               <span className="text-[10px] font-black leading-tight text-[#3B5BA9] tabular-nums" data-testid={`holdings-${index}`}>
@@ -1021,8 +1024,8 @@ export function EightBoard({
                     <Face seat={player} className="size-10 border-[3px] text-xl" />
                     <span className="flex-1 font-black">{t(player.name)}</span>
                     <span className="flex items-center gap-0.5 font-black tabular-nums">
-                      <Coin />
-                      {netWorth(table, seat)}
+                      <Energy />
+                      {E(netWorth(table, seat))}
                     </span>
                     {realm ? null : (
                       <span className="rounded-full bg-[#1E3A8A] px-2 text-xs font-black text-white">
@@ -1035,7 +1038,7 @@ export function EightBoard({
             </ol>
             {realm ? <HostReport realm={realm} guests={table.seats.length} houseRent={table.hostIncome} /> : null}
             {guestTicket !== undefined ? (
-              <p className="mt-3 text-center text-sm font-black text-[#4C1D95]">{t("你入場付咗門票 {n}", { n: guestTicket })}</p>
+              <p className="mt-3 text-center text-sm font-black text-[#4C1D95]">{t("你入場付咗門票 {n} 能量", { n: E(guestTicket) })}</p>
             ) : null}
             {reward ? (
               <p className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-[#FFF8D6] p-2 text-sm font-black" data-testid="table-reward">
@@ -1085,12 +1088,12 @@ function HostReport({ realm, guests, houseRent }: { realm: Realm; guests: number
   return (
     <section className="mt-3 space-y-1 rounded-2xl bg-[#F3EEFF] p-3 text-sm font-black text-[#4C1D95]" data-testid="host-report">
       <h3 className="text-center text-base">{t("🏰 主人收入")}</h3>
-      {realm.ticket === 0 ? <p className="text-center text-xs">{t("免費場：分數局，冇門票")}</p> : null}
-      {row(t("門票 {n} × {g} 位客", { n: realm.ticket, g: guests }), `+${report.tickets}`)}
-      {row(t("地稅 {n}%", { n: LAND_TAX * 100 }), `−${report.tax}`)}
-      {row(t("租金屋收租"), `+${report.houseRent}`)}
-      {row(t("呢一局淨收"), `${report.net}`, true)}
-      {report.tables > 1 ? row(t("{n} 張枱坐滿，每輪大約", { n: report.tables }), `${report.perRound}`) : null}
+      {realm.ticket === 0 ? <p className="text-center text-xs">{t("免費場：冇門票")}</p> : null}
+      {row(t("門票 {n} × {g} 位客", { n: E(realm.ticket), g: guests }), `+${E(report.tickets)}`)}
+      {row(t("地稅 {n}%", { n: LAND_TAX * 100 }), `−${E(report.tax)}`)}
+      {row(t("租金屋收租"), `+${E(report.houseRent)}`)}
+      {row(t("呢一局淨收"), `${E(report.net)}`, true)}
+      {report.tables > 1 ? row(t("{n} 張枱坐滿，每輪大約", { n: report.tables }), `${E(report.perRound)}`) : null}
     </section>
   );
 }

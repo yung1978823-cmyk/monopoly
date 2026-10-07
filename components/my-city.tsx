@@ -6,6 +6,7 @@ import { LevelPips } from "@/components/building";
 import { TipHand } from "@/components/tip-hand";
 import { LANDMARK_NAMES } from "@/lib/board";
 import { canUpgrade, holdsNft, isRepair, pageDone, upgradeCost, type GameState } from "@/lib/game";
+import { ENERGY_ICON, coinEnergy, formatEnergy } from "@/lib/energy";
 import { MAX_LEVEL, THEME_REWARD_DICE, themeRewardCoins } from "@/lib/rules";
 import { artPicture, previewTheme, themeOf, THEMES } from "@/lib/themes";
 import { useLang } from "@/lib/i18n";
@@ -107,9 +108,9 @@ export function MyCity({
             {t(shown.name)}
           </p>
           <div className="flex items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-white py-1 pl-1.5 pr-3 text-lg font-black tabular-nums text-[#1E3A8A] shadow-md">
-            <img src="/art/ui/coin.webp" alt={t("金幣")} draggable={false} className="-my-2 -ml-3 size-10 object-contain drop-shadow" />
+            <img src={ENERGY_ICON} alt={t("能量")} draggable={false} className="-my-2 -ml-3 size-10 object-contain drop-shadow" />
             <span key={state.points} className="inline-block animate-[bump_0.35s_ease-out]">
-              {state.points}
+              {formatEnergy(coinEnergy(state.points))}
             </span>
           </div>
         </div>
@@ -147,7 +148,7 @@ export function MyCity({
           <div className="space-y-2 text-center" data-testid="theme-finished">
             <p className="text-lg font-black text-[#E52521]">{t("🎉 完成咗「{name}」！", { name: t(THEMES[finished].name) })}</p>
             <p className="text-sm font-bold text-[#1E3A8A]">
-              {t("獎勵：{c} 金幣同 {d} 粒骰", { c: themeRewardCoins(finished), d: THEME_REWARD_DICE })}
+              {t("獎勵：{c} 能量同 {d} 粒骰", { c: formatEnergy(coinEnergy(themeRewardCoins(finished))), d: THEME_REWARD_DICE })}
             </p>
             {state.theme > finished ? (
               <button
@@ -186,7 +187,7 @@ export function MyCity({
                     "relative flex cursor-pointer flex-col items-center gap-1 rounded-2xl border-[3px] px-0.5 pb-1.5 pt-1.5 transition-transform active:translate-y-0.5 disabled:cursor-default",
                     affordable ? "border-[#FBD000] bg-[#FFF8D6] shadow-[0_4px_0_#E0A800]" : "border-[#D6DEEA] bg-[#F1F4F9]",
                   )}
-                  aria-label={maxed ? t("{b}已經最高級", { b: t(LANDMARK_NAMES[building]) }) : t(repair ? "修返{b}，要 {n} 金幣" : "升級{b}，要 {n} 金幣", { b: t(LANDMARK_NAMES[building]), n: cost ?? 0 })}
+                  aria-label={maxed ? t("{b}已經最高級", { b: t(LANDMARK_NAMES[building]) }) : t(repair ? "修返{b}，要 {n} 能量" : "升級{b}，要 {n} 能量", { b: t(LANDMARK_NAMES[building]), n: formatEnergy(coinEnergy(cost ?? 0)) })}
                   data-testid={`upgrade-${building}`}
                 >
                   {firstTime && affordable && building === 0 ? <TipHand className="-top-11 left-1/2 -translate-x-1/2" /> : null}
@@ -205,8 +206,8 @@ export function MyCity({
                     <span className="text-base" aria-hidden>👑</span>
                   ) : (
                     <span className="flex items-center gap-0.5 text-xs font-black tabular-nums text-[#1E3A8A]">
-                      <img src="/art/ui/coin.webp" alt="" className="size-4" />
-                      {cost}
+                      <img src={ENERGY_ICON} alt="" className="size-4" />
+                      {formatEnergy(coinEnergy(cost ?? 0))}
                     </span>
                   )}
                 </button>

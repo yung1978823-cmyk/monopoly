@@ -2007,9 +2007,10 @@ export function createBoardScene(
       x.textBaseline = "middle";
       x.lineWidth = 12;
       x.strokeStyle = "#ffffff";
-      x.strokeText(text, 128, 50);
+      // Energy amounts run to six digits: squeeze them to fit rather than clip.
+      x.strokeText(text, 128, 50, 240);
       x.fillStyle = colour;
-      x.fillText(text, 128, 50);
+      x.fillText(text, 128, 50, 240);
       const map = new T.CanvasTexture(c);
       const sprite = new T.Sprite(new T.SpriteMaterial({ map, transparent: true, depthTest: false }));
       sprite.scale.set(1.2, 0.45, 1);

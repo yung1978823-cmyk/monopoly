@@ -70,24 +70,24 @@ export type DeckId = "standard" | "wild" | "calm";
 export const DECKS: Record<DeckId, readonly Card[]> = {
   standard: CARDS,
   wild: [
-    { kind: "money", amount: 4, text: "中大獎 +4" },
-    { kind: "money", amount: 2, text: "路邊執到錢 +2" },
-    { kind: "money", amount: -2, text: "整屋頂 −2" },
-    { kind: "money", amount: -4, text: "俾人呃咗 −4" },
+    { kind: "money", amount: 4, text: "中大獎 +40,000" },
+    { kind: "money", amount: 2, text: "路邊執到能量 +20,000" },
+    { kind: "money", amount: -2, text: "整屋頂 −20,000" },
+    { kind: "money", amount: -4, text: "俾人呃咗 −40,000" },
     { kind: "forward", steps: 3, text: "向前行三格" },
     { kind: "jail", text: "俾人捉咗，入獄" },
   ],
   calm: [
-    { kind: "money", amount: 1, text: "中小獎 +1" },
-    { kind: "money", amount: 1, text: "賣舊嘢 +1" },
-    { kind: "money", amount: -1, text: "跌咗錢 −1" },
-    { kind: "money", amount: -1, text: "交電費 −1" },
+    { kind: "money", amount: 1, text: "中小獎 +10,000" },
+    { kind: "money", amount: 1, text: "賣舊嘢 +10,000" },
+    { kind: "money", amount: -1, text: "跌咗能量 −10,000" },
+    { kind: "money", amount: -1, text: "交電費 −10,000" },
     { kind: "forward", steps: 3, text: "向前行三格" },
     { kind: "forward", steps: 3, text: "向前行三格" },
   ],
 };
 
-// ---------- Your wallet (practice points now; the real wallet later) ----------
+// ---------- Your wallet (practice 能量 now, kept in table units and shown ×10,000; the real wallet later) ----------
 
 export type Wallet = { points: number; stock: Stock };
 export const WALLET_KEY = "boolionaire-wallet-v1";

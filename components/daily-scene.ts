@@ -16,7 +16,7 @@ export type DailyScene = {
   moveTo(index: number): void;
   /** Glow the square the ship stopped on (null: none). */
   highlight(index: number | null): void;
-  /** Words floating up from the ship, e.g. "+2 金幣". */
+  /** Words floating up from the ship, e.g. "+200 能量". */
   floatText(text: string, colour?: string): void;
   /** Light the GO rune on the middle rock (your turn, dice left) or let it go dim. */
   setReady(ready: boolean): void;

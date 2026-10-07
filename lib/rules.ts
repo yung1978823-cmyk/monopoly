@@ -1,7 +1,6 @@
 export const DICE_CAP = 20;
 /** One die comes back every 3 minutes, up to DICE_CAP. */
 export const REFILL_MS = 3 * 60 * 1000;
-export const DAILY_DST_CAP = 5;
 /** Each theme (page) of your town has five buildings, each raised through five levels. */
 export const BUILDINGS = 5;
 export const MAX_LEVEL = 5;
@@ -11,7 +10,7 @@ export const LEVEL_COSTS = [5, 10, 20, 30, 50] as const;
 export const THEME_COST_STEP = 1.5;
 /** Attack (and defence) each finished theme adds for good, so moving on to an empty page never weakens you. */
 export const THEME_ATTACK = 10;
-/** Finishing a theme pays dice (up to the cap) and coins that grow with the theme. */
+/** Finishing a theme pays dice (up to the cap) and money (shown as 能量) that grows with the theme. */
 export const THEME_REWARD_DICE = 5;
 export function themeRewardCoins(theme: number): number {
   return 20 * (theme + 1);
@@ -50,7 +49,7 @@ export const POINTS = {
   jail: -2,
 } as const;
 
-/** The black hole takes a tenth of your coins: at least 3, at most 20 (never below zero). */
+/** The black hole takes a tenth of your money (能量): at least 3, at most 20 (never below zero). */
 export const HOLE_SHARE = 0.1;
 export const HOLE_MIN = 3;
 export const HOLE_MAX = 20;
