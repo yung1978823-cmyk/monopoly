@@ -17,6 +17,8 @@ const PIC: Partial<Record<StealKind, string>> = {
   dice: "/art/ui/dice.webp",
   jackpot: "/art/icons/chest.webp",
   trap: "/art/ui/trap.webp",
+  bomb: "/art/ui/bomb.webp",
+  alarm: "/art/ui/alarm.webp",
 };
 const SYMBOL: Record<StealKind, string> = { juice: "💎", meat: "🍖", coins: "🪙", dice: "🎲", jackpot: "🎁", trap: "🪤", bomb: "💣", alarm: "⏰" };
 /** How long after the raid ends before heading back to the board by itself. */
@@ -89,9 +91,8 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
     <main
       className="relative mx-auto flex h-dvh w-full max-w-md flex-col items-center overflow-hidden px-4 text-white"
       style={{
-        // A warehouse at night until Sky's picture arrives: moonlight from a high window, dark wooden walls.
-        background:
-          "radial-gradient(ellipse 60% 30% at 70% 8%, rgba(190,210,255,0.35), transparent 70%), radial-gradient(ellipse 50% 22% at 50% 22%, rgba(255,210,120,0.25), transparent 70%), linear-gradient(#1d1630, #2b1f22 55%, #3a2717 56%, #24170d)",
+        // Sky's storeroom at night (2026-10-07), a little darker so the crates stand out.
+        background: "linear-gradient(rgba(10,6,20,0.35), rgba(10,6,20,0.25)), url(/art/ui/warehouse.webp) center / cover no-repeat, #24170d",
       }}
       data-testid="steal"
     >
@@ -134,14 +135,16 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
                         ? "border-[#ef4444] bg-[#4a1d1d] animate-[smash_0.5s_ease-out]"
                         : "border-[#FBD000] bg-[#5a3a1c] shadow-[0_0_24px_rgba(251,208,0,0.6)]"
                       : "border-[#6b4a2b] bg-[#3a2616] opacity-45"
-                    : "border-[#6b4a2b] shadow-[0_6px_0_#2a1a0c] animate-[bump_1.8s_ease-in-out_infinite]",
+                    : "border-transparent animate-[bump_1.8s_ease-in-out_infinite]",
                 )}
                 style={
                   shown
                     ? undefined
                     : {
                         animationDelay: `${i * 0.18}s`,
-                        background: "repeating-linear-gradient(0deg, #a0703c 0 22%, #8a5c2e 22% 25%), #a0703c",
+                        // Sky's crate picture.
+                        background: "url(/art/ui/crate.webp) center / contain no-repeat",
+                        filter: "drop-shadow(0 6px 6px rgba(0,0,0,0.5))",
                       }
                 }
                 aria-label={t("第 {n} 個箱", { n: i + 1 })}
@@ -152,7 +155,7 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
                     <Loot box={box} big={box.kind === "jackpot"} />
                   </span>
                 ) : (
-                  <span className="text-3xl font-black text-[#FBD000] drop-shadow-[0_2px_0_#5a3a1c]">?</span>
+                  <span className="sr-only">?</span>
                 )}
                 {isOpen && box.kind === "bomb" ? (
                   // What's left after the blast: a scorch mark on the crate (the explosion itself fills the screen).
@@ -166,7 +169,7 @@ export function StealScreen({ state, onPick, onReturn }: { state: GameState; onP
                 <span className={cn("mt-1 text-sm font-black tabular-nums", isOpen ? "text-[#FBD000]" : "text-white/50")}>{amountOf(box)}</span>
               ) : null}
               {/* The shelf under each row. */}
-              {i % 3 === 0 ? <span className="pointer-events-none absolute -bottom-3 left-0 h-2 w-[calc(300%+2rem)] rounded bg-[#5a3a1c] shadow-[0_4px_0_#2a1a0c]" /> : null}
+              {i % 3 === 0 ? <span className="pointer-events-none absolute -bottom-3 left-0 h-2 w-[calc(300%+2rem)] rounded bg-[#5a3a1c]/80 shadow-[0_4px_0_#2a1a0c]" /> : null}
             </div>
           );
         })}
