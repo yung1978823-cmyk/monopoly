@@ -965,6 +965,9 @@ export function createCityScene(
   }
   function hireCrew(i: number) {
     if (sendBuilders(i)) return;
+    // Sky (2026-10-07): no more yellow-hat sprite workers on the picture pages. If the characters aren't
+    // free (still loading or busy), the cloud does the building on its own.
+    if (theme.art) return;
     const p = plots[i];
     const old = crews.get(i);
     if (old) for (const w of old.men) p.holder.remove(w.s);
