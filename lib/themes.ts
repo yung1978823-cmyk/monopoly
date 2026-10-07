@@ -35,6 +35,11 @@ export type ThemeArt = {
   islandCore?: number;
   /** Colour of the floor's edge and the dragon's stone in the middle. */
   islandTrim?: number;
+  /**
+   * 展示台 (Sky 2026-10-08, like a fixed-camera city builder): the island no longer turns, and each of the five
+   * levels looks clearly different — bigger every step, on a taller pedestal, with more light round it.
+   */
+  showcase?: boolean;
 };
 
 export type Theme = {
@@ -69,6 +74,7 @@ export const CRYSTAL: Theme = {
     names: ["house", "mine", "observatory", "tower", "palace"],
     space: true,
     island: true,
+    showcase: true,
     islandCore: 0x4a4266,
     islandTrim: 0xa99ad6,
     boatAspect: 1,

@@ -153,8 +153,15 @@ export function createCityScene(
   const ART_UNIT = 1.7 / 300;
   /** Higher levels stand taller still, so level 5 looks grand. */
   const ART_GROW = [1, 1, 1.05, 1.12, 1.3];
+  const showcase = !!theme.art?.showcase;
+  /** 展示台: every level a clear step bigger, level 5 towering over the rest. */
+  const SHOW_GROW = [0.66, 0.8, 0.94, 1.08, 1.26];
+  /** How tall the pedestal under each level is (0 = straight on the ground). */
+  const PLINTH = [0, 0.05, 0.1, 0.16, 0.24];
+  const growOf = (level: number) => (showcase ? SHOW_GROW : ART_GROW)[level - 1];
+  const plinthOf = (level: number) => (showcase && level > 0 ? PLINTH[level - 1] : 0);
   function artBuilding(i: number, level: number): any {
-    const art = theme.art!, name = art.names[i], [pw, ph] = art.sizes[name][level - 1], k = ART_GROW[level - 1];
+    const art = theme.art!, name = art.names[i], [pw, ph] = art.sizes[name][level - 1], k = growOf(level);
     const w = pw * k, h = ph * k;
     const url = `${art.dir}/${name}${level}.webp`;
     let tex = artTex.get(url);
@@ -167,7 +174,9 @@ export function createCityScene(
     const s = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.2 }));
     s.center.set(0.5, 0.04);
     s.scale.set(w * ART_UNIT, h * ART_UNIT, 1);
+    s.position.y = plinthOf(level);
     g.add(s);
+    if (showcase) dressStage(g, level, w * ART_UNIT, h * ART_UNIT);
     const blob = new T.Mesh(new T.PlaneGeometry(w * ART_UNIT * 1.05, w * ART_UNIT * 0.8), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0.55 }));
     blob.rotation.x = -Math.PI / 2;
     blob.position.y = 0.01;
@@ -198,6 +207,146 @@ export function createCityScene(
     }
     return g;
   }
+  // ---------- 展示台: what each level stands on and glows with (Sky 2026-10-08: every stage must look different) ----------
+  // 1 — on the bare floor, just a shadow.
+  // 2 — a low crystal plinth.
+  // 3 — a taller plinth with a gold rim, and a soft light ring on the floor.
+  // 4 — a two-step plinth, a turning ring of light, a glow behind and a few sparkles circling.
+  // 5 — a grand three-step plinth, a bright gold ring, a halo, a pillar of light into the sky and many sparkles.
+  const ringGlowTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 256;
+    const x = c.getContext("2d")!;
+    const g = x.createRadialGradient(128, 128, 60, 128, 128, 128);
+    g.addColorStop(0, "rgba(255,255,255,0)");
+    g.addColorStop(0.55, "rgba(255,255,255,0.9)");
+    g.addColorStop(0.7, "rgba(255,255,255,0.35)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = g;
+    x.fillRect(0, 0, 256, 256);
+    // A few bright marks round the ring, so its turning shows.
+    x.fillStyle = "rgba(255,255,255,1)";
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      x.beginPath();
+      x.arc(128 + Math.cos(a) * 100, 128 + Math.sin(a) * 100, k % 3 ? 3 : 6, 0, Math.PI * 2);
+      x.fill();
+    }
+    return new T.CanvasTexture(c);
+  })();
+  const haloTex = soft("rgba(255,255,255,0.9)", "rgba(255,255,255,0)");
+  const beamTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = 64;
+    c.height = 256;
+    const x = c.getContext("2d")!;
+    const across = x.createLinearGradient(0, 0, 64, 0);
+    across.addColorStop(0, "rgba(255,255,255,0)");
+    across.addColorStop(0.5, "rgba(255,255,255,1)");
+    across.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = across;
+    x.fillRect(0, 0, 64, 256);
+    x.globalCompositeOperation = "destination-in";
+    const up = x.createLinearGradient(0, 0, 0, 256);
+    up.addColorStop(0, "rgba(0,0,0,0)");
+    up.addColorStop(1, "rgba(0,0,0,1)");
+    x.fillStyle = up;
+    x.fillRect(0, 0, 64, 256);
+    return new T.CanvasTexture(c);
+  })();
+  const STAGE_COLOUR = [0xffffff, 0xb9a8ff, 0x58c8ff, 0xa45cff, 0xffc21a];
+  type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote"; base: number; phase: number; r?: number; y?: number; speed?: number };
+  const auras: Aura[] = [];
+  function dressStage(g: any, level: number, w: number, h: number) {
+    const colour = STAGE_COLOUR[level - 1];
+    const glow = (map: any, opacity: number) =>
+      new T.MeshBasicMaterial({ map, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity });
+    const r = Math.max(0.26, w * 0.34);
+    // The plinth: one more step per level from 2 up.
+    // The plinth never hides the picture's feet (the picture stands upright on it): it writes no depth and draws first.
+    const stone = mat(0x5b4f96, 0.5, { emissive: 0x1a1240, depthWrite: false, transparent: true });
+    const gold = mat(0xe8b830, 0.3, { metalness: 0.5, emissive: 0x3a2600, depthWrite: false, transparent: true });
+    const steps = level >= 5 ? 3 : level >= 4 ? 2 : level >= 2 ? 1 : 0;
+    let y = 0;
+    for (let k = 0; k < steps; k++) {
+      const sr = r * (1.15 - k * 0.16);
+      const sh = plinthOf(level) / steps;
+      const slab = shadowy(new T.Mesh(new T.CylinderGeometry(sr, sr * 1.04, sh, 28), stone));
+      slab.position.y = y + sh / 2;
+      slab.renderOrder = -10 + k;
+      g.add(slab);
+      if (level >= 3) {
+        const rim = new T.Mesh(new T.TorusGeometry(sr * 1.01, 0.012 + level * 0.003, 6, 40), gold);
+        rim.rotation.x = Math.PI / 2;
+        rim.position.y = y + sh;
+        rim.renderOrder = -10 + k;
+        g.add(rim);
+      }
+      y += sh;
+    }
+    // A ring of light on the floor (3 up), turning from 4.
+    if (level >= 3) {
+      const size = r * (level >= 5 ? 3.0 : level >= 4 ? 2.6 : 2.3);
+      const ring = new T.Mesh(
+        new T.PlaneGeometry(size, size),
+        new T.MeshBasicMaterial({ map: ringGlowTex, color: colour, transparent: true, depthWrite: false, opacity: level >= 5 ? 0.75 : 0.5 }),
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.015;
+      g.add(ring);
+      auras.push({ obj: ring, kind: "ring", base: ring.material.opacity, phase: Math.random() * 6, speed: level >= 4 ? (level >= 5 ? 0.5 : 0.3) : 0 });
+    }
+    // A glow behind the building (4 up).
+    if (level >= 4) {
+      const halo = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: level >= 5 ? 0.38 : 0.24 }));
+      halo.scale.set(w * 1.5, h * 1.05, 1);
+      halo.position.y = plinthOf(level) + h * 0.5;
+      halo.renderOrder = -1;
+      g.add(halo);
+      auras.push({ obj: halo, kind: "halo", base: halo.material.opacity, phase: Math.random() * 6 });
+    }
+    // A pillar of light into the sky (5).
+    if (level >= 5) {
+      const beam = new T.Mesh(new T.CylinderGeometry(r * 0.55, r * 0.9, 7, 20, 1, true), glow(beamTex, 0.3));
+      beam.material.side = T.DoubleSide;
+      beam.position.y = 3.5;
+      g.add(beam);
+      auras.push({ obj: beam, kind: "beam", base: 0.3, phase: Math.random() * 6 });
+    }
+    // Sparkles circling (4: a few, 5: many).
+    const motes = level >= 5 ? 14 : level >= 4 ? 6 : level >= 3 ? 3 : 0;
+    for (let k = 0; k < motes; k++) {
+      const m = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.9 }));
+      m.scale.setScalar(0.07 + Math.random() * 0.06);
+      g.add(m);
+      auras.push({ obj: m, kind: "mote", base: 0.9, phase: (k / motes) * Math.PI * 2, r: r * (1.2 + Math.random() * 0.5), y: plinthOf(level) + h * (0.15 + Math.random() * 0.8), speed: 0.5 + Math.random() * 0.5 });
+    }
+  }
+  function auraStep(now: number) {
+    const t = now / 1000;
+    for (let k = auras.length - 1; k >= 0; k--) {
+      const a = auras[k];
+      if (!a.obj.parent) {
+        auras.splice(k, 1);
+        continue;
+      }
+      if (reduceMotion) continue;
+      if (a.kind === "ring") {
+        a.obj.rotation.z = t * (a.speed ?? 0);
+        a.obj.material.opacity = a.base * (0.8 + 0.2 * Math.sin(t * 2 + a.phase));
+      } else if (a.kind === "halo") {
+        a.obj.material.opacity = a.base * (0.75 + 0.25 * Math.sin(t * 1.6 + a.phase));
+      } else if (a.kind === "beam") {
+        a.obj.material.opacity = a.base * (0.7 + 0.3 * Math.sin(t * 2.4 + a.phase));
+        a.obj.rotation.y = t * 0.4;
+      } else {
+        const ang = a.phase + t * (a.speed ?? 0.6);
+        a.obj.position.set(Math.cos(ang) * a.r!, a.y! + Math.sin(t * 1.3 + a.phase) * 0.12, Math.sin(ang) * a.r! * 0.6);
+        a.obj.material.opacity = a.base * (0.5 + 0.5 * Math.abs(Math.sin(t * 3 + a.phase)));
+      }
+    }
+  }
+
   const spinners: any[] = [];
   // The building pictures always face the camera, so a windmill's sails or a lighthouse lamp have to be pinned
   // to the picture on screen (camera right / up), not to the plot: pinned to the plot they slid off the hub as
@@ -760,7 +909,7 @@ export function createCityScene(
     return { holder, body: null, pips, plus, ring, hit, level: -1, popAt: -1e9, shakeAt: -1e9, cloudAt: -1e9, pending: null, puffs: [] };
   });
   const heightOf = (level: number, i = 0) =>
-    level <= 0 ? 0.3 : theme.art ? theme.art.sizes[theme.art.names[i]][level - 1][1] * ART_UNIT * ART_GROW[level - 1] * 0.96 : ({ site: [0, 1.0, 0.95, 1.3, 1.9, 2.6], oriental: [0, 0.9, 1.25, 1.6, 1.9, 2.2], desert: [0, 0.8, 0.8, 1.0, 1.6, 1.7] } as Record<string, number[]>)[theme.style][level];
+    level <= 0 ? 0.3 : theme.art ? theme.art.sizes[theme.art.names[i]][level - 1][1] * ART_UNIT * growOf(level) * 0.96 + plinthOf(level) : ({ site: [0, 1.0, 0.95, 1.3, 1.9, 2.6], oriental: [0, 0.9, 1.25, 1.6, 1.9, 2.2], desert: [0, 0.8, 0.8, 1.0, 1.6, 1.7] } as Record<string, number[]>)[theme.style][level];
   function draw(i: number, level: number) {
     const p = plots[i];
     if (p.level === level) return;
@@ -836,7 +985,7 @@ export function createCityScene(
     view.idle = 0;
     if (pts.length === 1) {
       // Sky: the island only turns left and right; the tilt and the distance stay fixed.
-      view.goalYaw -= (e.clientX - before.x) * 0.006;
+      if (!showcase) view.goalYaw -= (e.clientX - before.x) * 0.006;
     }
   };
   const onUp = (e: PointerEvent) => {
@@ -1021,6 +1170,11 @@ export function createCityScene(
     p.pending = next;
     p.cloudAt = performance.now();
     if (next > Math.max(0, p.level)) hireCrew(i);
+    if (showcase && next > Math.max(0, p.level) && !reduceMotion) {
+      focusAt.copy(worldOf(i, heightOf(next, i) * 0.45));
+      focusFrom = performance.now();
+      focusLevel = next;
+    }
   }
   function cloudStep(i: number, now: number) {
     const p = plots[i];
@@ -1030,6 +1184,10 @@ export function createCityScene(
       p.pending = null;
       p.popAt = now;
       burst(worldOf(i, heightOf(p.level, i) * 0.6), 26, [0xffd34d, 0xffffff, 0x7dd3fc], 3.2, 0.9, 0.07, false);
+      if (showcase && p.level >= 4) {
+        // The top levels arrive with a bigger shower of crystal and gold.
+        burst(worldOf(i, heightOf(p.level, i) * 0.9), p.level >= 5 ? 60 : 30, [0xffd75a, 0xffffff, 0xc58bff, 0x9fe8ff], 4.5, 1.4, 0.09, false);
+      }
     }
     if (!p.puffs.length) return;
     if (age > CLOUD_END) {
@@ -1291,6 +1449,17 @@ export function createCityScene(
 
   let last = performance.now();
   let shakeAll = -1e9;
+  const focusAt = new T.Vector3(), focusNow = new T.Vector3();
+  let focusFrom = -1e9, focusLevel = 0;
+  const FOCUS_IN = 500, FOCUS_HOLD = 1500, FOCUS_OUT = 700;
+  function focusLean(now: number) {
+    const age = now - focusFrom;
+    if (age < 0 || age > FOCUS_IN + FOCUS_HOLD + FOCUS_OUT) return 0;
+    const ease = (k: number) => k * k * (3 - 2 * k);
+    if (age < FOCUS_IN) return ease(age / FOCUS_IN);
+    if (age < FOCUS_IN + FOCUS_HOLD) return 1;
+    return 1 - ease((age - FOCUS_IN - FOCUS_HOLD) / FOCUS_OUT);
+  }
   function frame(now: number) {
     const dt = Math.min(0.05, (now - last) / 1000);
     backdrop.update(now, dt);
@@ -1301,6 +1470,7 @@ export function createCityScene(
     island.position.y = bob;
     const quake = Math.max(0, 1 - (now - shakeAll) / 500);
     island.position.x = quake ? Math.sin(now / 18) * 0.08 * quake : 0;
+    auraStep(now);
     plots.forEach((_, i) => {
       cloudStep(i, now);
       crewStep(i, now);
@@ -1406,10 +1576,14 @@ export function createCityScene(
     view.yaw += (view.goalYaw - view.yaw) * Math.min(1, dt * 8);
     view.elev += (view.goalElev - view.elev) * Math.min(1, dt * 8);
     view.dist += (view.goalDist - view.dist) * Math.min(1, dt * 6);
-    const sway = reduceMotion ? 0 : Math.sin(now / 7000) * 0.15 * Math.min(1, Math.max(0, view.idle - 2) / 3);
+    const sway = reduceMotion || showcase ? 0 : Math.sin(now / 7000) * 0.15 * Math.min(1, Math.max(0, view.idle - 2) / 3);
     const yaw = view.yaw + sway, flatD = Math.cos(view.elev) * view.dist;
-    camera.position.set(Math.sin(yaw) * flatD, AIM_Y + Math.sin(view.elev) * view.dist, Math.cos(yaw) * flatD);
-    camera.lookAt(0, AIM_Y, 0);
+    // 展示台: on a level-up the camera leans in toward the building, then eases back.
+    const lean = showcase ? focusLean(now) : 0;
+    focusNow.set(0, AIM_Y, 0).lerp(focusAt, lean);
+    const d = 1 - lean * (focusLevel >= 5 ? 0.38 : 0.28);
+    camera.position.set(focusNow.x + Math.sin(yaw) * flatD * d, focusNow.y + Math.sin(view.elev) * view.dist * d, focusNow.z + Math.cos(yaw) * flatD * d);
+    camera.lookAt(focusNow);
     far.rotation.y = yaw * 0.5;
     pinToPicture();
     renderer.render(scene, camera);
