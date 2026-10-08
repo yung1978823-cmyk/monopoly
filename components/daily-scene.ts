@@ -305,6 +305,23 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     const big = islandMesh(6, 977, 0x9a958c);
     big.top.material = new T.MeshStandardMaterial({ color: new T.Color(0x96918a).convertSRGBToLinear(), roughness: 0.95, flatShading: true });
     big.group.position.set(0, 0.1, 0);
+    // 草地浮島 (Sky 2026-10-08): Sky's painted lawn with a stone circle in the middle, on a smooth stone rim.
+    {
+      big.top.visible = false;
+      const rimMat = new T.MeshStandardMaterial({ color: new T.Color(0x8d8a80).convertSRGBToLinear(), roughness: 0.95 });
+      const slab = shadowy(new T.Mesh(new T.CylinderGeometry(3.02, 3.14, 0.2, 64), rimMat));
+      slab.position.y = TOP - 0.1;
+      big.group.add(slab);
+      const lawnTex = new T.TextureLoader().load("/art/board/centre-grass.webp");
+      lawnTex.encoding = T.sRGBEncoding;
+      lawnTex.anisotropy = 4;
+      const lawn = new T.Mesh(new T.CircleGeometry(3.02, 64), new T.MeshStandardMaterial({ map: lawnTex, roughness: 0.9, transparent: true, alphaTest: 0.05 }));
+      lawn.rotation.set(-Math.PI / 2, 0, HOME_YAW);
+      lawn.position.y = TOP + 0.002;
+      lawn.receiveShadow = true;
+      big.group.add(lawn);
+      big.top = lawn;
+    }
     bigRock.add(big.group);
     stone = big.group;
     scene.add(bigRock);
