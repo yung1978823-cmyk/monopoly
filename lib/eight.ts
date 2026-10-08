@@ -67,7 +67,10 @@ export type Spot = { on: "loop"; i: number } | { on: Road; k: number };
 export const FORKS: Record<number, { road: Road; exit: number }> = {};
 export const ROAD_LENGTH = 3;
 
-export type SquareKind = "start" | "chest" | "cross" | "fly" | "dock" | "jail" | "chance" | "tax" | "fork" | "lot";
+export type SquareKind =
+  | "start" | "chest" | "cross" | "fly" | "dock" | "jail" | "chance" | "tax" | "fork" | "lot"
+  // 三葉草 (領地 海島, Sky 2026-10-08): the plaza in the middle and the material squares round its three loops.
+  | "plaza" | "wood" | "stone" | "gold" | "toll" | "map" | "artisan" | "caravan" | "termite" | "landslide" | "bandit" | "sand";
 export type Square = { key: string; kind: SquareKind; price: number; gold: boolean; group: number };
 
 const SPECIAL: Record<number, SquareKind> = {
@@ -111,7 +114,7 @@ export const LOT_KEYS = Object.values(SQUARES)
 
 // ---------- Other boards (the 領地 lands use their own boards) ----------
 
-export type BoardId = "eight" | "island";
+export type BoardId = "eight" | "island" | "clover";
 
 /** Everything the rules need to know about a board's shape. */
 export type Board = {
@@ -138,6 +141,48 @@ const ISLAND_SQUARES: Record<string, Square> = (() => {
   return squares;
 })();
 
+/**
+ * 三葉草 (Sky 2026-10-08): the 領地 board. A plaza in the middle (the owner's castle) and three loops off it —
+ * 森林 (wood), 石場 (stone), 金礦 (gold). The walk goes plaza → forest → plaza → quarry → plaza → mine → round
+ * again, so the plaza is passed three times a lap (steps 0, 8 and 16 are all the plaza, "o0").
+ */
+export const CLOVER_PETAL = 8;
+export const CLOVER_LOOP = CLOVER_PETAL * 3;
+export type Material = "wood" | "stone" | "gold";
+export const CLOVER_ZONES: readonly Material[] = ["wood", "stone", "gold"];
+const CLOVER_PETALS: readonly (readonly SquareKind[])[] = [
+  ["wood", "map", "wood", "toll", "termite", "wood", "artisan"],
+  ["stone", "caravan", "stone", "toll", "landslide", "stone", "sand"],
+  ["gold", "map", "bandit", "toll", "gold", "caravan", "sand"],
+];
+export function cloverKey(i: number): string {
+  const n = ((i % CLOVER_LOOP) + CLOVER_LOOP) % CLOVER_LOOP;
+  return n % CLOVER_PETAL === 0 ? "o0" : `o${n}`;
+}
+const CLOVER_SQUARES: Record<string, Square> = (() => {
+  const squares: Record<string, Square> = { o0: { key: "o0", kind: "plaza", price: 0, gold: false, group: 0 } };
+  CLOVER_PETALS.forEach((petal, z) =>
+    petal.forEach((kind, k) => {
+      const key = `o${z * CLOVER_PETAL + k + 1}`;
+      squares[key] = { key, kind, price: 0, gold: false, group: z };
+    }),
+  );
+  return squares;
+})();
+/** Material each loop's own squares give (the gold loop pays less, gold is dear). */
+export const GATHER: Record<Material, number> = { wood: 2, stone: 2, gold: 1 };
+/** What a material is worth at the end, in table money (for the standings). */
+export const MATERIAL_WORTH: Record<Material, number> = { wood: 0.2, stone: 0.3, gold: 0.8 };
+/** 地主關卡: the toll paid to the land's owner. */
+export const TOLL = 1;
+/** 藏寶圖: pieces needed for the treasure, and what it holds. */
+export const MAP_PIECES = 3;
+export const TREASURE = { gold: 2, cash: 3 } as const;
+/** 流沙: squares back. */
+export const SAND_BACK = 3;
+export type MaterialStock = Record<Material, number>;
+export const NO_MATERIALS: MaterialStock = { wood: 0, stone: 0, gold: 0 };
+
 export const BOARDS: Record<BoardId, Board> = {
   eight: { id: "eight", squares: SQUARES, lotKeys: LOT_KEYS, jail: JAIL, keyOf, nextSpot, isFork },
   island: {
@@ -147,6 +192,15 @@ export const BOARDS: Record<BoardId, Board> = {
     jail: ISLAND_JAIL,
     keyOf: (spot) => (spot.on === "loop" ? `o${spot.i}` : `${spot.on}${spot.k}`),
     nextSpot: (spot) => ({ on: "loop", i: ((spot.on === "loop" ? spot.i : 0) + 1) % ISLAND_LOOP }),
+    isFork: () => false,
+  },
+  clover: {
+    id: "clover",
+    squares: CLOVER_SQUARES,
+    lotKeys: [],
+    jail: 0,
+    keyOf: (spot) => cloverKey(spot.on === "loop" ? spot.i : 0),
+    nextSpot: (spot) => ({ on: "loop", i: ((spot.on === "loop" ? spot.i : 0) + 1) % CLOVER_LOOP }),
     isFork: () => false,
   },
 };
@@ -199,6 +253,10 @@ export type Seat = {
   powers: Power[];
   /** 雙倍租: turns left (anyone's) during which this player's lots collect double rent. */
   doubleRent?: number;
+  /** 三葉草: materials gathered this game, 藏寶圖 pieces held, and a 工匠 waiting to double the next haul. */
+  stock?: MaterialStock;
+  maps?: number;
+  artisan?: boolean;
 };
 
 /** `locked`: turns left (anyone's) during which the lot collects no rent — a 封地 card. */
@@ -299,7 +357,16 @@ export type TableEvent =
   /** Landed on the square with the power card and took it. */
   | { kind: "pickup"; seat: number; key: string; power: Power }
   /** 怪獸卡: `side`'s monster fired at `target`: took `stolen` and knocked them back to `to` — or a 護盾 blocked it. */
-  | { kind: "monster"; seat: number; target: number; side: "left" | "right"; stolen: number; to: Spot; blocked: boolean };
+  | { kind: "monster"; seat: number; target: number; side: "left" | "right"; stolen: number; to: Spot; blocked: boolean }
+  /** 三葉草: materials gained (or lost, negative) on a square; `why` names the square. */
+  | { kind: "gather"; seat: number; material: Material; amount: number; why: SquareKind }
+  | { kind: "map"; seat: number; pieces: number }
+  | { kind: "treasure"; seat: number; gold: number; cash: number }
+  | { kind: "toll"; seat: number; amount: number }
+  | { kind: "artisan"; seat: number }
+  | { kind: "trade"; seat: number; give: Material; gave: number; take: Material; took: number }
+  | { kind: "bandit"; seat: number; material: Material | null }
+  | { kind: "sand"; seat: number; to: Spot };
 
 /**
  * House rules for this table. The public table uses the defaults; a hosted game on someone's
@@ -311,6 +378,8 @@ export type TableRules = {
   /** Square key → rent paid to the host by whoever lands there. */
   houses: Record<string, number>;
   cards: readonly Card[];
+  /** 三葉草: the toll at each 地主關卡 (TOLL, more with 租金屋). */
+  toll?: number;
 };
 
 export const RENT_CAP = 6;
@@ -336,6 +405,8 @@ export type TableState = {
   hostIncome: number;
   /** A glowing power card waiting on a square; whoever lands there first takes it. A new one each round. */
   pickups: { key: string; power: Power }[];
+  /** 三葉草: materials the 山賊 took, which go to the land's owner. */
+  hostStock?: MaterialStock;
 };
 
 export type TableAction =
@@ -355,11 +426,14 @@ export function newTable(
       .filter(([key]) => B.squares[key]?.kind === "lot")
       .map(([key, rent]) => [key, Math.max(0, Math.min(RENT_CAP, Math.floor(rent)))]),
   );
+  const clover = board === "clover";
   return {
-    rules: { turnsEach: rules.turnsEach ?? TURNS_EACH, houses, cards: rules.cards?.length ? rules.cards : CARDS },
+    rules: { turnsEach: rules.turnsEach ?? TURNS_EACH, houses, cards: rules.cards?.length ? rules.cards : CARDS, ...(rules.toll ? { toll: rules.toll } : {}) },
     board,
     hostIncome: 0,
-    pickups: [firstPickup(board, players.length)],
+    // 三葉草 has no land to buy, so no power cards either: it's all about the materials.
+    pickups: clover ? [] : [firstPickup(board, players.length)],
+    ...(clover ? { hostStock: { ...NO_MATERIALS } } : {}),
     seats: players.slice(0, MAX_SEATS).map((player) => ({
       ...player,
       cash: STAKE,
@@ -368,7 +442,8 @@ export function newTable(
       bankrupt: false,
       turnsTaken: 0,
       // Sky (2026-10-03): everyone sits down holding two power cards — 全城加建 (土地升價) and 怪獸卡.
-      powers: [...START_POWERS],
+      powers: clover ? [] : [...START_POWERS],
+      ...(clover ? { stock: { ...NO_MATERIALS }, maps: 0 } : {}),
     })),
     deeds: {},
     current: 0,
@@ -390,7 +465,8 @@ export function rentOf(key: string, level: number, board: BoardId = "eight"): nu
 export function netWorth(state: TableState, seat: number): number {
   const player = state.seats[seat];
   if (!player || player.bankrupt) return 0;
-  return Object.entries(state.deeds).reduce(
+  const goods = player.stock ? CLOVER_ZONES.reduce((sum, m) => sum + player.stock![m] * MATERIAL_WORTH[m], 0) : 0;
+  return goods + Object.entries(state.deeds).reduce(
     (sum, [key, deed]) => (deed.owner === seat ? sum + BOARDS[state.board].squares[key].price + (deed.level - 1) * UPGRADE_PRICE : sum),
     player.cash,
   );
@@ -446,6 +522,7 @@ function step(state: TableState, seat: number, takeRoad: boolean, events: TableE
   const player = state.seats[seat];
   const to = BOARDS[state.board].nextSpot(player.spot, takeRoad);
   const passedStart = to.on === "loop" && to.i === 0;
+  // (On 三葉草 that's once a lap, at the start of the forest loop.)
   events.push({ kind: "step", seat, to, passedStart });
   const moved = withSeat(state, seat, { spot: to, cash: player.cash + (passedStart ? START_PAY : 0) });
   return passedStart ? (drawPower(moved, seat, START_POWER_ODDS, events, 2) ?? moved) : moved;
@@ -576,9 +653,74 @@ function land(state: TableState, seat: number, events: TableEvent[], depth: numb
       for (let s = 0; s < card.steps; s += 1) next = step(next, seat, false, events);
       return land(next, seat, events, depth + 1);
     }
+    case "wood":
+    case "stone":
+    case "gold": {
+      const amount = GATHER[square.kind] * (player.artisan ? 2 : 1);
+      events.push({ kind: "gather", seat, material: square.kind, amount, why: square.kind });
+      return withSeat(state, seat, { stock: addMaterial(player.stock, square.kind, amount), artisan: false });
+    }
+    case "map": {
+      const pieces = (player.maps ?? 0) + 1;
+      if (pieces < MAP_PIECES) {
+        events.push({ kind: "map", seat, pieces });
+        return withSeat(state, seat, { maps: pieces });
+      }
+      events.push({ kind: "treasure", seat, gold: TREASURE.gold, cash: TREASURE.cash });
+      return withSeat(state, seat, { maps: 0, cash: player.cash + TREASURE.cash, stock: addMaterial(player.stock, "gold", TREASURE.gold) });
+    }
+    case "artisan":
+      events.push({ kind: "artisan", seat });
+      return withSeat(state, seat, { artisan: true });
+    case "caravan": {
+      // 商隊: 2 of whatever you have most of (wood or stone) for 1 gold; with nothing to trade, a gift of 1 wood.
+      const stock = player.stock ?? { ...NO_MATERIALS };
+      const give: Material = stock.stone > stock.wood ? "stone" : "wood";
+      if (stock[give] >= 2) {
+        events.push({ kind: "trade", seat, give, gave: 2, take: "gold", took: 1 });
+        return withSeat(state, seat, { stock: addMaterial(addMaterial(stock, give, -2), "gold", 1) });
+      }
+      events.push({ kind: "gather", seat, material: "wood", amount: 1, why: "caravan" });
+      return withSeat(state, seat, { stock: addMaterial(stock, "wood", 1) });
+    }
+    case "termite":
+    case "landslide": {
+      const material: Material = square.kind === "termite" ? "wood" : "stone";
+      const lost = Math.min(1, player.stock?.[material] ?? 0);
+      events.push({ kind: "gather", seat, material, amount: -lost, why: square.kind });
+      return lost ? withSeat(state, seat, { stock: addMaterial(player.stock, material, -lost) }) : state;
+    }
+    case "bandit": {
+      // 山賊: takes one of your dearest material, for the land's owner.
+      const stock = player.stock ?? { ...NO_MATERIALS };
+      const material = (["gold", "stone", "wood"] as Material[]).find((m) => stock[m] > 0) ?? null;
+      events.push({ kind: "bandit", seat, material });
+      if (!material) return state;
+      return { ...withSeat(state, seat, { stock: addMaterial(stock, material, -1) }), hostStock: addMaterial(state.hostStock, material, 1) };
+    }
+    case "toll": {
+      const toll = state.rules.toll ?? TOLL;
+      const paid = Math.min(toll, player.cash);
+      events.push({ kind: "toll", seat, amount: paid });
+      const next = pay(state, seat, toll, null, events);
+      return { ...next, hostIncome: money(next.hostIncome + paid) };
+    }
+    case "sand": {
+      if (depth > 0) return state;
+      let spot = player.spot;
+      for (let k = 0; k < SAND_BACK; k++) spot = stepBack(state.board, spot);
+      events.push({ kind: "sand", seat, to: spot });
+      return withSeat(state, seat, { spot });
+    }
     default:
       return state;
   }
+}
+
+function addMaterial(stock: MaterialStock | undefined, material: Material, amount: number): MaterialStock {
+  const now = { ...(stock ?? NO_MATERIALS) };
+  now[material] = Math.max(0, now[material] + amount);
+  return now;
 }
 
 /** Hand the turn to the next seat still playing, or finish the game. */
@@ -603,7 +745,7 @@ function finishTurn(state: TableState, events: TableEvent[]): TableState {
   // Everyone still playing has had another turn: a new round, and three more power cards on the board
   // (they stay until taken, up to MAX_PICKUPS at once).
   const round = (s: TableState) => Math.min(...alive(s).map((i) => s.seats[i].turnsTaken));
-  if (alive(done).length > 0 && round(done) > round(state) && round(done) < done.rules.turnsEach) {
+  if (done.board !== "clover" && alive(done).length > 0 && round(done) > round(state) && round(done) < done.rules.turnsEach) {
     for (let n = 0; n < PICKUPS_PER_ROUND && done.pickups.length < MAX_PICKUPS; n += 1) {
       const pickup = nextPickup(done, round(done), n);
       if (!pickup) break;
@@ -681,7 +823,7 @@ function nextPickup(state: TableState, round: number, nth = 0): { key: string; p
 
 /** One square back along the loop (the island ring too). */
 function stepBack(board: BoardId, spot: Spot): Spot {
-  const loop = board === "island" ? ISLAND_LOOP : LOOP;
+  const loop = board === "island" ? ISLAND_LOOP : board === "clover" ? CLOVER_LOOP : LOOP;
   const i = spot.on === "loop" ? spot.i : 0;
   return { on: "loop", i: (i - 1 + loop) % loop };
 }

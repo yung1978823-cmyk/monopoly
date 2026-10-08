@@ -10,7 +10,7 @@
  * Everything here is show only: the rules live in lib/eight.ts and the screen calls these
  * functions to play back the events a move produced.
  */
-import { BOARDS, EDGE_STEPS, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
+import { BOARDS, CLOVER_PETAL, EDGE_STEPS, cloverKey, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
 import { GALAXY_SPACE, TABLE_SPACE, createSpace, type Backdrop } from "@/components/backdrop";
 
 const THREE_URL = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
@@ -157,6 +157,33 @@ function islandPoint(i: number): [number, number] {
   return [ISLAND_R * Math.sin(a), ISLAND_R * Math.cos(a)];
 }
 
+/**
+ * 三葉草 (領地 海島, Sky 2026-10-08): the plaza in the middle and three petal loops round it, each loop's seven
+ * squares spaced evenly along a teardrop from the plaza and back. Forest at the back, quarry front-left, mine front-right.
+ */
+const CLOVER_ANGLES = [Math.PI, (5 * Math.PI) / 3, Math.PI / 3];
+const CLOVER_POINTS: Record<string, [number, number]> = (() => {
+  const points: Record<string, [number, number]> = { o0: [0, 0] };
+  const L = 5.4, spread = 0.55, p = 0.6, N = 600;
+  CLOVER_ANGLES.forEach((th, z) => {
+    const curve = (u: number): [number, number] => {
+      const ph = th + (u - 0.5) * 2 * spread, r = L * Math.sin(Math.PI * u) ** p;
+      return [r * Math.sin(ph), r * Math.cos(ph)];
+    };
+    const pts = Array.from({ length: N + 1 }, (_, i) => curve(i / N));
+    const cum = [0];
+    for (let i = 0; i < N; i++) cum.push(cum[i] + Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]));
+    const total = cum[N];
+    for (let k = 1; k < CLOVER_PETAL; k++) {
+      const want = (total * k) / CLOVER_PETAL;
+      let j = 0;
+      while (j < N && cum[j] < want) j++;
+      points[`o${z * CLOVER_PETAL + k}`] = pts[j];
+    }
+  });
+  return points;
+})();
+
 type TilePlan = { key: string; x: number; z: number; yaw: number; outward: [number, number] | null };
 type Layout = {
   tiles: TilePlan[];
@@ -170,6 +197,18 @@ type Layout = {
 };
 
 function layoutFor(board: BoardId): Layout {
+  if (board === "clover") {
+    const tiles: TilePlan[] = Object.entries(CLOVER_POINTS).map(([key, [x, z]]) => ({ key, x, z, yaw: 0, outward: null }));
+    const R = 7;
+    return {
+      tiles,
+      spotPoint: (spot) => CLOVER_POINTS[cloverKey(spot.on === "loop" ? spot.i : 0)],
+      hub: [0, 3, 0],
+      stations: [[R, 1.5], [-R, 1.5], [R * 0.7, -R * 0.7], [-R * 0.7, -R * 0.7], [2.2, R], [-2.2, R]],
+      wide: [40, 28, 22],
+      wideTarget: [0, 0.3],
+    };
+  }
   if (board === "island") {
     const tiles: TilePlan[] = [];
     for (let i = 0; i < ISLAND_LOOP; i++) {
@@ -224,7 +263,10 @@ export function createBoardScene(
 ): BoardScene {
   const layout = layoutFor(board);
   const seeThrough = !!opts.seeThrough;
-  const island = board === "island";
+  /** 海島 and 三葉草 share the sandy island in the sea; only 海島 has the lighthouse and pier. */
+  const island = board === "island" || board === "clover";
+  const clover = board === "clover";
+  const ENV_R = clover ? 5.7 : ISLAND_R;
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let speed = 1;
   const pace = () => speed * (reduceMotion ? 10 : 1);
@@ -237,7 +279,7 @@ export function createBoardScene(
   renderer.shadowMap.type = T.PCFSoftShadowMap;
   renderer.outputEncoding = T.sRGBEncoding;
   renderer.toneMapping = T.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = seeThrough ? 0.9 : board === "island" ? 1.1 : 0.85; // the forest board: deeper, richer greens
+  renderer.toneMappingExposure = seeThrough ? 0.9 : clover ? 1.0 : island ? 1.1 : 0.85; // the forest board: deeper, richer greens
   renderer.domElement.style.display = "block";
   renderer.domElement.style.touchAction = "none";
   container.appendChild(renderer.domElement);
@@ -275,6 +317,12 @@ export function createBoardScene(
 
   const mat = (color: number, rough = 0.35, extra: object = {}) =>
     new T.MeshStandardMaterial(Object.assign({ color, roughness: rough, metalness: 0 }, extra));
+  /** 三葉草: true-to-the-picture colours (sRGB → linear), so the grass, sand and gold read rich instead of washed out. */
+  const matC = (color: number, rough = 0.35, extra: object = {}) => {
+    const m = mat(color, rough, extra);
+    if (clover) m.color.convertSRGBToLinear();
+    return m;
+  };
   const shadowy = (mesh: any) => {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -546,20 +594,21 @@ export function createBoardScene(
     // Floating in space (Sky 2026-10-01): a thin ring of sea round the sand, and rock hanging underneath. In a
     // game the galaxy picture fills the sky; in the 領地 preview the page's own background shows through.
     if (!seeThrough) space = createSpace(T, scene, camera, { reduceMotion, picture: GALAXY_SPACE, extras: false, far: 180, meteor: true });
-    const sea = new T.Mesh(new T.CylinderGeometry(ISLAND_R + 3.1, ISLAND_R + 2.9, 0.5, 48), mat(0x2bb3c9, 0.25, { metalness: 0.2 }));
+    const sea = new T.Mesh(new T.CylinderGeometry(ENV_R + 3.1, ENV_R + 2.9, 0.5, 48), matC(0x2bb3c9, 0.25, { metalness: 0.2 }));
     sea.position.y = -0.95;
     scene.add(sea);
-    const rock = new T.Mesh(new T.ConeGeometry(ISLAND_R + 3, 5.5, 12, 3), new T.MeshStandardMaterial({ color: 0x8a8378, roughness: 0.95, flatShading: true }));
+    const rock = new T.Mesh(new T.ConeGeometry(ENV_R + 3, 5.5, 12, 3), new T.MeshStandardMaterial({ color: 0x8a8378, roughness: 0.95, flatShading: true }));
     rock.rotation.x = Math.PI;
     rock.position.y = -1.2 - 2.75;
     scene.add(rock);
-    const deck = shadowy(new T.Mesh(new T.CylinderGeometry(ISLAND_R + 1.7, ISLAND_R + 2.3, 1, 48), mat(0xf2d9a0, 0.9)));
+    const deck = shadowy(new T.Mesh(new T.CylinderGeometry(ENV_R + 1.7, ENV_R + 2.3, 1, 48), matC(clover ? 0xf3d48e : 0xf2d9a0, 0.9)));
     deck.position.y = -0.5;
     deckMat = deck.material;
     scene.add(deck);
-    const grass = shadowy(new T.Mesh(new T.CylinderGeometry(ISLAND_R - 0.8, ISLAND_R - 0.6, 0.12, 40), mat(0x5fae4a, 0.8)));
+    const grass = shadowy(new T.Mesh(new T.CylinderGeometry(ENV_R - 0.8, ENV_R - 0.6, 0.12, 40), matC(0x5fae4a, 0.8)));
     grass.position.y = 0.02;
-    scene.add(grass);
+    // 三葉草 has each loop's own ground instead of one lawn.
+    if (!clover) scene.add(grass);
   } else {
     // Outer space all round (the public table's own picture), in place of the old forest floor.
     space = createSpace(T, scene, camera, { reduceMotion, picture: TABLE_SPACE, extras: false, far: 180, meteor: true });
@@ -743,7 +792,66 @@ export function createBoardScene(
   const PLAIN: Record<string, number> = {
     start: 0xfbd000, jail: 0x64748b, chest: 0xf2c230, fly: 0x38bdf8, dock: 0x38bdf8, chance: 0x8b5cf6, tax: 0x334155, fork: 0xffffff, cross: 0xff7a59,
   };
+  /** 三葉草 tile pictures: Sky's material art where there is some, an emoji for the rest until drawn. */
+  const CLOVER_ART: Record<string, string> = { wood: "/art/realm/wood.webp", stone: "/art/realm/stone.webp", gold: "/art/realm/gold.webp" };
+  const CLOVER_EMOJI: Record<string, string> = {
+    plaza: "🏰", toll: "🚧", map: "🗺️", artisan: "🔨", caravan: "🐫", termite: "🐜", landslide: "⛰️", bandit: "🥷", sand: "🌀",
+  };
+  /** Each loop's ground: forest grass, quarry sand, mine gold; the plaza is warm paving. Penalty squares get a red ring. */
+  const ZONE_GROUND = [0x6cc04a, 0xe6c98f, 0xf2c75c];
+  const BAD = new Set(["termite", "landslide", "bandit", "sand", "toll"]);
+  const emojiPics = new Map<string, any>();
+  const emojiPic = (emoji: string) => {
+    if (!emojiPics.has(emoji)) {
+      const c = document.createElement("canvas");
+      c.width = c.height = 256;
+      const x = c.getContext("2d")!;
+      x.font = "170px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif";
+      x.textAlign = "center";
+      x.textBaseline = "middle";
+      x.fillText(emoji, 128, 140);
+      const t = new T.CanvasTexture(c);
+      t.encoding = T.sRGBEncoding;
+      emojiPics.set(emoji, t);
+    }
+    return emojiPics.get(emoji);
+  };
+  function makeCloverTile(key: string, x: number, z: number) {
+    const square = BOARDS[board].squares[key];
+    const plaza = square.kind === "plaza";
+    const size = plaza ? 2.2 : 1.3 * ISLE;
+    const group = new T.Group();
+    group.position.set(x, 0, z);
+    scene.add(group);
+    // A round pad on the sand — grass, sand or gold ground by loop, no rock (Sky: 唔好再係石頭).
+    const base = plaza ? 0xf4e2b8 : ZONE_GROUND[square.group % 3];
+    const pad = shadowy(new T.Mesh(new T.CylinderGeometry(size / 2, size / 2 + 0.06, 0.26, 40), matC(base, 0.85)));
+    pad.position.y = TOP - 0.13;
+    pad.receiveShadow = true;
+    group.add(pad);
+    const ring = shadowy(new T.Mesh(new T.TorusGeometry(size / 2, 0.05, 8, 40), matC(plaza ? 0xd4a72c : BAD.has(square.kind) ? 0xe5484d : 0xffffff, 0.4)));
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = TOP + 0.005;
+    group.add(ring);
+    const picSize = size * (plaza ? 0.62 : 0.8);
+    const pic = new T.Mesh(
+      new T.PlaneGeometry(picSize, picSize),
+      new T.MeshBasicMaterial({ map: CLOVER_ART[square.kind] ? tilePic(CLOVER_ART[square.kind]) : emojiPic(CLOVER_EMOJI[square.kind] ?? "❔"), transparent: true, alphaTest: 0.1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
+    );
+    pic.rotation.x = -Math.PI / 2;
+    pic.position.y = TOP + 0.01;
+    pic.renderOrder = 2;
+    group.add(pic);
+    const shadow = new T.Mesh(new T.PlaneGeometry(1.7 * ISLE, 1.7 * ISLE), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+    shadow.visible = false;
+    const glow = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0xfff1b0, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
+    breathers.push({ obj: group, base: 0, phase: Math.random() * Math.PI * 2, period: 3.2 + Math.random() * 1.2, shadow, glow, key });
+    const holder = new T.Group();
+    group.add(holder);
+    tiles[key] = { group, body: pad, base, inward: new T.Vector3(0, 0, -0.27), house: null, yaw: 0 };
+  }
   function makeTile(key: string, x: number, z: number, outward: any, yaw: number) {
+    if (clover) return makeCloverTile(key, x, z);
     const square = BOARDS[board].squares[key];
     const group = new T.Group();
     group.position.set(x, 0, z);
@@ -824,7 +932,63 @@ export function createBoardScene(
   // ---------- Castle in the top notch, treasure in the bottom one ----------
   const castleZ = layout.hub[2];
   const roof = mat(0xc0264b, 0.4);
-  if (island) {
+  if (clover) {
+    // Each loop sits on its own ground — forest green, quarry pale sand, mine gold — so the clover reads at a glance,
+    // and a plank path runs along each loop from square to square.
+    CLOVER_ANGLES.forEach((th, z) => {
+      const blob = new T.Mesh(new T.CircleGeometry(1, 48), matC([0x4caf3f, 0xc9b48a, 0xf0bf45][z], 0.9));
+      blob.rotation.x = -Math.PI / 2;
+      blob.scale.set(2.25, 3.3, 1);
+      const holder = new T.Group();
+      holder.rotation.y = th;
+      blob.position.set(0, 0.085, 3.15);
+      holder.add(blob);
+      blob.receiveShadow = true;
+      scene.add(holder);
+      const keys = ["o0", ...Array.from({ length: CLOVER_PETAL - 1 }, (_, k) => `o${z * CLOVER_PETAL + k + 1}`), "o0"];
+      for (let k = 0; k < keys.length - 1; k++) {
+        const [ax, az] = CLOVER_POINTS[keys[k]], [bx, bz] = CLOVER_POINTS[keys[k + 1]];
+        const len = Math.hypot(bx - ax, bz - az);
+        for (let n = 0; n < Math.round(len / 0.32); n++) {
+          const t = (n + 0.5) / Math.round(len / 0.32);
+          const plank = shadowy(new T.Mesh(new T.BoxGeometry(0.62, 0.05, 0.22), mat(n % 2 ? 0xb07a45 : 0x9a6a3a, 0.85)));
+          plank.position.set(ax + (bx - ax) * t, 0.11, az + (bz - az) * t);
+          plank.rotation.y = Math.atan2(bx - ax, bz - az);
+          scene.add(plank);
+        }
+      }
+    });
+    // 三葉草: a flag on the plaza (the owner's castle square) and palms in the gaps between the loops.
+    const pole = shadowy(new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 2.2, 8), matC(0xffffff, 0.4)));
+    pole.position.set(0, TOP + 1.1, -0.35);
+    scene.add(pole);
+    const flag = shadowy(new T.Mesh(new T.BoxGeometry(0.75, 0.45, 0.03), matC(0xe52521, 0.5)));
+    flag.position.set(0.4, TOP + 1.95, -0.35);
+    scene.add(flag);
+    floaters.push({ obj: flag, base: TOP + 1.95 });
+    for (let n = 0; n < 6; n++) {
+      const a = CLOVER_ANGLES[n % 3] + Math.PI / 3 + (n < 3 ? 0 : 0.18), r = n < 3 ? 4.9 : 6.1;
+      const palm = new T.Group();
+      for (let k = 0; k < 5; k++) {
+        const seg = shadowy(new T.Mesh(new T.CylinderGeometry(0.08, 0.1, 0.36, 8), matC(0x9a6a3a, 0.8)));
+        seg.position.set(k * 0.04, 0.18 + k * 0.34, 0);
+        palm.add(seg);
+      }
+      for (let k = 0; k < 6; k++) {
+        const leaf = shadowy(new T.Mesh(new T.ConeGeometry(0.16, 0.9, 4), matC(0x2e9e44, 0.6)));
+        const hold = new T.Group();
+        hold.position.set(0.2, 1.75, 0);
+        hold.rotation.y = (k / 6) * Math.PI * 2;
+        leaf.rotation.set(0, 0, -1.25);
+        leaf.position.x = 0.4;
+        hold.add(leaf);
+        palm.add(hold);
+      }
+      palm.position.set(Math.sin(a) * r, 0.05, Math.cos(a) * r);
+      palm.scale.setScalar(n < 3 ? 0.85 : 0.7);
+      scene.add(palm);
+    }
+  } else if (island) {
     // Lighthouse in the middle, palms around it, a pier out to sea by the dock square.
     const white = mat(0xffffff, 0.5), red = mat(0xe52521, 0.45), dark = mat(0x1f2937, 0.5);
     const tower = shadowy(new T.Mesh(new T.CylinderGeometry(0.42, 0.62, 3, 24), white));

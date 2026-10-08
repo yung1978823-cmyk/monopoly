@@ -379,7 +379,10 @@ function RealmEditor({
     ({
       facade: t("只改外觀：金色屋頂"),
       table: t("同時多開一張枱"),
-      rent: t("客人踩中要交租俾你（{n} 能量）", { n: formatEnergy(tableEnergy(HOUSE_RENT)) }),
+      rent:
+        boardOf(realm) === "clover"
+          ? t("地主關卡過路費加 {n} 能量", { n: formatEnergy(tableEnergy(1)) })
+          : t("客人踩中要交租俾你（{n} 能量）", { n: formatEnergy(tableEnergy(HOUSE_RENT)) }),
       station: t("每人少 {n} 轉，打得快啲", { n: STATION_TURNS }),
       chance: t("揀用邊套機會卡"),
     })[kind];

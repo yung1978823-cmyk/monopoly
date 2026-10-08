@@ -14,14 +14,15 @@
  * TEMPORARY numbers, marked 臨時 on screen: land prices, material shop prices, building recipes,
  * the rent a rent house charges and how much a station shortens a game.
  */
-import { CARDS, RENT_CAP, TURNS_EACH, type BoardId, type Card, type TableRules } from "@/lib/eight";
+import { CARDS, RENT_CAP, TOLL, TURNS_EACH, type BoardId, type Card, type TableRules } from "@/lib/eight";
 
 // ---------- Land ----------
 
 export type LandKind = "island" | "mountain" | "volcano";
 export const LAND_KINDS: readonly LandKind[] = ["island", "mountain", "volcano"];
 export const LANDS: Record<LandKind, { price: number; slots: number; squares: number; board: BoardId | null }> = {
-  island: { price: 150, slots: 2, squares: 20, board: "island" },
+  // 海島 plays on the 三葉草 board (Sky 2026-10-08): materials and the owner's tolls, no land to buy.
+  island: { price: 150, slots: 2, squares: 22, board: "clover" },
   mountain: { price: 300, slots: 4, squares: 28, board: null },
   volcano: { price: 500, slots: 6, squares: 36, board: null },
 };
@@ -63,6 +64,8 @@ export const MIN_TURNS = 8;
 export const HOUSE_SPOTS: Record<BoardId, readonly string[]> = {
   island: ["o2", "o12", "o7", "o17", "o1", "o11"],
   eight: ["o2", "o18", "o10", "o26", "o6", "o22"],
+  // 三葉草: a 租金屋 sits on a 地主關卡 and raises its toll by one.
+  clover: ["o4", "o12", "o20"],
 };
 
 /** Published chance decks. Each one's money cards add up to zero, so none pays out on average. */
@@ -156,7 +159,7 @@ export function count(realm: Realm, kind: BuildingKind): number {
 }
 
 export function boardOf(realm: Realm): BoardId {
-  return (realm.land && LANDS[realm.land].board) || "island";
+  return (realm.land && LANDS[realm.land].board) || "clover";
 }
 
 /** Tables you can run at once: 1, plus one per 加枱. */
@@ -211,6 +214,7 @@ export function rulesOf(realm: Realm): Partial<TableRules> {
     turnsEach: turnsOf(realm),
     houses: Object.fromEntries(housesOf(realm).map((key) => [key, Math.min(RENT_CAP, HOUSE_RENT)])),
     cards: count(realm, "chance") > 0 ? DECKS[realm.deck] : CARDS,
+    toll: TOLL + count(realm, "rent"),
   };
 }
 

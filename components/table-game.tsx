@@ -13,6 +13,8 @@ import {
   SEASON_POINTS,
   STAKE,
   START_PAY,
+  MAP_PIECES,
+  SAND_BACK,
   botMove,
   canPlay,
   type Power,
@@ -68,6 +70,9 @@ function seatsFor(pick: number, opponents: number): Player[] {
 }
 
 /** The 3D character for a seat, from its avatar picture (vampire, jiangshi, mummy, zombie), or null. */
+const MAT_NAME = { wood: "木材", stone: "石磚", gold: "金塊" } as const;
+const MAT_ICON = { wood: "🪵", stone: "🧱", gold: "🪙" } as const;
+
 function actorOf(avatar: string): string | null {
   const key = /avatars\/(\w+)\./.exec(avatar)?.[1];
   return key && ACTORS[key] ? key : null;
@@ -412,7 +417,7 @@ export function EightBoard({
             play("step");
             if (event.passedStart) {
               play("coin");
-              say("經過起點 +{n}", { n: E(START_PAY) });
+              say(state.board === "clover" ? "經過廣場 +{n}" : "經過起點 +{n}", { n: E(START_PAY) });
               void scene.coinsBurst(event.seat, 2);
               void scene.rainbow(event.seat);
             }
@@ -598,6 +603,74 @@ export function EightBoard({
           case "unlocked":
             scene.lockTile(event.key, false);
             break;
+          // ---------- 三葉草 (領地 海島) ----------
+          case "gather": {
+            const name = tRef.current(MAT_NAME[event.material]);
+            if (event.amount > 0) {
+              play(event.material === "gold" ? "chest" : "coin");
+              say(event.why === "caravan" ? "{name} 商隊送 {mat} +{n}" : "{name} 採集 {mat} +{n}", { name: who(event.seat), mat: name, n: event.amount });
+              void scene.floatText(event.seat, `+${event.amount} ${MAT_ICON[event.material]}`, "#16A34A");
+              await scene.sparkle(event.seat);
+            } else {
+              play("bad");
+              say(event.why === "termite" ? "{name} 遇到白蟻，{mat} −{n}" : "{name} 山泥傾瀉，{mat} −{n}", { name: who(event.seat), mat: name, n: -event.amount });
+              if (event.amount < 0) void scene.floatText(event.seat, `${event.amount} ${MAT_ICON[event.material]}`);
+              await scene.wait(800);
+            }
+            break;
+          }
+          case "map":
+            play("lucky");
+            say("{name} 執到藏寶圖碎片 {n}／{total}", { name: who(event.seat), n: event.pieces, total: MAP_PIECES });
+            void scene.floatText(event.seat, `🗺️ ${event.pieces}/${MAP_PIECES}`, "#7C3AED");
+            await scene.wait(800);
+            break;
+          case "treasure":
+            play("chest");
+            say("{name} 砌齊藏寶圖，挖到寶藏！", { name: who(event.seat) });
+            scene.cheer(event.seat);
+            void scene.floatText(event.seat, `+${event.gold} ${MAT_ICON.gold}`, "#D97706");
+            await Promise.all([scene.coinsBurst(event.seat, event.cash), scene.fireworks(event.seat, 1)]);
+            break;
+          case "toll":
+            play("coin");
+            say("{name} 過地主關卡，交 {n} 俾地主", { name: who(event.seat), n: E(event.amount) });
+            special(event.seat, "pays");
+            void scene.floatText(event.seat, `−${E(event.amount)}`);
+            await scene.coinsFly(event.seat, null, event.amount);
+            break;
+          case "artisan":
+            play("lucky");
+            say("{name} 請到工匠：下次採集雙倍", { name: who(event.seat) });
+            void scene.floatText(event.seat, "🔨 ×2", "#7C3AED");
+            await scene.sparkle(event.seat);
+            break;
+          case "trade":
+            play("coin");
+            say("{name} 同商隊交易：{n} {give} 換 {m} {take}", {
+              name: who(event.seat),
+              n: event.gave,
+              give: tRef.current(MAT_NAME[event.give]),
+              m: event.took,
+              take: tRef.current(MAT_NAME[event.take]),
+            });
+            void scene.floatText(event.seat, `${MAT_ICON[event.give]}→${MAT_ICON[event.take]}`, "#D97706");
+            await scene.wait(900);
+            break;
+          case "bandit":
+            play("bad");
+            say(event.material ? "{name} 俾山賊搶咗 1 {mat}！" : "山賊搜身，{name} 乜都冇", {
+              name: who(event.seat),
+              mat: event.material ? tRef.current(MAT_NAME[event.material]) : "",
+            });
+            if (event.material) void scene.floatText(event.seat, `−1 ${MAT_ICON[event.material]}`);
+            await scene.wait(900);
+            break;
+          case "sand":
+            play("miss");
+            say("{name} 跌落流沙，退後 {n} 格", { name: who(event.seat), n: SAND_BACK });
+            await scene.flyTo(event.seat, event.to);
+            break;
           case "spawn":
             say("新一圈！功能卡出現咗");
             await scene.showPickup(event.key);
@@ -731,6 +804,16 @@ export function EightBoard({
 
   // Public table: your finish pays materials for your 領地 (private-land games pay none).
   const awarded = useRef(false);
+  // 三葉草: what was gathered goes home — a guest keeps their own haul; the host gets what the 山賊 took.
+  useEffect(() => {
+    if (table.board !== "clover" || table.phase !== "over" || awarded.current) return;
+    const gain: Stock | undefined = realm ? table.hostStock : guestTicket !== undefined && !table.seats[0]?.bot ? table.seats[0]?.stock : undefined;
+    if (!gain) return;
+    awarded.current = true;
+    saveWallet(addStock(loadWallet(), gain));
+    const id = window.setTimeout(() => setReward(gain), 0);
+    return () => window.clearTimeout(id);
+  }, [table, realm, guestTicket]);
   useEffect(() => {
     if (!publicTable || table.phase !== "over" || awarded.current || table.seats[0]?.bot) return;
     awarded.current = true;
@@ -800,10 +883,22 @@ export function EightBoard({
                 <Energy />
                 {compactEnergy(tableEnergy(seat.cash), lang)}
               </span>
+              {/* 三葉草: materials gathered instead of land. */}
+              {seat.stock ? (
+                <span className="flex items-center gap-1 text-[10px] font-black leading-tight text-[#3B5BA9] tabular-nums" data-testid={`stock-${index}`}>
+                  {(["wood", "stone", "gold"] as const).map((m) => (
+                    <span key={m} className="inline-flex items-center">
+                      <img src={`/art/realm/${m}.webp`} alt="" className="size-3.5 object-contain" />
+                      {seat.stock![m]}
+                    </span>
+                  ))}
+                  {seat.maps ? <span>🗺️{seat.maps}</span> : null}
+                </span>
+              ) : null}
               {/* How much land and how many building levels they hold. */}
-              <span className="text-[10px] font-black leading-tight text-[#3B5BA9] tabular-nums" data-testid={`holdings-${index}`}>
+              {table.board === "clover" ? null : <span className="text-[10px] font-black leading-tight text-[#3B5BA9] tabular-nums" data-testid={`holdings-${index}`}>
                 {t("地 {l}・樓 {b}", { l: holdings[index].lots, b: holdings[index].levels })}
-              </span>
+              </span>}
               {seat.jailed ? <span className="text-xs">🔒</span> : null}
               {seat.powers.length ? (
                 <span className="flex max-w-full flex-wrap justify-center gap-0.5" aria-label={t("功能卡 {n} 張", { n: seat.powers.length })}>

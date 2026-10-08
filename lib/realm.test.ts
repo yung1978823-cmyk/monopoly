@@ -24,6 +24,7 @@ import {
   parseRealm,
   parseWallet,
   rulesOf,
+  boardOf,
   setMinPlayers,
   setTicket,
   tableReward,
@@ -137,11 +138,19 @@ describe("領地: playing on the island", () => {
   });
 
   it("guests pay the host's rent house, capped", () => {
+    let state = newTable(guests(3), { houses: { o2: 9 } }, "island");
+    state = reduceTable(state, { type: "roll", dice: [1, 1] }); // start → o2, the rent house
+    assert.equal(state.hostIncome, RENT_CAP);
+  });
+
+  it("三葉草: a 租金屋 raises the 地主關卡 toll, and materials pile up", () => {
     let { realm, wallet } = buyLand(emptyRealm(), rich(), "island");
     ({ realm, wallet } = build(realm, wallet, 0, "rent"));
-    let state = newTable(guests(3), rulesOf(realm), "island");
-    state = reduceTable(state, { type: "roll", dice: [1, 1] }); // start → o2, the first rent house
-    assert.equal(state.hostIncome, Math.min(RENT_CAP, HOUSE_RENT));
+    assert.equal(boardOf(realm), "clover");
+    let state = newTable(guests(3), rulesOf(realm), "clover");
+    state = reduceTable(state, { type: "roll", dice: [1, 3] }); // plaza → o1 (wood) → o4 (toll)
+    assert.equal(state.seats[0].stock?.wood, 2);
+    assert.equal(state.hostIncome, 2);
   });
 
   it("seats six on a land, and a full game ends", () => {
