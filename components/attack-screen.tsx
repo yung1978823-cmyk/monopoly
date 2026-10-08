@@ -8,7 +8,7 @@ import { CHARACTERS } from "@/lib/characters";
 import { previewTheme, themeOf, THEMES } from "@/lib/themes";
 import { FIRE_MS } from "@/components/city-scene";
 import { CloudWall } from "@/components/attack-intro";
-import { holdsNft, matchUp, standingIndexes, totalLevels, type GameState } from "@/lib/game";
+import { matchUp, standingIndexes, totalLevels, type GameState } from "@/lib/game";
 import { ELEMENTS, TYPE_EDGE } from "@/lib/pet";
 import { useLang } from "@/lib/i18n";
 import { play } from "@/lib/sfx";
@@ -123,12 +123,12 @@ export function AttackScreen({
           }}
           fire={shot}
           fireKey={shot?.key ?? 0}
-          attacker={state.pet ? { element: state.pet.element, stage: state.pet.stage, legend: holdsNft(state) } : null}
+          attacker={state.pet ? { element: state.pet.element, stage: state.pet.stage, legend: false } : null}
           resident={{
             // The rival's own monster (made up from who they are and how far along they are, for the practice board).
             element: state.rivalElement,
             stage: Math.min(4, 1 + state.rivalCity + Math.floor(totalLevels(state.rivalLevels) / 9)),
-            legend: state.rivalHasNft && state.rivalNfts >= 3,
+            legend: false,
           }}
         />
       </div>

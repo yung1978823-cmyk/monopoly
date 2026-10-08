@@ -6,7 +6,7 @@ import { GrowIntro, HATCH_MS } from "@/components/hatch-intro";
 import { juice } from "@/components/juice";
 import { PetView } from "@/components/pet-view";
 
-import { holdsNft, type GameState } from "@/lib/game";
+import { type GameState } from "@/lib/game";
 import { useLang } from "@/lib/i18n";
 import { ELEMENTS, HATCH_ROLLS, HUNGRY_DROP, STAGE_NAMES, UPKEEP, growNeed, petAttack, petName, rollElement } from "@/lib/pet";
 import { play } from "@/lib/sfx";
@@ -25,7 +25,7 @@ export function PetScreen({
   onClose: () => void;
 }) {
   const { t } = useLang();
-  const legend = holdsNft(state);
+  const legend = false;
   const pet = state.pet;
   const need = pet ? growNeed(pet) : null;
   // 升級 show (Sky 2026-10-01): the stage really changes at the white flash, so the picture behind swaps then.
@@ -173,7 +173,7 @@ export function PetScreen({
               ))}
             </div>
             <p className="text-center text-xs font-bold text-[#3B5BA9]">
-              {legend ? t("你有 NFT：孵出嚟係傳說系列，攻擊力多一成。") : t("屬性隨機，孵出嚟先知。領咗之後喺棋盤擲 60 次骰就孵化，一出世就識飛。")}
+              {t("屬性隨機，孵出嚟先知。領咗之後喺棋盤擲 60 次骰就孵化，一出世就識飛。")}
             </p>
             <button
               type="button"

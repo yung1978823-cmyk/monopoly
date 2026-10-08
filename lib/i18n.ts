@@ -50,7 +50,6 @@ const DICT: Record<string, { hans: string; en: string }> = {
   "你克佢！機會 +{n}%": { hans: "你克它！机会 +{n}%", en: "You have the edge! +{n}% chance" },
   "佢克你！機會 −{n}%": { hans: "它克你！机会 −{n}%", en: "They have the edge! −{n}% chance" },
   "領取你嘅龍蛋": { hans: "领取你的龙蛋", en: "Get your dragon egg" },
-  "你有 NFT：孵出嚟係傳說系列，攻擊力多一成。": { hans: "你有 NFT：孵出来是传说系列，攻击力多一成。", en: "You hold an NFT: it hatches Legendary, with 10% more attack." },
   "屬性隨機，孵出嚟先知。由龍蛋養到 SSR，一出世就識飛。": { hans: "属性随机，孵出来才知道。从龙蛋养到 SSR，一出生就会飞。", en: "The attribute is random, revealed at hatching. Raise it from egg to SSR. It can fly from birth." },
   "🥚 領取龍蛋！": { hans: "🥚 领取龙蛋！", en: "🥚 Get the egg!" },
   "{e}屬性": { hans: "{e}属性", en: "{e} attribute" },
@@ -78,7 +77,6 @@ const DICT: Record<string, { hans: string; en: string }> = {
   "🍖 喺棋盤肉格攞；💎 水晶要去偷嘢格偷返嚟。": { hans: "🍖 在棋盘肉格拿；💎 水晶要去偷东西格偷回来。", en: "Get 🍖 on meat squares. 💎 Crystals can only be stolen on steal squares." },
   "👑 已經係王者！": { hans: "👑 已经是王者！", en: "👑 Already a King!" },
   "揀你嘅怪獸": { hans: "选你的怪兽", en: "Pick your monster" },
-  "你有 NFT：你隻係傳說系列，攻擊力多一成。": { hans: "你有 NFT：你的是传说系列，攻击力多一成。", en: "You hold an NFT: yours is Legendary, with 10% more attack." },
   "由蛋開始，養大會變強，共五個階段。": { hans: "从蛋开始，养大会变强，共五个阶段。", en: "Starts as an egg and grows stronger through five stages." },
   "就揀佢！": { hans: "就选它！", en: "This one!" },
   "🦝 潛入咗{name}嘅倉庫！": { hans: "🦝 潜入了{name}的仓库！", en: "🦝 You sneaked into {name}'s store!" },
@@ -203,8 +201,6 @@ const DICT: Record<string, { hans: string; en: string }> = {
   黑洞: { hans: "黑洞", en: "Black Hole" },
   // Daily board screen
   你的每日棋盤: { hans: "你的每日棋盘", en: "Your daily board" },
-  "拎走 NFT {n}": { hans: "拿走 NFT {n}", en: "Remove NFT {n}" },
-  "放 NFT 入第 {n} 格": { hans: "把 NFT 放入第 {n} 格", en: "Put an NFT in slot {n}" },
   "存檔讀不出來，已改用一塊新棋盤。": { hans: "存档读取失败，已改用新棋盘。", en: "Couldn't read your save, so this is a new board." },
   "這台瀏覽器沒把棋盤存下來。重新整理會回到新棋盤。": {
     hans: "这个浏览器没有保存棋盘。刷新后会回到新棋盘。",
@@ -220,7 +216,6 @@ const DICT: Record<string, { hans: string; en: string }> = {
   語言: { hans: "语言", en: "Language" },
   "補一粒（測試）": { hans: "补一颗（测试）", en: "Add a die (test)" },
   "被攻擊（測試）": { hans: "被攻击（测试）", en: "Get attacked (test)" },
-  "對手 NFT：{v}（測試）": { hans: "对手 NFT：{v}（测试）", en: "Rival NFT: {v} (test)" },
   有: { hans: "有", en: "yes" },
   冇: { hans: "无", en: "no" },
   "確定重開？": { hans: "确定重开？", en: "Really restart?" },

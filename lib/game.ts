@@ -11,8 +11,6 @@ import {
   HIT_BASE,
   HIT_MAX,
   HIT_MIN,
-  NFT_ATTACK,
-  NFT_SLOTS,
   BUILDINGS,
   LEVEL_ATTACK,
   THEME_ATTACK,
@@ -23,7 +21,6 @@ import {
   holeLoss,
   hitChance,
   levelCost,
-  nftAttack,
   smashPoints,
   addTestDie,
   applyRefill,
@@ -198,11 +195,6 @@ export type GameState = {
   rivalFace: number;
   /** The current rival's dragon attribute (an index into ELEMENTS). */
   rivalElement: number;
-  /** The five NFT slots: each holds an NFT id or is empty. Any NFT placed means you hold one. */
-  nfts: (string | null)[];
-  rivalHasNft: boolean;
-  /** How many NFTs the current rival has placed (0 without an NFT). */
-  rivalNfts: number;
   /** Legacy: DST taken today, from before 能量 replaced DST. Always 0 now. */
   dstTakenToday: number;
   rollCount: number;
@@ -236,8 +228,8 @@ export type Action =
       rivalFace?: number;
       /** That rival's dragon attribute. */
       rivalElement?: number;
-      /** How many NFTs that rival has placed (1–5), when they hold any. */
-      rivalNfts?: number;
+      /** 黑洞護盾 (Sky 2026-10-08, no NFTs any more): some rivals guard with a black hole, picked by the page. */
+      rivalShield?: boolean;
       /** Points in the chest, if the walk stops on 寶箱 (3–6). */
       chest?: number;
       /** The chest holds 🍖 instead of coins (the same 3–6). */
@@ -262,9 +254,6 @@ export type Action =
   /** 一個錢包: 能量 changed outside the board (shop, 領地, tables); `points` is the new total in coins. */
   | { type: "set-points"; points: number }
   | { type: "return-walk" }
-  | { type: "place-nft"; slot: number; id: string }
-  | { type: "remove-nft"; slot: number }
-  | { type: "set-rival-nft"; value: boolean }
   | { type: "reset"; now: number; dayKey: string }
   | { type: "hydrate"; state: GameState; now: number; dayKey: string };
 
@@ -272,17 +261,6 @@ export const STORAGE_KEY = "dafuweng-daily-board-v4";
 export const STARTING_DICE = 2;
 
 const noLevels = (): number[] => Array.from({ length: BUILDINGS }, () => 0);
-const emptyNfts = (): (string | null)[] => Array.from({ length: NFT_SLOTS }, () => null);
-
-/** How many NFTs sit in your slots. */
-export function nftCount(state: Pick<GameState, "nfts">): number {
-  return state.nfts.filter((id) => id !== null).length;
-}
-
-/** Placing any NFT counts as holding one: that unlocks the legendary dragon and adds attack. */
-export function holdsNft(state: Pick<GameState, "nfts">): boolean {
-  return nftCount(state) > 0;
-}
 
 /** Whether every building on the page is at the top level (the page is finished). */
 export function pageDone(levels: readonly number[]): boolean {
@@ -299,9 +277,9 @@ export function totalLevels(levels: readonly number[]): number {
   return levels.reduce((sum, level) => sum + level, 0);
 }
 
-/** The rival's power, on the same scale as yours: 10, +10 per page they finished, +2 per standing level, +2 per NFT. */
-export function rivalPower(state: Pick<GameState, "rivalLevels" | "rivalNfts" | "rivalCity">): number {
-  return 10 + state.rivalCity * THEME_ATTACK + totalLevels(state.rivalLevels) * LEVEL_ATTACK + nftAttack(state.rivalNfts);
+/** The rival's power, on the same scale as yours: 10, +10 per page they finished, +2 per standing level. */
+export function rivalPower(state: Pick<GameState, "rivalLevels" | "rivalCity">): number {
+  return 10 + state.rivalCity * THEME_ATTACK + totalLevels(state.rivalLevels) * LEVEL_ATTACK;
 }
 
 /** Your hatched dragon against the rival's: +1 you beat their attribute, −1 they beat yours. */
@@ -309,15 +287,14 @@ export function matchUp(state: Pick<GameState, "pet" | "rivalElement">): -1 | 0 
   return state.pet && state.pet.stage > 0 ? typeEdge(state.pet.element, state.rivalElement) : 0;
 }
 
-/** Attack power: your monster's (10 as an egg, up to 46 as 王者; a tenth more for a legendary NFT
- * monster), plus +2 per NFT placed. Buildings are for defence. */
-export function attackPower(state: Pick<GameState, "pet" | "nfts">): number {
-  return petAttack(state.pet, holdsNft(state)) + nftAttack(nftCount(state));
+/** Attack power: your monster's (10 as an egg, up to 46 as 王者). Buildings are for defence. */
+export function attackPower(state: Pick<GameState, "pet">): number {
+  return petAttack(state.pet);
 }
 
-/** Your defence, on the same scale as a rival's: 10, +10 per finished page, +2 per standing level on this page, +2 per NFT. */
-export function defencePower(state: Pick<GameState, "theme" | "levels" | "nfts">): number {
-  return 10 + state.theme * THEME_ATTACK + totalLevels(state.levels) * LEVEL_ATTACK + nftAttack(nftCount(state));
+/** Your defence, on the same scale as a rival's: 10, +10 per finished page, +2 per standing level on this page. */
+export function defencePower(state: Pick<GameState, "theme" | "levels">): number {
+  return 10 + state.theme * THEME_ATTACK + totalLevels(state.levels) * LEVEL_ATTACK;
 }
 
 export function createGame(now: number, dayKey: string): GameState {
@@ -340,9 +317,6 @@ export function createGame(now: number, dayKey: string): GameState {
     rivalCity: 0,
     rivalFace: 1,
     rivalElement: 1,
-    nfts: emptyNfts(),
-    rivalHasNft: true,
-    rivalNfts: 1,
     dstTakenToday: 0,
     rollCount: 0,
     strikes: 0,
@@ -485,15 +459,6 @@ function readPet(value: unknown): Pet | null {
   };
 }
 
-function readNfts(value: unknown): (string | null)[] {
-  const slots = emptyNfts();
-  if (!Array.isArray(value)) return slots;
-  return slots.map((_, index) => {
-    const id = value[index];
-    return typeof id === "string" && id.length > 0 && id.length <= 64 ? id : null;
-  });
-}
-
 function inRange(value: unknown, min: number, max: number): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
 }
@@ -504,7 +469,7 @@ function readWeapon(value: unknown): WeaponReadout | null {
   const { weapon, attackTotal, defenseTotal, enemyLuck, hit, pointsGained, shieldBreak } = readout;
   const chance = inRange(readout.chance, HIT_MIN, HIT_MAX) ? readout.chance : HIT_BASE;
   const smashed = inRange(readout.smashed, 0, BUILDINGS - 1) ? readout.smashed : null;
-  const top = 10 + THEMES.length * THEME_ATTACK + BUILDINGS * MAX_LEVEL * LEVEL_ATTACK + NFT_SLOTS * NFT_ATTACK;
+  const top = 10 + THEMES.length * THEME_ATTACK + BUILDINGS * MAX_LEVEL * LEVEL_ATTACK;
   if (
     !inRange(weapon, 0, BUILDINGS * MAX_LEVEL) ||
     !inRange(attackTotal, 10, top) ||
@@ -568,9 +533,6 @@ export function sanitizeState(
     rivalCity,
     rivalFace: inRange(value.rivalFace, 0, CHARACTERS.length - 1) ? value.rivalFace : 1,
     rivalElement: inRange(value.rivalElement, 0, ELEMENTS.length - 1) ? value.rivalElement : 1,
-    nfts: readNfts(value.nfts),
-    rivalHasNft: value.rivalHasNft !== false,
-    rivalNfts: value.rivalHasNft === false ? 0 : clampInt(value.rivalNfts, 1, NFT_SLOTS, 1),
     // DST is gone (能量 only); old saves' counts are dropped.
     dstTakenToday: 0,
     rollCount: clampInt(value.rollCount, 0, 1_000_000, 0),
@@ -700,34 +662,6 @@ export function reduce(state: GameState, action: Action): GameState {
       if (state.dice >= DICE_CAP) return state;
       return { ...state, dice: addTestDie(state.dice) };
     }
-    case "place-nft": {
-      if (!inRange(action.slot, 0, NFT_SLOTS - 1) || !action.id || state.nfts[action.slot] !== null) return state;
-      if (state.nfts.includes(action.id)) return state;
-      const nfts = state.nfts.map((id, index) => (index === action.slot ? action.id : id));
-      return { ...state, nfts };
-    }
-    case "remove-nft": {
-      if (!inRange(action.slot, 0, NFT_SLOTS - 1) || state.nfts[action.slot] === null) return state;
-      const nfts = state.nfts.map((id, index) => (index === action.slot ? null : id));
-      return { ...state, nfts };
-    }
-    case "set-rival-nft": {
-      if (state.rivalHasNft === action.value) return state;
-      // Before the first strike of a fight, the rival's shield follows their NFT.
-      const fresh = state.phase === "search" && state.weaponReadout === null;
-      return pushLog(
-        {
-          ...state,
-          rivalHasNft: action.value,
-          rivalNfts: action.value ? Math.max(1, state.rivalNfts) : 0,
-          enemyShield: fresh ? action.value : state.enemyShield,
-        },
-        "rule",
-        action.value
-          ? "對手有 NFT，開打時有一面盾。"
-          : "對手沒有 NFT，冇盾。",
-      );
-    }
     case "move": {
       const faces = readPair(action.faces);
       if (state.phase !== "walk" || !faces) return state;
@@ -828,10 +762,8 @@ export function reduce(state: GameState, action: Action): GameState {
         rivalCity,
         rivalFace,
         rivalElement,
-        rivalNfts: state.rivalHasNft ? (inRange(action.rivalNfts, 1, NFT_SLOTS) ? action.rivalNfts : 1) : 0,
         enemyLuck,
-        // Only a rival holding an NFT has a shield.
-        enemyShield: searching && state.rivalHasNft,
+        enemyShield: searching && action.rivalShield === true,
         fightSettled: false,
         weaponReadout: null,
       };

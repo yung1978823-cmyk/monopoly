@@ -36,7 +36,6 @@ import {
   standingIndexes,
   totalLevels,
   createGame,
-  holdsNft,
   parseSave,
   reduce,
   spinWheel,
@@ -66,7 +65,7 @@ type PendingWalk = {
   rivalCity: number;
   rivalFace: number;
   rivalElement: number;
-  rivalNfts: number;
+  rivalShield: boolean;
   chest: number;
   chestMeat: boolean;
   /** Where the 龍捲風 blows you, if the walk stops on it. */
@@ -78,65 +77,6 @@ type PendingWalk = {
   committed: boolean;
 };
 
-/** Stand-in NFTs until wallet NFTs are wired in: tapping an empty slot places the next one. */
-const NFT_STANDINS = [
-  { id: "nft-vampire", icon: "🧛" },
-  { id: "nft-jiangshi", icon: "🧟" },
-  { id: "nft-ghost", icon: "👻" },
-  { id: "nft-bat", icon: "🦇" },
-  { id: "nft-pumpkin", icon: "🎃" },
-] as const;
-
-function nftIcon(id: string): string {
-  return NFT_STANDINS.find((nft) => nft.id === id)?.icon ?? "💎";
-}
-
-/** Five NFT slots and nothing else: a filled slot is an NFT you hold, and each one adds attack. */
-function NftSlots({
-  nfts,
-  onPlace,
-  onRemove,
-}: {
-  nfts: (string | null)[];
-  onPlace: (slot: number, id: string) => void;
-  onRemove: (slot: number) => void;
-}) {
-  const { t } = useLang();
-  const next = NFT_STANDINS.find((nft) => !nfts.includes(nft.id));
-  return (
-    <div className="grid grid-cols-5 gap-2" data-testid="nft-slots">
-      {nfts.map((id, slot) =>
-        id ? (
-          <button
-            key={slot}
-            type="button"
-            onClick={() => onRemove(slot)}
-            className="relative flex aspect-square cursor-pointer items-center justify-center rounded-2xl border-[3px] border-[#FBD000] bg-gradient-to-b from-[#8B5CF6] to-[#4C1D95] text-3xl shadow-[0_4px_0_#2E1065] animate-[pop_0.3s_ease-out]"
-            aria-label={t("拎走 NFT {n}", { n: slot + 1 })}
-            data-testid={`nft-${slot}`}
-          >
-            {nftIcon(id)}
-            <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-white text-[10px] font-black text-[#4C1D95] shadow">
-              ✕
-            </span>
-          </button>
-        ) : (
-          <button
-            key={slot}
-            type="button"
-            onClick={() => next && onPlace(slot, next.id)}
-            disabled={!next}
-            className="flex aspect-square cursor-pointer items-center justify-center rounded-2xl border-[3px] border-dashed border-[#8B5CF6]/50 bg-[#F3EEFF] text-2xl font-black text-[#8B5CF6]/60"
-            aria-label={t("放 NFT 入第 {n} 格", { n: slot + 1 })}
-            data-testid={`nft-${slot}`}
-          >
-            +
-          </button>
-        ),
-      )}
-    </div>
-  );
-}
 
 /** Turn the last stop into its board effect: the square's picture and what it paid. */
 function burstOf(state: GameState): Burst | null {
@@ -428,7 +368,7 @@ export function DailyGame() {
         rivalCity: move.rivalCity,
         rivalFace: move.rivalFace,
         rivalElement: move.rivalElement,
-        rivalNfts: move.rivalNfts,
+        rivalShield: move.rivalShield,
         chest: move.chest,
         chestMeat: move.chestMeat,
         stealBoxes: move.stealBoxes,
@@ -461,7 +401,8 @@ export function DailyGame() {
     const rivalFace = others[Math.floor(Math.random() * others.length)];
     const rivalElement = rollElement(Math.random());
     const chest = 3 + Math.floor(Math.random() * 4);
-    const rivalNfts = 1 + Math.floor(Math.random() * 5);
+    // About one rival in three guards with a black hole.
+    const rivalShield = Math.random() < 0.35;
     // A chest holds 🍖 half the time.
     const chestMeat = Math.random() < 0.5;
     // A rival's store (偷嘢): nine crates — two dangers (of 老鼠夾, 炸彈, 鬧鐘), one rarer prize (a bag of coins
@@ -477,7 +418,7 @@ export function DailyGame() {
       .sort(() => Math.random() - 0.5)
       .slice(0, 2);
     const stealBoxes: StealBox[] = [...dangers, rare, ...commons].sort(() => Math.random() - 0.5);
-    setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalFace, rivalElement, rivalNfts, chest, chestMeat, stealBoxes, tornado, wheel: spinWheel(Math.random()), running: true, committed: false });
+    setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalFace, rivalElement, rivalShield, chest, chestMeat, stealBoxes, tornado, wheel: spinWheel(Math.random()), running: true, committed: false });
   }
 
   function onBuild() {
@@ -597,7 +538,7 @@ export function DailyGame() {
           preview
             ? { element: preview.element, stage: preview.stage, legend: false, hungry: false }
             : state.pet
-            ? { element: state.pet.element, stage: state.pet.stage, legend: holdsNft(state), hungry: state.pet.hungry > 0, rolls: state.pet.rolls, hatchAt: HATCH_ROLLS }
+            ? { element: state.pet.element, stage: state.pet.stage, legend: false, hungry: state.pet.hungry > 0, rolls: state.pet.rolls, hatchAt: HATCH_ROLLS }
             : { element: 0, stage: 0, legend: false, hungry: false }
         }
         onEggTap={() => !pending?.running && setPetOpen(true)}
@@ -917,11 +858,6 @@ export function DailyGame() {
                 ⚔️ {power}
               </span>
             </div>
-            <NftSlots
-              nfts={state.nfts}
-              onPlace={(slot, id) => dispatch({ type: "place-nft", slot, id })}
-              onRemove={(slot) => dispatch({ type: "remove-nft", slot })}
-            />
             <div className="grid grid-cols-2 gap-2">
               <Button
                 className="h-11 cursor-pointer"
@@ -939,14 +875,6 @@ export function DailyGame() {
                 data-testid="raided"
               >
                 {t("被攻擊（測試）")}
-              </Button>
-              <Button
-                className="h-11 cursor-pointer"
-                variant="outline"
-                onClick={() => dispatch({ type: "set-rival-nft", value: !state.rivalHasNft })}
-                data-testid="rival-nft"
-              >
-                {t("對手 NFT：{v}（測試）", { v: t(state.rivalHasNft ? "有" : "冇") })}
               </Button>
               <Button className="h-11 cursor-pointer" variant="outline" onClick={resetBoard}>
                 {resetArmed ? t("確定重開？") : t("重開棋盤")}

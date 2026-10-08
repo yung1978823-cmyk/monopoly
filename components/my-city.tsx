@@ -5,7 +5,7 @@ import { CityView } from "@/components/city-view";
 import { LevelPips } from "@/components/building";
 import { TipHand } from "@/components/tip-hand";
 import { LANDMARK_NAMES } from "@/lib/board";
-import { canUpgrade, holdsNft, isRepair, pageDone, upgradeCost, type GameState } from "@/lib/game";
+import { canUpgrade, isRepair, pageDone, upgradeCost, type GameState } from "@/lib/game";
 import { ENERGY_ICON, coinEnergy, formatEnergy } from "@/lib/energy";
 import { MAX_LEVEL, THEME_REWARD_DICE, themeRewardCoins } from "@/lib/rules";
 import { artPicture, previewTheme, themeOf, THEMES } from "@/lib/themes";
@@ -94,7 +94,7 @@ export function MyCity({
         pop={raised?.building ?? null}
         popKey={raised?.key ?? 0}
         celebrateKey={party}
-        resident={state.pet ? { element: state.pet.element, stage: state.pet.stage, legend: holdsNft(state) } : null}
+        resident={state.pet ? { element: state.pet.element, stage: state.pet.stage, legend: false } : null}
       />
 
       {/* Top: back to the board, your money, and the pages (finished ones can be looked at). */}

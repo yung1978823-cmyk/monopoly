@@ -10,10 +10,8 @@ import {
   cheapestUpgrade,
   createGame,
   defencePower,
-  holdsNft,
   totalLevels,
   upgradeCost,
-  nftCount,
   parseSave,
   SAVE_PAGES,
   reduce,
@@ -37,8 +35,6 @@ describe("daily board", () => {
     assert.equal(state.dice, STARTING_DICE);
     assert.equal(state.points, 0);
     assert.equal(state.rollCount, 0);
-    assert.deepEqual(state.nfts, [null, null, null, null, null]);
-    assert.equal(state.rivalHasNft, true);
     assert.equal(state.dstTakenToday, 0);
     assert.deepEqual(state.levels, [0, 0, 0, 0, 0]);
     assert.equal(state.theme, 0);
@@ -153,18 +149,15 @@ describe("daily board", () => {
     assert.deepEqual(desert.rivalLevels, [4, 2, 0, 0, 1]);
     const wrong = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [4, 2, 1, 0, 0, 3], now: NOW });
     assert.equal(wrong.rivalLevels.length, 5, "never more than five");
-    const fight = { ...desert, enemyShield: false, rivalNfts: 0 };
+    const fight = { ...desert, enemyShield: false };
     // 10 + 2 finished pages × 10 + 7 levels × 2 = 44.
     assert.equal(reduce(fight, { type: "weapon", target: 0, roll: 0.99 }).weaponReadout?.defenseTotal, 44);
   });
 
-  it("gives a shield only to a rival holding an NFT", () => {
-    const nft = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [2, 1, 0, 0, 0], now: NOW });
-    assert.equal(nft.enemyShield, true);
-    const plain = reduce(
-      { ...start(), rivalHasNft: false },
-      { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [2, 1, 0, 0, 0], now: NOW },
-    );
+  it("gives a black-hole shield only to rivals the page says have one", () => {
+    const guarded = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [2, 1, 0, 0, 0], rivalShield: true, now: NOW });
+    assert.equal(guarded.enemyShield, true);
+    const plain = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [2, 1, 0, 0, 0], now: NOW });
     assert.equal(plain.enemyShield, false);
     // No shield: the first hit already needs a target and smashes it, for points only.
     const strong = { ...plain, pet: { element: 0, stage: 4, hungry: 0, rolls: 0 } };
@@ -173,9 +166,6 @@ describe("daily board", () => {
     assert.equal(hit.weaponReadout?.shieldBreak, false);
     assert.equal(hit.weaponReadout?.smashed, 1);
     assert.deepEqual(hit.rivalLevels, [2, 0, 0, 0, 0], "knocked down one level");
-    assert.equal(hit.weaponReadout?.dst, 0);
-    // Flipping the rival's NFT before the first strike brings the shield with it.
-    assert.equal(reduce(plain, { type: "set-rival-nft", value: true }).enemyShield, true);
   });
 
   it("scores without smashing when the rival has nothing standing", () => {
@@ -220,13 +210,13 @@ describe("daily board", () => {
   });
 
   it("settles a fight in one tap, breaking the shield on the way to the smash", () => {
-    let state = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [3, 2, 0, 0, 0], rivalNfts: 1, now: NOW });
+    let state = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [3, 2, 0, 0, 0], rivalShield: true, now: NOW });
     assert.equal(state.enemyShield, true);
     assert.equal(reduce(state, { type: "weapon", roll: 0 }), state, "must pick a standing landmark");
-    // You 10 against their 10 + 2 buildings × 5 + 1 NFT × 2 = 22: the 15% floor.
+    // You 10 against their 10 + 2 buildings × 5 = 20: the 15% floor.
     const missed = reduce(state, { type: "weapon", target: 0, roll: 0.5 });
     assert.equal(missed.weaponReadout?.attackTotal, 10);
-    assert.equal(missed.weaponReadout?.defenseTotal, 22);
+    assert.equal(missed.weaponReadout?.defenseTotal, 20);
     assert.equal(missed.weaponReadout?.chance, 15);
     assert.equal(missed.weaponReadout?.hit, false);
     assert.equal(missed.weaponReadout?.pointsGained, 0);
@@ -240,65 +230,41 @@ describe("daily board", () => {
 
     state = {
       ...state,
-      nfts: ["nft-a", null, null, null, null],
+      pet: { element: 0, stage: 1, hungry: 0, rolls: 60 },
       rivalLevels: [3, 0, 0, 0, 0],
-      rivalNfts: 1,
       enemyShield: true,
       fightSettled: false,
       points: 0,
     };
-    // A weaker attacker: 10 + 1 NFT × 2 = 12 against 10 + 3 levels × 2 + 1 NFT × 2 = 18.
+    // A weaker attacker: an N dragon (16) against 10 + 3 levels × 2 = 16, evenly matched.
     const scored = reduce(state, { type: "weapon", target: 0, roll: 0.2 });
-    assert.equal(scored.weaponReadout?.attackTotal, 12);
-    assert.equal(scored.weaponReadout?.defenseTotal, 18);
-    assert.equal(scored.weaponReadout?.chance, 26);
+    assert.equal(scored.weaponReadout?.attackTotal, 16);
+    assert.equal(scored.weaponReadout?.defenseTotal, 16);
+    assert.equal(scored.weaponReadout?.chance, 60, "evenly matched, plus the attribute edge");
     assert.equal(scored.weaponReadout?.shieldBreak, true);
-    assert.equal(scored.weaponReadout?.pointsGained, 5, "1 for the shield and 4 for smashing a stronger rival");
+    assert.equal(scored.weaponReadout?.pointsGained, 4, "1 for the shield and 3 for smashing an even rival");
     assert.equal(scored.weaponReadout?.dst, 0, "no DST any more");
     assert.equal(scored.dstTakenToday, 0);
     assert.equal(scored.enemyShield, false);
     assert.equal(scored.weaponReadout?.smashed, 0);
     assert.equal(scored.rivalLevels[0], 2, "knocked from level 3 to 2");
-    assert.match(scored.log[0]?.text ?? "", /得 500 能量，合計 500/);
+    assert.match(scored.log[0]?.text ?? "", /得 400 能量，合計 400/);
     assert.equal(reduce(scored, { type: "weapon", target: 0 }), scored);
-    assert.equal(parseSave(JSON.stringify({ v: 1, state: scored }), NOW, DAY)?.weaponReadout?.chance, 26);
+    assert.equal(parseSave(JSON.stringify({ v: 1, state: scored }), NOW, DAY)?.weaponReadout?.chance, 60);
 
-    const noPlayer = reduce({ ...state, nfts: [null, null, null, null, null] }, { type: "weapon", target: 0, roll: 0 });
-    assert.equal(noPlayer.weaponReadout?.dst, 0);
-    const noRival = reduce({ ...state, rivalHasNft: false, rivalNfts: 0, enemyShield: false }, { type: "weapon", target: 0, roll: 0 });
+    const noRival = reduce({ ...state, enemyShield: false }, { type: "weapon", target: 0, roll: 0 });
     assert.equal(noRival.weaponReadout?.dst, 0);
   });
 
   it("gives 50% when evenly matched, ±4% a point, and never below 15% or above 85%", () => {
     assert.equal(hitChance(20, 20), 50);
-    assert.equal(hitChance(22, 20), 58, "one more NFT");
+    assert.equal(hitChance(22, 20), 58, "one more level");
     assert.equal(hitChance(25, 20), 70, "one more building");
     assert.equal(hitChance(40, 10), 85);
     assert.equal(hitChance(10, 40), 15);
     assert.equal(smashPoints(20, 20), 3);
     assert.equal(smashPoints(30, 10), 1, "bullying a weak rival pays little");
     assert.equal(smashPoints(10, 30), 5);
-  });
-
-  it("fills up to five NFT slots; each adds attack and any one means you hold an NFT", () => {
-    let state = start();
-    assert.equal(holdsNft(state), false);
-    assert.equal(attackPower(state), 10);
-    state = reduce(state, { type: "place-nft", slot: 0, id: "vampire" });
-    state = reduce(state, { type: "place-nft", slot: 3, id: "mummy" });
-    assert.equal(holdsNft(state), true);
-    assert.equal(nftCount(state), 2);
-    assert.equal(attackPower(state), 14, "10 + 2 NFTs × 2");
-    let full = state;
-    for (const [slot, id] of [[1, "a"], [2, "b"], [4, "c"]] as const) full = reduce(full, { type: "place-nft", slot, id });
-    assert.equal(attackPower(full), 20, "10 + 5 NFTs × 2");
-    assert.equal(reduce(state, { type: "place-nft", slot: 0, id: "zombie" }), state, "slot taken");
-    assert.equal(reduce(state, { type: "place-nft", slot: 1, id: "vampire" }), state, "same NFT twice");
-    assert.equal(reduce(state, { type: "place-nft", slot: 5, id: "zombie" }), state, "only five slots");
-    const loaded = parseSave(JSON.stringify({ v: 1, state }), NOW, DAY);
-    assert.deepEqual(loaded?.nfts, ["vampire", null, null, "mummy", null]);
-    state = reduce(reduce(state, { type: "remove-nft", slot: 0 }), { type: "remove-nft", slot: 3 });
-    assert.equal(holdsNft(state), false);
   });
 
   it("raises each of five buildings through five levels, costing more each level", () => {
@@ -515,7 +481,7 @@ describe("daily board", () => {
     assert.equal(state.juice, 1);
     assert.equal(attackPower({ ...state, pet: { element: 2, stage: 1, hungry: 0, rolls: 60 } }), 16);
     assert.equal(attackPower({ ...state, pet: { element: 2, stage: 4, hungry: 0, rolls: 0 } }), 46);
-    assert.equal(attackPower({ ...state, pet: { element: 2, stage: 4, hungry: 0, rolls: 0 }, nfts: ["a", null, null, null, null] }), 51 + 2, "legendary: a tenth more, plus the NFT");
+    assert.equal(attackPower({ ...state, pet: { element: 2, stage: 4, hungry: 0, rolls: 0 }}), 46, "SSR");
     const old = parseSave(JSON.stringify({ v: 1, state: { ...state, pet: { element: 4, stage: 2, hungry: 0, rolls: 0 } } }), NOW, DAY);
     assert.deepEqual(old?.pet, { element: 1, stage: 2, hungry: 0, rolls: 0 }, "an old five-element monster becomes a dragon");
     assert.equal(parseSave(JSON.stringify({ v: 1, state: { ...state, pet: { element: 0, stage: 0, hungry: 0 } } }), NOW, DAY)?.pet?.rolls, 0, "an egg from before counts from 0");
@@ -525,7 +491,7 @@ describe("daily board", () => {
   it("gives ±10% hit chance for the attribute match-up: 光 beats 暗 beats 混濁 beats 光", () => {
     const fight = (element: number, rivalElement: number, stage = 1) =>
       reduce(
-        { ...reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [1, 0, 0, 0, 0], rivalElement, now: NOW }), pet: { element, stage, hungry: 0, rolls: 0 }, rivalHasNft: false, enemyShield: false, rivalNfts: 0 },
+        { ...reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 1], rivalLevels: [1, 0, 0, 0, 0], rivalElement, now: NOW }), pet: { element, stage, hungry: 0, rolls: 0 }, enemyShield: false },
         { type: "weapon", target: 0, roll: 0.99 },
       ).weaponReadout;
     // 光龍 N (16) against 10 + 1 level × 2 = 12: 50 + 16 = 66%.

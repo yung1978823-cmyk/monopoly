@@ -17,9 +17,6 @@ export function themeRewardCoins(theme: number): number {
 }
 /** Attack (and defence) each standing level adds. */
 export const LEVEL_ATTACK = 2;
-/** Up to five NFTs can be placed; each adds the same +2 attack, so no single one decides a fight. */
-export const NFT_SLOTS = 5;
-export const NFT_ATTACK = 2;
 
 /** Chance (0–100) that an attack lands: 50% when evenly matched, ±4% per point of power,
  * never below 15% or above 85% — no fight is ever certain or hopeless. */
@@ -37,10 +34,6 @@ export function smashPoints(attack: number, defense: number): number {
   return Math.max(1, Math.min(5, 3 + Math.round((defense - attack) / 5)));
 }
 
-/** Total attack the placed NFTs add: +2 each, up to +10. */
-export function nftAttack(count: number): number {
-  return Math.max(0, Math.min(NFT_SLOTS, count)) * NFT_ATTACK;
-}
 
 /** What each square pays. Penalties are small and never take points below zero. */
 export const POINTS = {
