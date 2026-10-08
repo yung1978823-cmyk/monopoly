@@ -1362,14 +1362,14 @@ export function createCityScene(
     view.goalDist = view.dist = fitDist;
     if (attacker) {
       // Part way from the island to the camera, a little left of centre and below the line of sight.
-      const k = 0.5, flat = Math.cos(ATTACK_ELEV) * fitDist * k;
+      const k = 0.42, flat = Math.cos(ATTACK_ELEV) * fitDist * k;
       const rightX = Math.cos(HOME_YAW), rightZ = -Math.sin(HOME_YAW), side = -fitDist * 0.045;
       attackerHome.set(
         Math.sin(HOME_YAW) * flat + rightX * side,
-        AIM_Y + Math.sin(ATTACK_ELEV) * fitDist * k - fitDist * 0.085,
+        AIM_Y + Math.sin(ATTACK_ELEV) * fitDist * k - fitDist * 0.07,
         Math.cos(HOME_YAW) * flat + rightZ * side,
       );
-      attackerScale = (attacker.model ? 2.1 : 1.3) * Math.max(1, fitDist / 11);
+      attackerScale = (attacker.model ? 2.1 : 1.3) * Math.max(1, fitDist / 19);
       attacker.group.scale.setScalar(attackerScale);
       attacker.group.position.copy(attackerHome);
     }
