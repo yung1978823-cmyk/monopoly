@@ -14,6 +14,8 @@ import { play } from "@/lib/sfx";
 import { cn } from "cn";
 import { useEffect, useRef, useState } from "react";
 
+/** 測試期間: no page is locked. Set to false when the game goes live. */
+const TESTING = true;
 const FULL = Array.from({ length: 5 }, () => MAX_LEVEL);
 
 /**
@@ -69,7 +71,10 @@ export function MyCity({
   const shown = themeOf(preview ?? page);
 
   const current = page === state.theme && finished === null;
-  const levels = current ? state.levels : FULL;
+  // 測試期間 (Sky 2026-10-08: 唔好加鎖，俾我睇晒先): every page can be opened, and any page you aren't building
+  // can be shown at any level to check how the statues grow.
+  const [peek, setPeek] = useState(5);
+  const levels = current ? state.levels : peek === 5 ? FULL : FULL.map(() => peek);
 
   function raise(building: number) {
     if (!current || !canUpgrade(state, building)) return;
@@ -116,7 +121,7 @@ export function MyCity({
         </div>
         <nav className="flex justify-center gap-1.5" aria-label={t("主題")}>
           {THEMES.map((theme, i) => {
-            const locked = i > state.theme;
+            const locked = !TESTING && i > state.theme;
             const done = i < state.theme || (i === state.theme && pageDone(state.levels));
             return (
               <button
@@ -165,6 +170,26 @@ export function MyCity({
             ) : (
               <p className="text-sm font-bold text-[#1E3A8A]">{t("所有主題都完成咗，新主題陸續有嚟！")}</p>
             )}
+          </div>
+        ) : !current && TESTING ? (
+          <div className="space-y-2 py-1 text-center" data-testid="theme-peek">
+            <p className="text-sm font-black text-[#1E3A8A]">{t("測試預覽：揀等級睇")}</p>
+            <div className="flex justify-center gap-2">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setPeek(n)}
+                  aria-pressed={peek === n}
+                  className={cn(
+                    "size-11 cursor-pointer rounded-full border-2 text-lg font-black shadow",
+                    peek === n ? "border-[#FBD000] bg-[#E52521] text-white" : "border-[#1E3A8A]/30 bg-white text-[#1E3A8A]",
+                  )}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
           </div>
         ) : !current ? (
           <p className="py-3 text-center text-sm font-black text-[#1E3A8A]" data-testid="theme-locked">

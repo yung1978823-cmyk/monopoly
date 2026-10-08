@@ -113,6 +113,7 @@ const DICT: Record<string, { hans: string; en: string }> = {
   "獎勵：{c} 能量同 {d} 粒骰": { hans: "奖励：{c} 能量和 {d} 颗骰子", en: "Reward: {c} Energy and {d} dice" },
   "去下一頁：{name}": { hans: "去下一页：{name}", en: "Next page: {name}" },
   "所有主題都完成咗，新主題陸續有嚟！": { hans: "所有主题都完成了，新主题陆续推出！", en: "Every theme finished. More are coming!" },
+  "測試預覽：揀等級睇": { hans: "测试预览：选等级看", en: "Test preview: pick a level" },
   "✓ 已經完成，鎖住咗，冇人打得到": { hans: "✓ 已经完成，锁住了，没人打得到", en: "✓ Finished and locked. Nobody can attack it." },
   五號樓: { hans: "五号楼", en: "Tower 5" },
   // Daily board squares
