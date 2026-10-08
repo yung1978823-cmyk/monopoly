@@ -896,7 +896,13 @@ export function createCityScene(
   type Plot = { holder: any; body: any; pips: any; plus: any; ring: any; hit: any; level: number; popAt: number; shakeAt: number; cloudAt: number; pending: number | null; puffs: any[] };
   // 展示台: with the camera fixed, the plots sit in two staggered rows as seen from the camera (three at the back,
   // two in front between them) so no statue hides another. [across, toward the camera].
-  const SHOW_AT: [number, number][] = [[-2.6, -1.1], [0, -2.5], [2.6, -1.1], [1.35, 1.7], [-1.35, 1.7]];
+  // Sky (2026-10-08): evenly spaced — the five stand on the corners of a regular pentagon, so every
+  // neighbour is the same distance apart; the centre one at the back faces the camera.
+  const SHOW_R = 3.0;
+  const SHOW_AT: [number, number][] = [-162, -90, -18, 54, 126].map((deg) => [
+    Math.cos((deg * Math.PI) / 180) * SHOW_R,
+    Math.sin((deg * Math.PI) / 180) * SHOW_R,
+  ]);
   const plotAt: [number, number][] = showcase
     ? SHOW_AT.map(([across, near]) => [
         Math.cos(HOME_YAW) * across + Math.sin(HOME_YAW) * near,
