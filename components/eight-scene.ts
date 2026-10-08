@@ -601,7 +601,7 @@ export function createBoardScene(
     rock.rotation.x = Math.PI;
     rock.position.y = -1.2 - 2.75;
     scene.add(rock);
-    const deck = shadowy(new T.Mesh(new T.CylinderGeometry(ENV_R + 1.7, ENV_R + 2.3, 1, 48), matC(clover ? 0xf3d48e : 0xf2d9a0, 0.9)));
+    const deck = shadowy(new T.Mesh(new T.CylinderGeometry(ENV_R + 1.7, ENV_R + 2.3, 1, 48), matC(clover ? 0x8fd16a : 0xf2d9a0, 0.9)));
     deck.position.y = -0.5;
     deckMat = deck.material;
     scene.add(deck);
@@ -846,11 +846,27 @@ export function createBoardScene(
     pic.rotation.x = -Math.PI / 2;
     pic.position.y = TOP + 0.01;
     pic.renderOrder = 2;
+    if (plaza) {
+      // Sky (2026-10-08): the castle stands up at the back of the plaza (a picture facing the camera, like the
+      // statues), on its own little floating rock, instead of lying flat on the ground.
+      pic.visible = false;
+      const castle = new T.Sprite(new T.SpriteMaterial({ map: tilePic(CLOVER_ART.plaza), transparent: true, alphaTest: 0.2 }));
+      castle.center.set(0.5, 0.12);
+      castle.scale.set(2.1, 2.1, 1);
+      castle.position.set(0, TOP + 0.05, -0.55);
+      group.add(castle);
+      const rock = shadowy(new T.Mesh(new T.ConeGeometry(size / 2 + 0.05, 1.6, 9, 2), matC(0x8a7f74, 0.95, { flatShading: true })));
+      rock.rotation.x = Math.PI;
+      rock.position.y = TOP - 0.26 - 0.8;
+      group.add(rock);
+      pad.material = matC(0x6cc04a, 0.85);
+      group.position.y = 0.35;
+    }
     group.add(pic);
     const shadow = new T.Mesh(new T.PlaneGeometry(1.7 * ISLE, 1.7 * ISLE), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     shadow.visible = false;
     const glow = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0xfff1b0, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
-    breathers.push({ obj: group, base: 0, phase: Math.random() * Math.PI * 2, period: 3.2 + Math.random() * 1.2, shadow, glow, key });
+    breathers.push({ obj: group, base: plaza ? 0.35 : 0, phase: Math.random() * Math.PI * 2, period: 3.2 + Math.random() * 1.2, shadow, glow, key });
     const holder = new T.Group();
     group.add(holder);
     tiles[key] = { group, body: pad, base, inward: new T.Vector3(0, 0, -0.27), house: null, yaw: 0 };
@@ -941,7 +957,7 @@ export function createBoardScene(
     // Each loop sits on its own ground — forest green, quarry pale sand, mine gold — so the clover reads at a glance,
     // and a plank path runs along each loop from square to square.
     CLOVER_ANGLES.forEach((th, z) => {
-      const blob = new T.Mesh(new T.CircleGeometry(1, 48), matC([0x4caf3f, 0xc9b48a, 0xf0bf45][z], 0.9));
+      const blob = new T.Mesh(new T.CircleGeometry(1, 48), matC([0x2f8a32, 0xe3cf9e, 0xf0bf45][z], 0.9));
       blob.rotation.x = -Math.PI / 2;
       blob.scale.set(2.25, 3.3, 1);
       const holder = new T.Group();
@@ -1788,7 +1804,10 @@ export function createBoardScene(
     }
     roof.color.setHex(next.facade ? 0xfbd000 : 0xc0264b);
     roof.metalness = next.facade ? 0.6 : 0;
-    if (deckMat) deckMat.color.setHex(next.facade ? 0xffe08a : 0xf2d9a0);
+    if (deckMat) {
+      deckMat.color.setHex(clover ? (next.facade ? 0xb6e07a : 0x8fd16a) : next.facade ? 0xffe08a : 0xf2d9a0);
+      if (clover) deckMat.color.convertSRGBToLinear();
+    }
     while (decorGroup.children.length) decorGroup.remove(decorGroup.children[0]);
     for (let n = 0; n < Math.min(next.stations, STATION_SPOTS.length); n++) {
       const s = station();

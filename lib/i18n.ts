@@ -174,6 +174,7 @@ const DICT: Record<string, { hans: string; en: string }> = {
   "收埋": { hans: "收起", en: "Hide" },
   "打開": { hans: "打开", en: "Show" },
   "撳上面已起嘅建築可以換款或者拆走": { hans: "点上面已盖的建筑可以换款或拆掉", en: "Tap a building above to swap or remove it" },
+  "起樓・材料店・開局設定": { hans: "建楼・材料店・开局设定", en: "Build · Materials · Game setup" },
   "神秘商人": { hans: "神秘商人", en: "Mystery Merchant" },
   "骰仔": { hans: "骰子", en: "Dice" },
   "水晶": { hans: "水晶", en: "Crystal" },

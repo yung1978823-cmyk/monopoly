@@ -348,7 +348,7 @@ function RealmEditor({
   const [loaded, setLoaded] = useState<"loading" | "ready" | "failed">("loading");
   const [picking, setPicking] = useState<number | null>(null);
   const [panel, setPanel] = useState<Panel>("build");
-  const [sheetOpen, setSheetOpen] = useState(true);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const dragFrom = useRef<number | null>(null);
   // 商店 房屋券 (Sky 2026-10-08): a voucher builds its house without materials.
   const [vouchers, setVouchers] = useState<Partial<Record<BuildingKind, number>>>({});
@@ -479,7 +479,11 @@ function RealmEditor({
       {/* Sky (2026-10-08): the build spots sit in a row on top of the sheet, and the sheet's lower part can be
           pulled down out of the way (tap or drag the handle) and pulled back up. */}
       <div
-        className="mx-auto flex w-full max-w-xl shrink-0 flex-col gap-2 rounded-t-[32px] bg-white/95 px-4 pt-1.5 pb-[max(env(safe-area-inset-bottom),0.75rem)]"
+        className={cn(
+          "mx-auto flex w-full max-w-xl shrink-0 flex-col gap-2 px-4 pt-1.5 pb-[max(env(safe-area-inset-bottom),0.75rem)]",
+          // Closed (Sky 2026-10-08): no white box at all, the space shows through; just a pull-up tab and 開局.
+          sheetOpen ? "rounded-t-[32px] bg-white/95" : "bg-transparent",
+        )}
         onPointerDown={(e: { clientY: number }) => (dragFrom.current = e.clientY)}
         onPointerUp={(e: { clientY: number }) => {
           if (dragFrom.current === null) return;
@@ -489,16 +493,28 @@ function RealmEditor({
           else if (dy < -30) setSheetOpen(true);
         }}
       >
-        <button
-          type="button"
-          onClick={() => setSheetOpen((v) => !v)}
-          className="mx-auto flex h-5 w-24 cursor-pointer items-center justify-center"
-          aria-label={sheetOpen ? t("收埋") : t("打開")}
-          data-testid="sheet-handle"
-        >
-          <span className="h-1.5 w-12 rounded-full bg-[#C7D2E5]" />
-        </button>
-        <div className="flex justify-center gap-2" data-testid="slots">
+        {sheetOpen ? (
+          <button
+            type="button"
+            onClick={() => setSheetOpen(false)}
+            className="mx-auto flex h-6 w-28 cursor-pointer items-center justify-center gap-1 text-xs font-black text-[#94A3B8]"
+            aria-label={t("收埋")}
+            data-testid="sheet-handle"
+          >
+            <span className="h-1.5 w-12 rounded-full bg-[#C7D2E5]" /> ▼
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            className="mx-auto flex h-10 cursor-pointer items-center gap-1.5 rounded-full border-2 border-[#FBD000] bg-[#7C3AED]/85 px-5 text-sm font-black text-white shadow-lg backdrop-blur animate-[breathe_3s_ease-in-out_infinite]"
+            aria-label={t("打開")}
+            data-testid="sheet-handle"
+          >
+            ▲ {t("起樓・材料店・開局設定")}
+          </button>
+        )}
+        {sheetOpen ? <div className="flex justify-center gap-2" data-testid="slots">
           {realm.slots.map((kind, slot) =>
             kind ? (
               <button
@@ -528,7 +544,7 @@ function RealmEditor({
               </button>
             ),
           )}
-        </div>
+        </div> : null}
         {sheetOpen ? (
         <>
         <div className="grid grid-cols-3 gap-1 rounded-full bg-[#EEF2FA] p-1" role="tablist">
