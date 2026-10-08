@@ -655,7 +655,7 @@ export function createCityScene(
       head.position.y = 0.34;
       g.add(head);
       island.add(g);
-      const walker: (typeof walkers)[number] = { g, a: (k2 / 4) * Math.PI * 2 + 0.3, speed: (k2 % 2 ? 1 : -1) * (0.07 + k2 * 0.012), r: 3.85 + (k2 % 2) * 0.12, phase: k2 * 1.7 };
+      const walker: (typeof walkers)[number] = { g, a: (k2 / 4) * Math.PI * 2 + 0.3, speed: (k2 % 2 ? 1 : -1) * (0.07 + k2 * 0.012), r: (showcase ? 1.45 : 3.85) + (k2 % 2) * 0.12, phase: k2 * 1.7 };
       walkers.push(walker);
       // Real little people walking (Sky 2026-10-01): the game's 3D characters with their own walk, in place of
       // the pegs. The peg stands in until the model has loaded.
@@ -707,7 +707,8 @@ export function createCityScene(
   // 冰牙守護獸 (Sky 2026-10-02, Meshy "Frostfang Guardian"): an ice wolf trotting round every page on four legs,
   // about as big as the characters. The model ships without a skeleton, so four leg bones are added here
   // (hips found from the mesh: legs hang below y -0.1, front legs ahead of z 0.1) and swung in a trot.
-  const wolf = { g: new T.Group(), a: 1.9, speed: -0.11, r: 3.35, model: null as any, legs: [] as any[] };
+  // 展示台 (Sky 2026-10-08): everyone walks the ring inside the statues and never through them.
+  const wolf = { g: new T.Group(), a: 1.9, speed: -0.11, r: showcase ? 1.75 : 3.35, model: null as any, legs: [] as any[] };
   if (theme.art) {
     island.add(wolf.g);
     loadGltfLoader(T)
@@ -1089,7 +1090,10 @@ export function createCityScene(
     const now = performance.now();
     near.forEach((w, k) => {
       const side = k ? 1 : -1;
-      const to: [number, number] = [px + tx * side * 0.85 + ox * 0.7, pz + tz * side * 0.85 + oz * 0.7];
+      // On the 展示台 they hammer in front of the statue (the side facing the middle), so they never walk through it.
+      const to: [number, number] = showcase
+        ? [px + tx * side * 0.55 - ox * 0.75, pz + tz * side * 0.55 - oz * 0.75]
+        : [px + tx * side * 0.85 + ox * 0.7, pz + tz * side * 0.85 + oz * 0.7];
       const from: [number, number] = [w.g.position.x, w.g.position.z];
       const walk = Math.min(900, Math.max(300, (Math.hypot(to[0] - from[0], to[1] - from[1]) / 4) * 1000));
       w.job = { plot: i, at: now, from, to, walk, work: Math.max(CLOUD_END + 300, walk + 1300), struck: -1 };
