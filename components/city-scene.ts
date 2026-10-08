@@ -159,24 +159,33 @@ export function createCityScene(
   /** How tall the pedestal under each level is (0 = straight on the ground). */
   const PLINTH = [0, 0.05, 0.1, 0.16, 0.24];
   const growOf = (level: number) => (showcase ? SHOW_GROW : ART_GROW)[level - 1];
-  const plinthOf = (level: number) => (showcase && level > 0 ? PLINTH[level - 1] : 0);
+  const plinthOf = (level: number, i = -1) =>
+    showcase && level > 0 && !(i >= 0 && theme.art?.based?.includes(theme.art.names[i])) ? PLINTH[level - 1] : 0;
   function artBuilding(i: number, level: number): any {
     const art = theme.art!, name = art.names[i], [pw, ph] = art.sizes[name][level - 1], k = growOf(level);
     const w = pw * k, h = ph * k;
     const url = `${art.dir}/${name}${level}.webp`;
-    let tex = artTex.get(url);
+    const flip = !!art.mirror?.includes(name);
+    const key = flip ? `${url}#flip` : url;
+    let tex = artTex.get(key);
     if (!tex) {
       tex = new T.TextureLoader().load(url);
       tex.encoding = T.sRGBEncoding;
-      artTex.set(url, tex);
+      if (flip) {
+        // A sprite ignores a negative scale, so the picture itself is mirrored.
+        tex.wrapS = T.RepeatWrapping;
+        tex.repeat.x = -1;
+        tex.offset.x = 1;
+      }
+      artTex.set(key, tex);
     }
     const g = new T.Group();
     const s = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.2 }));
     s.center.set(0.5, 0.04);
     s.scale.set(w * ART_UNIT, h * ART_UNIT, 1);
-    s.position.y = plinthOf(level);
+    s.position.y = plinthOf(level, i);
     g.add(s);
-    if (showcase) dressStage(g, level, w * ART_UNIT, h * ART_UNIT);
+    if (showcase) dressStage(g, level, w * ART_UNIT, h * ART_UNIT, plinthOf(level, i));
     const blob = new T.Mesh(new T.PlaneGeometry(w * ART_UNIT * 1.05, w * ART_UNIT * 0.8), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0.55 }));
     blob.rotation.x = -Math.PI / 2;
     blob.position.y = 0.01;
@@ -257,7 +266,7 @@ export function createCityScene(
   const STAGE_COLOUR = [0xffffff, 0xb9a8ff, 0x58c8ff, 0xa45cff, 0xffc21a];
   type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote"; base: number; phase: number; r?: number; y?: number; speed?: number };
   const auras: Aura[] = [];
-  function dressStage(g: any, level: number, w: number, h: number) {
+  function dressStage(g: any, level: number, w: number, h: number, lift: number) {
     const colour = STAGE_COLOUR[level - 1];
     const glow = (map: any, opacity: number) =>
       new T.MeshBasicMaterial({ map, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity });
@@ -266,11 +275,11 @@ export function createCityScene(
     // The plinth never hides the picture's feet (the picture stands upright on it): it writes no depth and draws first.
     const stone = mat(0x5b4f96, 0.5, { emissive: 0x1a1240, depthWrite: false, transparent: true });
     const gold = mat(0xe8b830, 0.3, { metalness: 0.5, emissive: 0x3a2600, depthWrite: false, transparent: true });
-    const steps = level >= 5 ? 3 : level >= 4 ? 2 : level >= 2 ? 1 : 0;
+    const steps = lift <= 0 ? 0 : level >= 5 ? 3 : level >= 4 ? 2 : level >= 2 ? 1 : 0;
     let y = 0;
     for (let k = 0; k < steps; k++) {
       const sr = r * (1.15 - k * 0.16);
-      const sh = plinthOf(level) / steps;
+      const sh = lift / steps;
       const slab = shadowy(new T.Mesh(new T.CylinderGeometry(sr, sr * 1.04, sh, 28), stone));
       slab.position.y = y + sh / 2;
       slab.renderOrder = -10 + k;
@@ -298,9 +307,9 @@ export function createCityScene(
     }
     // A glow behind the building (4 up).
     if (level >= 4) {
-      const halo = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: level >= 5 ? 0.38 : 0.24 }));
+      const halo = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: level >= 5 ? 0.3 : 0.22 }));
       halo.scale.set(w * 1.5, h * 1.05, 1);
-      halo.position.y = plinthOf(level) + h * 0.5;
+      halo.position.y = lift + h * 0.5;
       halo.renderOrder = -1;
       g.add(halo);
       auras.push({ obj: halo, kind: "halo", base: halo.material.opacity, phase: Math.random() * 6 });
@@ -308,7 +317,9 @@ export function createCityScene(
     // A pillar of light into the sky (5).
     if (level >= 5) {
       const beam = new T.Mesh(new T.CylinderGeometry(r * 0.55, r * 0.9, 7, 20, 1, true), glow(beamTex, 0.3));
-      beam.material.side = T.DoubleSide;
+      // Only the far half shows, so the pillar stands behind the picture instead of washing over it.
+      beam.material.side = T.BackSide;
+      beam.renderOrder = -1;
       beam.position.y = 3.5;
       g.add(beam);
       auras.push({ obj: beam, kind: "beam", base: 0.3, phase: Math.random() * 6 });
@@ -319,7 +330,7 @@ export function createCityScene(
       const m = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.9 }));
       m.scale.setScalar(0.07 + Math.random() * 0.06);
       g.add(m);
-      auras.push({ obj: m, kind: "mote", base: 0.9, phase: (k / motes) * Math.PI * 2, r: r * (1.2 + Math.random() * 0.5), y: plinthOf(level) + h * (0.15 + Math.random() * 0.8), speed: 0.5 + Math.random() * 0.5 });
+      auras.push({ obj: m, kind: "mote", base: 0.9, phase: (k / motes) * Math.PI * 2, r: r * (1.2 + Math.random() * 0.5), y: lift + h * (0.15 + Math.random() * 0.8), speed: 0.5 + Math.random() * 0.5 });
     }
   }
   function auraStep(now: number) {
@@ -909,7 +920,7 @@ export function createCityScene(
     return { holder, body: null, pips, plus, ring, hit, level: -1, popAt: -1e9, shakeAt: -1e9, cloudAt: -1e9, pending: null, puffs: [] };
   });
   const heightOf = (level: number, i = 0) =>
-    level <= 0 ? 0.3 : theme.art ? theme.art.sizes[theme.art.names[i]][level - 1][1] * ART_UNIT * growOf(level) * 0.96 + plinthOf(level) : ({ site: [0, 1.0, 0.95, 1.3, 1.9, 2.6], oriental: [0, 0.9, 1.25, 1.6, 1.9, 2.2], desert: [0, 0.8, 0.8, 1.0, 1.6, 1.7] } as Record<string, number[]>)[theme.style][level];
+    level <= 0 ? 0.3 : theme.art ? theme.art.sizes[theme.art.names[i]][level - 1][1] * ART_UNIT * growOf(level) * 0.96 + plinthOf(level, i) : ({ site: [0, 1.0, 0.95, 1.3, 1.9, 2.6], oriental: [0, 0.9, 1.25, 1.6, 1.9, 2.2], desert: [0, 0.8, 0.8, 1.0, 1.6, 1.7] } as Record<string, number[]>)[theme.style][level];
   function draw(i: number, level: number) {
     const p = plots[i];
     if (p.level === level) return;

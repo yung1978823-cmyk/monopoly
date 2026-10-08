@@ -40,6 +40,10 @@ export type ThemeArt = {
    * levels looks clearly different — bigger every step, on a taller pedestal, with more light round it.
    */
   showcase?: boolean;
+  /** Pictures drawn facing left that should face right (mirrored), so statues on the left look in to the middle. */
+  mirror?: readonly string[];
+  /** Pictures that already stand on their own pedestal (no 展示台 plinth under them). */
+  based?: readonly string[];
 };
 
 export type Theme = {
@@ -71,10 +75,13 @@ export const CRYSTAL: Theme = {
   sky: "#3b2f9f",
   art: {
     dir: "/art/city/crystal",
-    names: ["house", "mine", "observatory", "tower", "palace"],
+    // Sky's crystal statues (2026-10-08) replace the buildings one by one: knight (back left) and goddess (front left) so far.
+    names: ["knight", "mine", "observatory", "tower", "goddess"],
     space: true,
     island: true,
     showcase: true,
+    mirror: ["knight", "goddess"],
+    based: ["knight", "goddess"],
     islandCore: 0x4a4266,
     islandTrim: 0xa99ad6,
     boatAspect: 1,
@@ -85,6 +92,8 @@ export const CRYSTAL: Theme = {
       observatory: [[94, 98], [130, 154], [179, 268], [242, 360], [300, 474]],
       tower: [[98, 173], [132, 270], [171, 379], [189, 460], [255, 560]],
       palace: [[143, 180], [194, 235], [218, 346], [259, 425], [300, 515]],
+      knight: [[100, 147], [124, 232], [130, 277], [192, 369], [300, 486]],
+      goddess: [[97, 150], [117, 237], [133, 289], [189, 366], [300, 474]],
     },
   },
 };
