@@ -6,21 +6,6 @@ import { GrowIntro, HATCH_MS } from "@/components/hatch-intro";
 import { juice } from "@/components/juice";
 import { PetView } from "@/components/pet-view";
 
-/** Drawn dragons by attribute and stage (1 N … 4 SSR); stages without a picture yet use the 3D model. */
-const DRAGON_ART: Record<string, string> = {
-  "light-1": "/art/dragons/light-1.webp",
-  "dark-1": "/art/dragons/dark-1.webp",
-  "chaos-1": "/art/dragons/chaos-1.webp",
-  "light-2": "/art/dragons/light-2.webp",
-  "dark-2": "/art/dragons/dark-2.webp",
-  "chaos-2": "/art/dragons/chaos-2.webp",
-  "light-3": "/art/dragons/light-3.webp",
-  "dark-3": "/art/dragons/dark-3.webp",
-  "chaos-3": "/art/dragons/chaos-3.webp",
-  "light-4": "/art/dragons/light-4.webp",
-  "dark-4": "/art/dragons/dark-4.webp",
-  "chaos-4": "/art/dragons/chaos-4.webp",
-};
 import { holdsNft, type GameState } from "@/lib/game";
 import { useLang } from "@/lib/i18n";
 import { ELEMENTS, HATCH_ROLLS, HUNGRY_DROP, STAGE_NAMES, UPKEEP, growNeed, petAttack, petName, rollElement } from "@/lib/pet";
@@ -74,20 +59,8 @@ export function PetScreen({
       {pet ? (
         <>
           <div className="relative min-h-0 flex-1">
-            {DRAGON_ART[`${ELEMENTS[pet.element].id}-${pet.stage}`] ? (
-              // Sky's drawn dragon for this attribute and stage (2026-10-01), breathing gently.
-              <div className="absolute inset-0 flex items-center justify-center">
-                <img
-                  src={DRAGON_ART[`${ELEMENTS[pet.element].id}-${pet.stage}`]}
-                  alt=""
-                  draggable={false}
-                  className="h-[78%] max-h-80 animate-[thief-idle_2.4s_ease-in-out_infinite] object-contain drop-shadow-[0_14px_18px_rgba(0,0,0,0.35)]"
-                  data-testid="pet-art"
-                />
-              </div>
-            ) : (
-              <PetView key={`${pet.element}-${pet.stage}-${legend}`} element={pet.element} stage={pet.stage} legend={legend} />
-            )}
+            {/* Sky (2026-10-08): always the 3D model dragon, bigger each grade, with its grade effect. */}
+            <PetView key={`${pet.element}-${pet.stage}-${legend}`} element={pet.element} stage={pet.stage} legend={legend} />
             {pet.stage > 0 ? (
               <span
                 className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full border-2 border-white/70 px-3 py-0.5 text-sm font-black text-white shadow"

@@ -42,7 +42,10 @@ const HOME_YAW = Math.PI / 4;
 /** Where the camera aims: below the island top, so the island sits high and clear of the cards below. */
 const AIM_Y = -0.7;
 /** Your attacking monster turns its back (a three-quarter view) toward the town it strikes. */
-const ATTACK_YAW = HOME_YAW + Math.PI - 0.55;
+const ATTACK_YAW = HOME_YAW + Math.PI - 0.35;
+/** 越肩鏡頭 (Sky 2026-10-08): when attacking, the camera drops lower and your dragon floats big in the front left,
+ *  between the camera and the island, so you look over its shoulder at the statues. */
+const ATTACK_ELEV = 0.5;
 
 export function createCityScene(
   T: any,
@@ -1161,10 +1164,12 @@ export function createCityScene(
   // Your monster when attacking: it hovers in front of the island.
   let attacker: Monster | null = null;
   const attackerHome = new T.Vector3(Math.sin(HOME_YAW) * 5.2, TOP + 1.4, Math.cos(HOME_YAW) * 5.2);
+  let attackerScale = 2.1;
   const lungeState = { at: -1e9, to: new T.Vector3() };
   if (who.attacker) {
     attacker = buildMonster(T, who.attacker.element, who.attacker.stage, who.attacker.legend);
-    attacker.group.scale.setScalar(attacker.model ? 2.1 : 1.3);
+    attackerScale = attacker.model ? 2.1 : 1.3;
+    attacker.group.scale.setScalar(attackerScale);
     attacker.group.position.copy(attackerHome);
     attacker.group.rotation.y = ATTACK_YAW;
     scene.add(attacker.group);
@@ -1343,7 +1348,7 @@ export function createCityScene(
   const worldOf = (i: number, y: number) => plots[i].holder.localToWorld(new T.Vector3(0, y, 0));
 
   // ---------- Camera: orbit, pinch zoom, tap ----------
-  const view = { yaw: HOME_YAW, elev: 0.72, goalYaw: HOME_YAW, goalElev: 0.72, dist: 16, goalDist: 16, idle: 0 };
+  const view = { yaw: HOME_YAW, elev: who.attacker ? ATTACK_ELEV : 0.72, goalYaw: HOME_YAW, goalElev: who.attacker ? ATTACK_ELEV : 0.72, dist: 16, goalDist: 16, idle: 0 };
   let fitDist = 16;
   function resize() {
     const w = container.clientWidth || window.innerWidth, h = container.clientHeight || window.innerHeight;
@@ -1355,6 +1360,19 @@ export function createCityScene(
     const half = Math.atan(Math.tan((38 * Math.PI) / 360) * Math.min(1, camera.aspect));
     fitDist = Math.max(9, 5.2 / Math.tan(half));
     view.goalDist = view.dist = fitDist;
+    if (attacker) {
+      // Part way from the island to the camera, a little left of centre and below the line of sight.
+      const k = 0.5, flat = Math.cos(ATTACK_ELEV) * fitDist * k;
+      const rightX = Math.cos(HOME_YAW), rightZ = -Math.sin(HOME_YAW), side = -fitDist * 0.045;
+      attackerHome.set(
+        Math.sin(HOME_YAW) * flat + rightX * side,
+        AIM_Y + Math.sin(ATTACK_ELEV) * fitDist * k - fitDist * 0.085,
+        Math.cos(HOME_YAW) * flat + rightZ * side,
+      );
+      attackerScale = (attacker.model ? 2.1 : 1.3) * Math.max(1, fitDist / 11);
+      attacker.group.scale.setScalar(attackerScale);
+      attacker.group.position.copy(attackerHome);
+    }
   }
   const watch = new ResizeObserver(resize);
   watch.observe(container);
@@ -1615,31 +1633,68 @@ export function createCityScene(
   const addFx = (delay: number, ms: number, step: Fx["step"], end: Fx["end"] = () => undefined) =>
     fxs.push({ start: performance.now() + delay, ms, step, end });
   const fireTex = soft("rgba(255,244,200,1)", "rgba(255,90,0,0)");
-  // 瞄準虛線 (Sky 2026-10-02, in place of the red rings): while choosing what to attack, a blinking dotted line of
-  // little flames runs from your dragon to one building at a time, hopping round every building you can hit.
-  const AIM_DOTS = 12, AIM_HOP = 1300;
-  const aimTex = (() => {
+  // 鎖定準星 (Sky 2026-10-08, in place of the dotted line): while choosing what to attack, a red sight turns under
+  // one statue at a time, a red arrow bobs over its head and the statue blushes red; it hops round every statue
+  // you can hit, and tapping a statue picks it.
+  const AIM_HOP = 1300;
+  const sightTex = (() => {
     const c = document.createElement("canvas");
-    c.width = c.height = 64;
+    c.width = c.height = 256;
     const x = c.getContext("2d")!;
-    x.fillStyle = "#ffffff";
+    x.strokeStyle = "#ff2a2a";
+    x.shadowColor = "rgba(255,40,40,0.9)";
+    x.shadowBlur = 10;
+    x.lineWidth = 10;
     x.beginPath();
-    x.arc(32, 32, 26, 0, Math.PI * 2);
-    x.fill();
-    x.fillStyle = "#ff4a1c";
+    x.arc(128, 128, 104, 0, Math.PI * 2);
+    x.stroke();
+    x.lineWidth = 6;
+    x.setLineDash([22, 16]);
     x.beginPath();
-    x.arc(32, 32, 19, 0, Math.PI * 2);
+    x.arc(128, 128, 78, 0, Math.PI * 2);
+    x.stroke();
+    x.setLineDash([]);
+    x.lineWidth = 12;
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2;
+      x.beginPath();
+      x.moveTo(128 + Math.cos(a) * 92, 128 + Math.sin(a) * 92);
+      x.lineTo(128 + Math.cos(a) * 124, 128 + Math.sin(a) * 124);
+      x.stroke();
+    }
+    return new T.CanvasTexture(c);
+  })();
+  const arrowTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "#ff2a2a";
+    x.strokeStyle = "#ffffff";
+    x.lineWidth = 8;
+    x.lineJoin = "round";
+    x.beginPath();
+    x.moveTo(64, 120);
+    x.lineTo(12, 60);
+    x.lineTo(42, 60);
+    x.lineTo(42, 8);
+    x.lineTo(86, 8);
+    x.lineTo(86, 60);
+    x.lineTo(116, 60);
+    x.closePath();
+    x.stroke();
     x.fill();
     const t = new T.CanvasTexture(c);
     t.encoding = T.sRGBEncoding;
     return t;
   })();
-  const aimDots = Array.from({ length: AIM_DOTS }, () => {
-    const d = new T.Sprite(new T.SpriteMaterial({ map: aimTex, transparent: true, depthWrite: false, depthTest: false, opacity: 0 }));
-    d.renderOrder = 9;
-    scene.add(d);
-    return d;
-  });
+  const sight = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ map: sightTex, transparent: true, depthWrite: false, opacity: 0 }));
+  sight.rotation.x = -Math.PI / 2;
+  sight.renderOrder = 3;
+  scene.add(sight);
+  const arrow = new T.Sprite(new T.SpriteMaterial({ map: arrowTex, transparent: true, depthWrite: false, depthTest: false, opacity: 0 }));
+  arrow.renderOrder = 9;
+  scene.add(arrow);
+  let blushed: any = null;
   let aimAt = -1;
   // A solid-looking ball of flame (normal blending, so it still reads on the white island).
   const flameTex = (() => {
@@ -1958,25 +2013,41 @@ export function createCityScene(
       const standing = plots.map((p, i) => (p.level > 0 ? i : -1)).filter((i) => i >= 0);
       const aiming = targets && !!attacker && standing.length > 0 && now - lungeState.at > 900;
       aimAt = aiming ? standing[Math.floor(now / AIM_HOP) % standing.length] : -1;
+      const pic = aimAt >= 0 ? plots[aimAt].body?.children?.[0] : null;
+      if (blushed && blushed !== pic) {
+        blushed.material.color?.setRGB(1, 1, 1);
+        blushed = null;
+      }
       if (aimAt >= 0 && attacker) {
-        const from = attacker.group.position.clone().add(new T.Vector3(0, 0.6, 0));
-        const to = worldOf(aimAt, Math.max(0.5, heightOf(plots[aimAt].level, aimAt) * 0.6));
+        const from = attacker.group.position;
+        const foot = worldOf(aimAt, 0.04);
+        const top = worldOf(aimAt, heightOf(plots[aimAt].level, aimAt) + 0.45);
         // The dragon looks where it's aiming.
-        attacker.group.rotation.y = Math.atan2(to.x - from.x, to.z - from.z);
+        attacker.group.rotation.y = Math.atan2(foot.x - from.x, foot.z - from.z);
         const hop = (now % AIM_HOP) / AIM_HOP;
-        const reach = Math.min(1, hop / 0.3);
-        const blink = 0.55 + 0.45 * Math.abs(Math.sin(now / 160));
-        aimDots.forEach((d, n) => {
-          const k = ((n + (now / 90) % 1) / AIM_DOTS) * reach;
-          d.position.lerpVectors(from, to, k);
-          d.position.y += Math.sin(k * Math.PI) * 1.1;
-          d.scale.setScalar(n === AIM_DOTS - 1 ? 0.42 : 0.22);
-          d.material.opacity = blink * (k <= reach ? 1 : 0) * (hop > 0.92 ? (1 - hop) / 0.08 : 1);
-        });
-        // The building being aimed at throbs a little.
+        const into = Math.min(1, hop / 0.15);
+        const fade = hop > 0.92 ? (1 - hop) / 0.08 : 1;
+        // The sight drops in big and snaps tight, then keeps turning.
+        const size = 2.4 * (1 + (1 - into) * 0.8) * (1 + 0.04 * Math.sin(now / 120));
+        sight.position.copy(foot);
+        sight.scale.set(size, size, 1);
+        sight.rotation.z = now / 900;
+        sight.material.opacity = into * fade * 0.95;
+        arrow.position.set(top.x, top.y + 0.18 * Math.abs(Math.sin(now / 200)), top.z);
+        arrow.scale.setScalar(0.55);
+        arrow.material.opacity = into * fade;
+        if (pic?.material?.color) {
+          const r = 0.5 + 0.5 * Math.abs(Math.sin(now / 180));
+          pic.material.color.setRGB(1, 1 - r * 0.45, 1 - r * 0.45);
+          blushed = pic;
+        }
+        // The statue being aimed at throbs a little.
         const b = plots[aimAt].body;
-        if (b && now - plots[aimAt].popAt > 450) b.scale.setScalar(1 + 0.06 * Math.abs(Math.sin(now / 140)));
-      } else aimDots.forEach((d) => (d.material.opacity = 0));
+        if (b && now - plots[aimAt].popAt > 450) b.scale.setScalar(1 + 0.04 * Math.abs(Math.sin(now / 140)));
+      } else {
+        sight.material.opacity = 0;
+        arrow.material.opacity = 0;
+      }
     }
     view.idle += dt;
     view.yaw += (view.goalYaw - view.yaw) * Math.min(1, dt * 8);
@@ -2022,7 +2093,7 @@ export function createCityScene(
       const plot = index === null ? null : plots[index];
       const to = plot ? worldOf(index!, Math.max(0.5, heightOf(plot.level, index!) * (result === "block" ? 0.9 : 0.55))) : new T.Vector3(0, TOP + 0.3, 0);
       // The dragon rears back a little and breathes from its mouth, facing the target.
-      const mouth = attacker ? attacker.group.position.clone().add(new T.Vector3(0, 0.7, 0)) : attackerHome.clone();
+      const mouth = attacker ? attacker.group.position.clone().add(new T.Vector3(0, attacker.height * attackerScale * 0.75, 0)) : attackerHome.clone();
       lungeState.to.copy(attackerHome).lerp(to, 0.18);
       lungeState.at = performance.now() - 250;
       const aim = to.clone();

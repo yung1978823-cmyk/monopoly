@@ -45,7 +45,8 @@ const MODELS: Record<number, string> = { 0: "/models/dragon-light.glb", 1: "/mod
 /** How tall the model dragon stands at each grade (N → SSR): on the board about the size of a die.
  * Close-up screens (the pet screen, a town) scale it up by MODEL_CLOSE_UP. The current models are
  * the N-grade look; higher grades reuse them, a little bigger, until their own models are made. */
-const MODEL_HEIGHT = [0, 0.44, 0.506, 0.572, 0.638];
+// Sky (2026-10-08): one model for every grade, clearly bigger at each step (由細變大).
+const MODEL_HEIGHT = [0, 0.4, 0.5, 0.6, 0.72];
 /** How much bigger model dragons are drawn in close-up screens than on the board. */
 export const MODEL_CLOSE_UP = 2.4;
 const modelCache: Record<number, Promise<any>> = {};
@@ -63,9 +64,130 @@ function loadModel(T: any, element: number): Promise<any> {
   return modelCache[element];
 }
 
+/** The glow colour of each attribute's model (光 gold, 暗 violet, 混濁 fire red), for the grade effects. */
+const AURA = [0xffd84a, 0xb45cff, 0xff6a2a];
+const auraTexCache = new WeakMap<any, { soft: any; ring: any; star: any }>();
+function auraTextures(T: any) {
+  let t = auraTexCache.get(T);
+  if (t) return t;
+  const canvas = (draw: (x: CanvasRenderingContext2D) => void, size = 128) => {
+    const c = document.createElement("canvas");
+    c.width = c.height = size;
+    draw(c.getContext("2d")!);
+    return new T.CanvasTexture(c);
+  };
+  const soft = canvas((x) => {
+    const g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.4, "rgba(255,255,255,0.45)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = g;
+    x.fillRect(0, 0, 128, 128);
+  });
+  const ring = canvas((x) => {
+    x.strokeStyle = "rgba(255,255,255,1)";
+    x.shadowColor = "rgba(255,255,255,1)";
+    x.shadowBlur = 12;
+    x.lineWidth = 7;
+    x.beginPath();
+    x.arc(128, 128, 104, 0, Math.PI * 2);
+    x.stroke();
+    x.lineWidth = 3;
+    x.setLineDash([14, 12]);
+    x.beginPath();
+    x.arc(128, 128, 86, 0, Math.PI * 2);
+    x.stroke();
+    x.setLineDash([]);
+    x.fillStyle = "rgba(255,255,255,1)";
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2, cx = 128 + Math.cos(a) * 104, cy = 128 + Math.sin(a) * 104;
+      x.beginPath();
+      x.arc(cx, cy, 6, 0, Math.PI * 2);
+      x.fill();
+    }
+  }, 256);
+  const star = canvas((x) => {
+    const g = x.createRadialGradient(32, 32, 0, 32, 32, 14);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = g;
+    x.fillRect(0, 0, 64, 64);
+    x.fillStyle = "#fff";
+    x.beginPath();
+    x.moveTo(32, 2);
+    x.quadraticCurveTo(34, 30, 62, 32);
+    x.quadraticCurveTo(34, 34, 32, 62);
+    x.quadraticCurveTo(30, 34, 2, 32);
+    x.quadraticCurveTo(30, 30, 32, 2);
+    x.fill();
+  }, 64);
+  t = { soft, ring, star };
+  auraTexCache.set(T, t);
+  return t;
+}
+/**
+ * 等級特效 (Sky 2026-10-08): every grade carries its own effect, the same everywhere the dragon appears (the pet
+ * page, the board, the towns). N: a glowing ring at its feet. R: + sparkles circling it. SR: + a glow behind it and
+ * the ring turns. SSR: + sparks rising all round it and a bigger, brighter everything.
+ */
+function gradeAura(T: any, element: number, stage: number, root: any, h: number) {
+  const tex = auraTextures(T);
+  const colour = AURA[element] ?? AURA[0];
+  const add = (o: any) => {
+    root.add(o);
+    return o;
+  };
+  const ring = add(new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ map: tex.ring, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.7 })));
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.01;
+  const ringSize = h * (stage >= 4 ? 2.6 : stage >= 3 ? 2.3 : 2);
+  ring.scale.set(ringSize, ringSize, 1);
+  let halo: any = null;
+  if (stage >= 3) {
+    halo = add(new T.Sprite(new T.SpriteMaterial({ map: tex.soft, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.4 })));
+    halo.position.set(0, h * 0.55, -h * 0.2);
+    halo.scale.setScalar(h * (stage >= 4 ? 2.6 : 2));
+    halo.renderOrder = -1;
+  }
+  const sparkles = [0, 0, 4, 7, 10][stage];
+  const motes = Array.from({ length: sparkles }, (_, k) => {
+    const m = add(new T.Sprite(new T.SpriteMaterial({ map: tex.star, color: k % 3 ? colour : 0xffffff, transparent: true, depthWrite: false, blending: T.AdditiveBlending })));
+    return { m, phase: (k / Math.max(1, sparkles)) * Math.PI * 2, y: h * (0.25 + (k % 4) * 0.2), speed: 0.7 + (k % 3) * 0.25 };
+  });
+  const rising = stage >= 4 ? 12 : 0;
+  const sparks = Array.from({ length: rising }, (_, k) => {
+    const m = add(new T.Sprite(new T.SpriteMaterial({ map: tex.soft, color: k % 2 ? colour : 0xffffff, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 })));
+    const a = (k / rising) * Math.PI * 2;
+    return { m, x: Math.cos(a) * h * 0.75, z: Math.sin(a) * h * 0.75, phase: k / rising, speed: 0.35 + (k % 4) * 0.06 };
+  });
+  return (now: number) => {
+    const t = now / 1000;
+    ring.material.opacity = (stage >= 4 ? 0.9 : 0.65) * (0.75 + 0.25 * Math.sin(t * 2.4));
+    if (stage >= 3) ring.rotation.z = t * (stage >= 4 ? 0.8 : 0.5);
+    if (halo) {
+      halo.material.opacity = (stage >= 4 ? 0.5 : 0.35) * (0.75 + 0.25 * Math.sin(t * 1.8));
+      halo.scale.setScalar(h * (stage >= 4 ? 2.6 : 2) * (1 + 0.05 * Math.sin(t * 1.8)));
+    }
+    for (const s of motes) {
+      const a = s.phase + t * s.speed;
+      s.m.position.set(Math.cos(a) * h * 0.8, s.y + Math.sin(t * 2 + s.phase) * h * 0.08, Math.sin(a) * h * 0.8);
+      const tw = 0.5 + 0.5 * Math.sin(t * 5 + s.phase * 3);
+      s.m.scale.setScalar(h * (0.1 + tw * 0.12));
+      s.m.material.opacity = 0.4 + tw * 0.6;
+    }
+    for (const s of sparks) {
+      const life = (t * s.speed + s.phase) % 1;
+      s.m.position.set(s.x * (1 - life * 0.3), life * h * 1.6, s.z * (1 - life * 0.3));
+      s.m.scale.setScalar(h * 0.12 * (1 - life * 0.5));
+      s.m.material.opacity = Math.sin(life * Math.PI);
+    }
+  };
+}
+
 function modelDragon(T: any, element: number, stage: number, legend: boolean, root: any, body: any): Monster {
   const h = MODEL_HEIGHT[stage];
   body.scale.setScalar(h);
+  const aura = stage > 0 ? gradeAura(T, element, stage, root, h) : null;
   let wingL: any = null;
   let wingR: any = null;
   let tail: any = null;
@@ -113,6 +235,7 @@ function modelDragon(T: any, element: number, stage: number, legend: boolean, ro
       fallback?.setMood(next);
     },
     update(now) {
+      aura?.(now);
       if (fallback) return fallback.update(now);
       const k = now / 1000;
       const asleep = mood === "sleep";
