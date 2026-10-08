@@ -657,7 +657,8 @@ export function DailyGame() {
             ) : null}
           </div>
         </div>
-        <div className="flex items-start gap-1.5">
+        {/* Sky (2026-10-08): six buttons don't fit in one row on a phone, so they sit in two rows of three. */}
+        <div className="grid grid-cols-3 justify-items-center gap-x-1.5 gap-y-1">
         {/* Build (你個城): a golden hammer beside the dragon, no price under it (Sky 2026-09-30). */}
         <button
           type="button"
@@ -716,11 +717,11 @@ export function DailyGame() {
         <button
           type="button"
           onClick={() => !pending?.running && setStoreOpen(true)}
-          className="flex size-11 shrink-0 cursor-pointer items-center justify-center text-3xl active:scale-90"
+          className="flex size-11 shrink-0 cursor-pointer items-center justify-center active:scale-90"
           aria-label={t("商店")}
           data-testid="open-store"
         >
-          🛒
+          <img src="/art/ui/shop.webp" alt="" draggable={false} className="size-11 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
         </button>
         <button
           type="button"
