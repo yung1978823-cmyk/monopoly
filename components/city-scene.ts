@@ -1730,17 +1730,24 @@ export function createCityScene(
       const dx = onScreen.x - prev.x, dy = (onScreen.y - prev.y) / camera.aspect;
       if (Math.hypot(dx, dy) > 1e-4) core.material.rotation = Math.atan2(dy, dx) + (3 * Math.PI) / 4;
       prev.copy(onScreen);
-      if (now - lastPuff > 30) {
+      // 火星四濺 (Sky 2026-10-08: 唔要條線): no trail behind the fireball, just sparks flying off it every way
+      // and dying out fast, so nothing joins up into a line.
+      if (now - lastPuff > 45) {
         lastPuff = now;
-        const t = glowSprite(flameTex, 0xffffff, false);
-        t.position.copy(p);
-        trail.push(t);
-        addFx(0, 380, (q) => {
-          t.scale.setScalar(0.6 * (1 - q * 0.7));
-          t.material.opacity = 0.9 * (1 - q);
-          t.material.color.setRGB(1, 1 - q * 0.6, 1 - q * 0.9);
-          t.position.y += 0.004;
-        }, () => drop(t));
+        for (let n = 0; n < 3; n++) {
+          const t = glowSprite(fireTex, n % 2 ? 0xffd34d : 0xff7a1a);
+          const o = p.clone();
+          t.position.copy(o);
+          trail.push(t);
+          const vx = (Math.random() - 0.5) * 2.4, vy = Math.random() * 1.6 - 0.2, vz = (Math.random() - 0.5) * 2.4;
+          const size = 0.14 + Math.random() * 0.12;
+          addFx(0, 260 + Math.random() * 160, (q) => {
+            const s2 = q * 0.4;
+            t.position.set(o.x + vx * s2, o.y + vy * s2 - 3 * s2 * s2, o.z + vz * s2);
+            t.scale.setScalar(size * (1 - q * 0.8));
+            t.material.opacity = 1 - q;
+          }, () => drop(t));
+        }
       }
     }, () => {
       drop(core);
