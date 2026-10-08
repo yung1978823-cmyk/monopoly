@@ -44,6 +44,10 @@ export type ThemeArt = {
   mirror?: readonly string[];
   /** Pictures that already stand on their own pedestal (no 展示台 plinth under them). */
   based?: readonly string[];
+  /** 展示台 light colour per level (1–5); the crystal page's violet-blue-gold when left out. */
+  stageColours?: readonly number[];
+  /** Steam puffs rising round the statues from level 3 (機械星), drawn by code rather than in the pictures. */
+  steam?: boolean;
 };
 
 export type Theme = {
@@ -114,20 +118,29 @@ export const MECH: Theme = {
   sky: "#c2602a",
   art: {
     dir: "/art/city/mech",
-    names: ["house", "factory", "steam", "power", "clock"],
+    // Sky's five clockwork statues (2026-10-08), same layout as 水晶星: knight back left, titan back centre
+    // (front-facing), dragon back right, lion front right, goddess front left. The knight faces left in its
+    // picture so it is mirrored; the goddess already faces right. No pedestals, no smoke or glow in the art:
+    // the light and steam are drawn by code.
+    names: ["knight", "titan", "dragon", "lion", "goddess"],
     space: true,
     island: true,
+    showcase: true,
+    mirror: ["knight"],
+    based: ["knight", "titan", "dragon", "lion", "goddess"],
+    stageColours: [0xffffff, 0xffe2b0, 0xffb85c, 0xff7d3a, 0xffc21a],
+    steam: true,
     islandDepth: 3.6,
     islandCore: 0x3a2716,
     islandTrim: 0x8a5a2b,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {
-      house: [[132, 154], [222, 219], [244, 320], [288, 433], [298, 560]],
-      factory: [[104, 98], [174, 140], [229, 232], [262, 309], [300, 454]],
-      steam: [[116, 143], [181, 248], [182, 404], [197, 492], [241, 560]],
-      power: [[100, 115], [177, 183], [218, 246], [253, 382], [300, 546]],
-      clock: [[56, 139], [162, 156], [203, 282], [240, 383], [300, 523]],
+      knight: [[141, 114], [96, 184], [201, 269], [238, 358], [300, 481]],
+      titan: [[135, 136], [184, 212], [255, 339], [285, 392], [330, 483]],
+      dragon: [[77, 97], [113, 129], [164, 215], [261, 279], [330, 366]],
+      lion: [[166, 109], [158, 168], [229, 257], [300, 325], [300, 449]],
+      goddess: [[92, 140], [116, 269], [174, 330], [211, 406], [255, 472]],
     },
   },
 };

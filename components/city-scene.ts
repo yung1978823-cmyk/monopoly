@@ -266,10 +266,10 @@ export function createCityScene(
     return new T.CanvasTexture(c);
   })();
   const STAGE_COLOUR = [0xffffff, 0xb9a8ff, 0x58c8ff, 0xa45cff, 0xffc21a];
-  type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote"; base: number; phase: number; r?: number; y?: number; speed?: number };
+  type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote" | "steam"; base: number; phase: number; r?: number; y?: number; speed?: number };
   const auras: Aura[] = [];
   function dressStage(g: any, level: number, w: number, h: number, lift: number) {
-    const colour = STAGE_COLOUR[level - 1];
+    const colour = (theme.art?.stageColours ?? STAGE_COLOUR)[level - 1];
     const glow = (map: any, opacity: number) =>
       new T.MeshBasicMaterial({ map, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity });
     const r = Math.max(0.26, w * 0.34);
@@ -334,6 +334,17 @@ export function createCityScene(
       g.add(m);
       auras.push({ obj: m, kind: "mote", base: 0.9, phase: (k / motes) * Math.PI * 2, r: r * (1.2 + Math.random() * 0.5), y: lift + h * (0.15 + Math.random() * 0.8), speed: 0.5 + Math.random() * 0.5 });
     }
+    if (theme.art?.steam) addSteam(g, level, w, h);
+  }
+  function addSteam(g: any, level: number, w: number, h: number) {
+    // 機械星: soft white puffs drifting up from behind the statue, more for bigger levels.
+    const puffs = level >= 5 ? 7 : level >= 4 ? 5 : level >= 3 ? 3 : 0;
+    for (let k = 0; k < puffs; k++) {
+      const m = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: 0xfff6ea, transparent: true, depthWrite: false, opacity: 0 }));
+      m.renderOrder = -1;
+      g.add(m);
+      auras.push({ obj: m, kind: "steam", base: 0.55, phase: k / puffs, r: (Math.random() - 0.5) * w * 0.7, y: h * (0.35 + Math.random() * 0.45), speed: 0.12 + Math.random() * 0.08 });
+    }
   }
   function auraStep(now: number) {
     const t = now / 1000;
@@ -352,6 +363,12 @@ export function createCityScene(
       } else if (a.kind === "beam") {
         a.obj.material.opacity = a.base * (0.7 + 0.3 * Math.sin(t * 2.4 + a.phase));
         a.obj.rotation.y = t * 0.4;
+      } else if (a.kind === "steam") {
+        // Each puff rises, swells and fades, then starts again.
+        const life = (t * a.speed! + a.phase) % 1;
+        a.obj.position.set(a.r! + Math.sin(t * 0.7 + a.phase * 6) * 0.08, a.y! + life * 0.9, -0.05);
+        a.obj.scale.setScalar(0.18 + life * 0.42);
+        a.obj.material.opacity = a.base * Math.sin(life * Math.PI);
       } else {
         const ang = a.phase + t * (a.speed ?? 0.6);
         a.obj.position.set(Math.cos(ang) * a.r!, a.y! + Math.sin(t * 1.3 + a.phase) * 0.12, Math.sin(ang) * a.r! * 0.6);
