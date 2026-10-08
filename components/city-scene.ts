@@ -155,7 +155,7 @@ export function createCityScene(
   const ART_GROW = [1, 1, 1.05, 1.12, 1.3];
   const showcase = !!theme.art?.showcase;
   /** 展示台: every level a clear step bigger, level 5 towering over the rest. */
-  const SHOW_GROW = [0.66, 0.8, 0.94, 1.08, 1.26];
+  const SHOW_GROW = [0.62, 0.74, 0.86, 0.98, 1.12];
   /** How tall the pedestal under each level is (0 = straight on the ground). */
   const PLINTH = [0, 0.05, 0.1, 0.16, 0.24];
   const growOf = (level: number) => (showcase ? SHOW_GROW : ART_GROW)[level - 1];
@@ -894,7 +894,16 @@ export function createCityScene(
     return new T.CanvasTexture(c);
   })();
   type Plot = { holder: any; body: any; pips: any; plus: any; ring: any; hit: any; level: number; popAt: number; shakeAt: number; cloudAt: number; pending: number | null; puffs: any[] };
-  const plots: Plot[] = PLOT_AT.map(([x, z], i) => {
+  // 展示台: with the camera fixed, the plots sit in two staggered rows as seen from the camera (three at the back,
+  // two in front between them) so no statue hides another. [across, toward the camera].
+  const SHOW_AT: [number, number][] = [[-2.6, -1.1], [0, -2.5], [2.6, -1.1], [1.35, 1.7], [-1.35, 1.7]];
+  const plotAt: [number, number][] = showcase
+    ? SHOW_AT.map(([across, near]) => [
+        Math.cos(HOME_YAW) * across + Math.sin(HOME_YAW) * near,
+        -Math.sin(HOME_YAW) * across + Math.cos(HOME_YAW) * near,
+      ])
+    : PLOT_AT;
+  const plots: Plot[] = plotAt.map(([x, z], i) => {
     const holder = new T.Group();
     holder.position.set(x, TOP, z);
     // Face out from the centre, toward the path.

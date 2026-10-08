@@ -75,13 +75,14 @@ export const CRYSTAL: Theme = {
   sky: "#3b2f9f",
   art: {
     dir: "/art/city/crystal",
-    // Sky's crystal statues (2026-10-08) replace the buildings one by one: knight (back left) and goddess (front left) so far.
-    names: ["knight", "mine", "observatory", "tower", "goddess"],
+    // Sky's five crystal statues (2026-10-08): knight back left, titan king back centre (the grandest), dragon
+    // right, lion front right, goddess front left. Each picture faces left; the two on the left are mirrored.
+    names: ["knight", "titan", "dragon", "lion", "goddess"],
     space: true,
     island: true,
     showcase: true,
     mirror: ["knight", "goddess"],
-    based: ["knight", "goddess"],
+    based: ["knight", "titan", "dragon", "lion", "goddess"],
     islandCore: 0x4a4266,
     islandTrim: 0xa99ad6,
     boatAspect: 1,
@@ -94,6 +95,9 @@ export const CRYSTAL: Theme = {
       palace: [[143, 180], [194, 235], [218, 346], [259, 425], [300, 515]],
       knight: [[100, 147], [124, 232], [130, 277], [192, 369], [300, 486]],
       goddess: [[97, 150], [117, 237], [133, 289], [189, 366], [300, 474]],
+      titan: [[106, 156], [134, 221], [147, 272], [191, 347], [300, 491]],
+      dragon: [[114, 138], [138, 208], [142, 258], [172, 329], [300, 477]],
+      lion: [[100, 126], [131, 186], [155, 242], [180, 315], [300, 467]],
     },
   },
 };
