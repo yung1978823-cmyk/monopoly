@@ -314,8 +314,8 @@ export function createCityScene(
       g.add(halo);
       auras.push({ obj: halo, kind: "halo", base: halo.material.opacity, phase: Math.random() * 6 });
     }
-    // A pillar of light into the sky (5).
-    if (level >= 5) {
+    // A pillar of light into the sky (5) — taken away (Sky 2026-10-08: 唔要射下來的光).
+    if (level >= 5 && false) {
       const beam = new T.Mesh(new T.CylinderGeometry(r * 0.55, r * 0.9, 7, 20, 1, true), glow(beamTex, 0.3));
       // Only the far half shows, so the pillar stands behind the picture instead of washing over it.
       beam.material.side = T.BackSide;
