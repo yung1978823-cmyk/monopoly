@@ -54,6 +54,10 @@ export type ThemeArt = {
   prism?: boolean;
   /** 冰晶星: a turning snowflake emblem, snow drifting down and an aurora veil behind the top statues. */
   frost?: boolean;
+  /** 熔岩星: glowing lava cracks under each statue, embers rising and eruptions of lava from level 4. */
+  magma?: boolean;
+  /** A smoking vent on one statue (the turtle's volcano) for levels 3–5: [across, down] in its picture. */
+  vent?: { name: string; at: readonly (readonly [number, number])[] };
 };
 
 export type Theme = {
@@ -243,20 +247,30 @@ export const LAVA: Theme = {
   sky: "#c2361e",
   art: {
     dir: "/art/city/lava",
-    names: ["house", "forge", "phoenix", "spa", "temple"],
+    // Sky's five lava statues (2026-10-08): blacksmith back left, phoenix back centre (front-facing), gladiator
+    // back right, volcano turtle front right, rhino front left. Every side picture faces left, so the two on the left
+    // are mirrored. Lava effects (glowing cracks, embers, eruptions, the turtle's smoking volcano) are code.
+    names: ["smith", "phoenix", "gladiator", "turtle", "rhino"],
     space: true,
     island: true,
+    showcase: true,
+    mirror: ["smith", "rhino"],
+    based: ["smith", "phoenix", "gladiator", "turtle", "rhino"],
+    stageColours: [0xffffff, 0xffd0a0, 0xffa060, 0xff7030, 0xffc21a],
+    magma: true,
+    // Where the turtle's volcano top is in its level 3–5 pictures (across, down), for the smoke.
+    vent: { name: "turtle", at: [[0.631, 0.03], [0.559, 0.02], [0.54, 0.015]] },
     islandDepth: 3.6,
     islandCore: 0x2a1410,
     islandTrim: 0x5a2e1c,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {
-      house: [[113, 108], [161, 181], [198, 265], [266, 340], [300, 419]],
-      forge: [[109, 90], [164, 174], [212, 229], [274, 297], [300, 389]],
-      phoenix: [[105, 129], [113, 173], [141, 228], [213, 304], [300, 428]],
-      spa: [[96, 65], [124, 93], [208, 178], [212, 200], [300, 263]],
-      temple: [[108, 104], [160, 153], [187, 221], [262, 271], [300, 356]],
+      smith: [[79, 96], [125, 202], [197, 316], [255, 337], [285, 455]],
+      phoenix: [[80, 97], [132, 151], [240, 236], [296, 317], [405, 421]],
+      gladiator: [[91, 83], [94, 160], [158, 262], [238, 386], [270, 454]],
+      turtle: [[65, 79], [124, 93], [174, 156], [238, 264], [315, 381]],
+      rhino: [[100, 95], [147, 141], [217, 199], [290, 308], [330, 369]],
     },
   },
 };

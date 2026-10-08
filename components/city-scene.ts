@@ -190,6 +190,7 @@ export function createCityScene(
     s.scale.set(w * ART_UNIT, h * ART_UNIT, 1);
     s.position.y = plinthOf(level, i);
     g.add(s);
+    g.userData.name = name;
     if (showcase) dressStage(g, level, w * ART_UNIT, h * ART_UNIT, plinthOf(level, i));
     const blob = new T.Mesh(new T.PlaneGeometry(w * ART_UNIT * 1.05, w * ART_UNIT * 0.8), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false, opacity: 0.55 }));
     blob.rotation.x = -Math.PI / 2;
@@ -383,6 +384,43 @@ export function createCityScene(
     x.stroke();
     return new T.CanvasTexture(c);
   })();
+  // 熔岩星: cracks of lava radiating out from under a statue (drawn white, tinted orange).
+  const crackTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 256;
+    const x = c.getContext("2d")!;
+    x.strokeStyle = "rgba(255,255,255,1)";
+    x.shadowColor = "rgba(255,255,255,1)";
+    x.shadowBlur = 10;
+    x.lineCap = "round";
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+    const branch = (px: number, py: number, a: number, len: number, wdt: number, depth: number) => {
+      let cx = px, cy = py;
+      x.lineWidth = wdt;
+      x.beginPath();
+      x.moveTo(cx, cy);
+      const steps = 4;
+      for (let k = 0; k < steps; k++) {
+        a += (rnd() - 0.5) * 0.7;
+        cx += Math.cos(a) * (len / steps);
+        cy += Math.sin(a) * (len / steps);
+        x.lineTo(cx, cy);
+      }
+      x.stroke();
+      if (depth > 0) {
+        branch(cx, cy, a + 0.5, len * 0.55, wdt * 0.6, depth - 1);
+        branch(cx, cy, a - 0.5, len * 0.5, wdt * 0.6, depth - 1);
+      }
+    };
+    for (let k = 0; k < 7; k++) branch(128, 128, (k / 7) * Math.PI * 2 + rnd() * 0.4, 62, 7, 1);
+    const g = x.createRadialGradient(128, 128, 0, 128, 128, 40);
+    g.addColorStop(0, "rgba(255,255,255,0.9)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = g;
+    x.fillRect(0, 0, 256, 256);
+    return new T.CanvasTexture(c);
+  })();
   // An aurora curtain: soft vertical streaks fading at top and bottom.
   const auroraTex = (() => {
     const c = document.createElement("canvas");
@@ -482,7 +520,7 @@ export function createCityScene(
     return new T.CanvasTexture(c);
   })();
   const STAGE_COLOUR = [0xffffff, 0xb9a8ff, 0x58c8ff, 0xa45cff, 0xffc21a];
-  type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote" | "steam" | "spark" | "jelly" | "sprinkle" | "bubble" | "glint" | "dust" | "snow" | "aurora"; base: number; phase: number; r?: number; y?: number; speed?: number; vx?: number; vy?: number };
+  type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote" | "steam" | "spark" | "jelly" | "sprinkle" | "bubble" | "glint" | "dust" | "snow" | "aurora" | "ember" | "blob" | "smoke" | "crack"; base: number; phase: number; r?: number; y?: number; speed?: number; vx?: number; vy?: number };
   const auras: Aura[] = [];
   function dressStage(g: any, level: number, w: number, h: number, lift: number) {
     const colour = (theme.art?.stageColours ?? STAGE_COLOUR)[level - 1];
@@ -516,7 +554,17 @@ export function createCityScene(
     const candy = !!theme.art?.candy;
     const prism = !!theme.art?.prism;
     const frost = !!theme.art?.frost;
-    if (level >= (gears || candy || prism || frost ? 2 : 3)) {
+    const magma = !!theme.art?.magma;
+    if (magma && level >= 2) {
+      // Cracks of lava under the statue, throbbing like a heartbeat (no turning).
+      const size = r * (level >= 5 ? 3.2 : level >= 4 ? 2.8 : 2.4) * 0.7;
+      const crack = new T.Mesh(new T.PlaneGeometry(size, size), new T.MeshBasicMaterial({ map: crackTex, color: 0xff7a1a, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.8 }));
+      crack.rotation.x = -Math.PI / 2;
+      crack.rotation.z = Math.random() * 6;
+      crack.position.y = 0.015;
+      g.add(crack);
+      auras.push({ obj: crack, kind: "crack", base: level >= 4 ? 1 : 0.75, phase: Math.random() * 6 });
+    } else if (level >= (gears || candy || prism || frost ? 2 : 3)) {
       const size = r * (level >= 5 ? 3.0 : level >= 4 ? 2.6 : 2.3) * (gears || candy || prism || frost ? 0.6 : 1);
       const ring = new T.Mesh(
         new T.PlaneGeometry(size, size),
@@ -555,7 +603,7 @@ export function createCityScene(
       auras.push({ obj: beam, kind: "beam", base: 0.3, phase: Math.random() * 6 });
     }
     // Sparkles circling (4: a few, 5: many).
-    const motes = candy || prism || frost ? 0 : level >= 5 ? 14 : level >= 4 ? 6 : level >= 3 ? 3 : 0;
+    const motes = candy || prism || frost || magma ? 0 : level >= 5 ? 14 : level >= 4 ? 6 : level >= 3 ? 3 : 0;
     for (let k = 0; k < motes; k++) {
       const m = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.9 }));
       m.scale.setScalar(0.07 + Math.random() * 0.06);
@@ -566,6 +614,47 @@ export function createCityScene(
     if (candy) addCandy(g, level, w, h);
     if (prism) addPrism(g, level, w, h);
     if (frost) addFrost(g, level, w, h);
+    if (magma) addMagma(g, level, w, h);
+  }
+  function addMagma(g: any, level: number, w: number, h: number) {
+    // Embers: little sparks of fire drifting up in a zigzag, flickering.
+    const embers = level >= 5 ? 14 : level >= 4 ? 9 : level >= 3 ? 5 : 0;
+    for (let k = 0; k < embers; k++) {
+      const m = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: k % 3 ? 0xff8a2a : 0xffd34d, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
+      g.add(m);
+      auras.push({ obj: m, kind: "ember", base: 1, phase: Math.random(), r: (Math.random() - 0.5) * w * 1.1, y: h * (0.8 + Math.random() * 0.5), speed: 0.2 + Math.random() * 0.15, vx: Math.random() * 6 });
+    }
+    // Eruptions (4 up): every few seconds lava bursts up out of the cracks in blobs that arc and fall back.
+    if (level >= 4) {
+      const blobs = level >= 5 ? 9 : 6;
+      const every = 3.2 + Math.random() * 1.6, start = Math.random() * every;
+      for (let k = 0; k < blobs; k++) {
+        const m = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: k % 2 ? 0xff5a10 : 0xffb030, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
+        g.add(m);
+        const a = (k / blobs) * Math.PI * 2 + Math.random() * 0.5;
+        auras.push({ obj: m, kind: "blob", base: 1, phase: start, speed: every, r: Math.cos(a) * (0.6 + Math.random() * 0.6), vx: Math.sin(a) * (0.6 + Math.random() * 0.6), vy: 2.2 + Math.random() * 1.4, y: 0.12 + Math.random() * 0.08 });
+      }
+    }
+    // The turtle's volcano smokes and glows at the top (3 up).
+    const vent = theme.art?.vent;
+    const name = g.userData.name as string;
+    if (vent && name === vent.name && level >= 3) {
+      const [u, v] = vent.at[level - 3];
+      const flip = theme.art?.mirror?.includes(name) ? -1 : 1;
+      const anchor = new T.Group();
+      anchor.userData.off = [(u - 0.5) * w * flip, (1 - v - 0.04) * h];
+      g.add(anchor);
+      pins.push(anchor);
+      const glow = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: 0xff6a1a, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.8 }));
+      glow.scale.setScalar(w * 0.32);
+      anchor.add(glow);
+      auras.push({ obj: glow, kind: "crack", base: 0.9, phase: 0 });
+      for (let k = 0; k < 6; k++) {
+        const m = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: k % 2 ? 0x8f847c : 0xb8aea6, transparent: true, depthWrite: false, opacity: 0 }));
+        anchor.add(m);
+        auras.push({ obj: m, kind: "smoke", base: 0.95, phase: k / 6, r: w * 0.16, y: h * 0.55, speed: 0.22 });
+      }
+    }
   }
   function addFrost(g: any, level: number, w: number, h: number) {
     // Snow drifting down round the statue, each flake turning and swaying.
@@ -663,6 +752,31 @@ export function createCityScene(
       } else if (a.kind === "beam") {
         a.obj.material.opacity = a.base * (0.7 + 0.3 * Math.sin(t * 2.4 + a.phase));
         a.obj.rotation.y = t * 0.4;
+      } else if (a.kind === "crack") {
+        // A heartbeat: two quick throbs, then a rest.
+        const beat = (t * 0.9 + a.phase) % 1;
+        const pulse = Math.max(Math.exp(-((beat - 0.1) ** 2) / 0.002), 0.7 * Math.exp(-((beat - 0.28) ** 2) / 0.002));
+        a.obj.material.opacity = a.base * (0.45 + 0.55 * pulse);
+      } else if (a.kind === "ember") {
+        const life = (t * a.speed! + a.phase) % 1;
+        a.obj.position.set(a.r! + Math.sin(life * 9 + a.vx!) * 0.1, life * a.y!, 0.06);
+        a.obj.scale.setScalar(0.07 * (1 - life * 0.6));
+        a.obj.material.opacity = (1 - life) * (0.6 + 0.4 * Math.sin(t * 25 + a.vx! * 3));
+      } else if (a.kind === "blob") {
+        const since = (t + a.phase) % a.speed!;
+        const s2 = since * 1.1;
+        if (s2 < 1.2) {
+          const y = a.y! + a.vy! * s2 - 4.5 * s2 * s2;
+          a.obj.position.set(a.r! * s2, Math.max(0.02, y), a.vx! * s2);
+          a.obj.scale.setScalar(0.16 * (1 - s2 * 0.4));
+          a.obj.material.opacity = y > 0.02 ? 1 : 0;
+        } else a.obj.material.opacity = 0;
+      } else if (a.kind === "smoke") {
+        const life = (t * a.speed! + a.phase) % 1;
+        a.obj.position.set(Math.sin(life * 4 + a.phase * 6) * a.r! * 0.6, life * a.y!, 0);
+        a.obj.scale.setScalar(a.r! * (1 + life * 3));
+        a.obj.material.opacity = a.base * Math.sin(life * Math.PI) * (1 - life * 0.4);
+        a.obj.material.rotation = life * 1.5 + a.phase * 6;
       } else if (a.kind === "snow") {
         const life = (t * a.speed! + a.phase) % 1;
         a.obj.position.set(a.r! + Math.sin(t * 0.9 + a.phase * 7) * 0.12, a.y! * (1 - life), 0.08);
@@ -738,7 +852,8 @@ export function createCityScene(
     camUp.setFromMatrixColumn(camera.matrixWorld, 1);
     camBack.setFromMatrixColumn(camera.matrixWorld, 2);
     const workers = [...crews.values()].flatMap((crew) => crew.men.map((w) => w.s));
-    for (const o of [...spinners, ...lamps, ...workers]) {
+    for (let k = pins.length - 1; k >= 0; k--) if (!pins[k].parent?.parent) pins.splice(k, 1);
+    for (const o of [...spinners, ...lamps, ...workers, ...pins]) {
       const [dx, dy] = o.userData.off as [number, number];
       const parent = o.parent;
       if (!parent) continue;
@@ -753,6 +868,8 @@ export function createCityScene(
   }
   const lampTex = soft("rgba(255,255,255,1)", "rgba(255,255,255,0)");
   const lamps: any[] = [];
+  /** Things pinned to a spot on a statue's picture (the turtle's volcano top). */
+  const pins: any[] = [];
 
   function building(level: number, i = 0): any {
     if (theme.art && level > 0) return artBuilding(i, level);
