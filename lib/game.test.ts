@@ -19,6 +19,7 @@ import {
   reduce,
   spinWheel,
   type GameState,
+  shopOffers,
 } from "./game";
 import { rollElement } from "./pet";
 import { DICE_CAP, LEVEL_COSTS, REFILL_MS, hitChance, smashPoints } from "./rules";
@@ -95,8 +96,8 @@ describe("daily board", () => {
     assert.equal(TILES.length, 28);
     const count = (kind: string) => TILES.filter((tile) => tile.kind === kind).length;
     assert.deepEqual(
-      [count("start"), count("coin"), count("meat"), count("chest"), count("lucky"), count("attack"), count("steal"), count("jail"), count("hole"), count("wheel")],
-      [1, 6, 5, 3, 2, 4, 2, 1, 1, 3],
+      [count("start"), count("coin"), count("meat"), count("chest"), count("lucky"), count("attack"), count("steal"), count("jail"), count("hole"), count("wheel"), count("shop")],
+      [1, 6, 5, 3, 2, 4, 2, 1, 1, 2, 1],
     );
     const state = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 2], now: NOW });
     assert.equal(state.position, 3);
@@ -560,4 +561,19 @@ describe("black hole", () => {
     assert.equal(holeLoss(2), 2);
     assert.equal(holeLoss(500), 20);
   });
+});
+
+it("神秘商人: buying spends 能量 and gives the goods once per visit", () => {
+  const offers = shopOffers("2026-10-08");
+  assert.equal(offers.length, 3);
+  assert.equal(offers.filter((o) => o.deal).length, 1);
+  assert.deepEqual(shopOffers("2026-10-08"), offers);
+  const base = { ...createGame(0, "2026-10-08"), phase: "shop" as const, points: 100, dice: 0 };
+  const i = offers.findIndex((o) => o.item === "meat");
+  const after = reduce(base, { type: "shop-buy", index: i });
+  assert.equal(after.points, 100 - offers[i].price);
+  assert.equal(after.meat, offers[i].amount);
+  assert.equal(reduce(after, { type: "shop-buy", index: i }), after);
+  assert.equal(reduce({ ...base, points: 0 }, { type: "shop-buy", index: i }).meat, 0);
+  assert.equal(reduce(after, { type: "return-walk" }).phase, "walk");
 });

@@ -6,6 +6,7 @@ import { AttackScreen } from "@/components/attack-screen";
 import { PetScreen } from "@/components/pet-screen";
 import { StoryVideo } from "@/components/story-video";
 import { StealScreen } from "@/components/steal-screen";
+import { ShopScreen } from "@/components/shop-screen";
 import { AttackIntro, ATTACK_INTRO_MS } from "@/components/attack-intro";
 import { HatchIntro, HATCH_MS } from "@/components/hatch-intro";
 import { StealIntro, STEAL_INTRO_MS } from "@/components/steal-intro";
@@ -189,6 +190,7 @@ export function DailyGame() {
   const [introSeen, setIntroSeen] = useState(-1);
   /** The roll whose 偷嘢 intro has already played. */
   const [stealSeen, setStealSeen] = useState(-1);
+  const [shopSeen, setShopSeen] = useState(-1);
   /** Whether your own town (opened with 🏗️) is showing instead of the board. */
   const [cityOpen, setCityOpen] = useState(false);
   /** Whether the public table (第二層) is showing instead of the board. */
@@ -320,6 +322,7 @@ export function DailyGame() {
       steal: "lucky",
       lucky: "lucky",
       wheel: "lucky",
+      shop: "lucky",
       jail: "bad",
       hole: "bad",
       attack: "attack",
@@ -356,6 +359,14 @@ export function DailyGame() {
     const id = window.setTimeout(() => setStealSeen(roll), STEAL_INTRO_MS);
     return () => window.clearTimeout(id);
   }, [state.phase, state.rollCount, stealSeen]);
+
+  // Landing on 神秘商人 shows the landing pop for a moment, then opens the stall.
+  useEffect(() => {
+    if (state.phase !== "shop" || shopSeen === state.rollCount) return;
+    const roll = state.rollCount;
+    const id = window.setTimeout(() => setShopSeen(roll), state.landing?.tornado ? 3200 : 1400);
+    return () => window.clearTimeout(id);
+  }, [state.phase, state.rollCount, state.landing?.tornado, shopSeen]);
 
   function rollPair(): [number, number] {
     return [rollDie(), rollDie()];
@@ -517,6 +528,10 @@ export function DailyGame() {
   const stealIntro = state.phase === "steal" && stealSeen !== state.rollCount;
   if (state.phase === "steal" && !stealIntro) {
     return <StealScreen state={state} onPick={(index) => dispatch({ type: "steal-pick", index })} onReturn={returnToBoard} />;
+  }
+
+  if (state.phase === "shop" && shopSeen === state.rollCount) {
+    return <ShopScreen state={state} onBuy={(index) => dispatch({ type: "shop-buy", index })} onLeave={returnToBoard} />;
   }
 
   if (state.phase === "search" && !intro) {

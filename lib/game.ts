@@ -41,7 +41,7 @@ export type LogEntry = {
 
 export type DiePair = [number, number];
 
-export type Phase = "walk" | "search" | "steal";
+export type Phase = "walk" | "search" | "steal" | "shop";
 
 /**
  * One of the nine crates in a rival's store on 偷嘢 (Sky 2026-10-01): you open three. Mostly 💎 水晶 or 🍖,
@@ -72,6 +72,34 @@ export const WHEEL_PRIZES = [
 ] as const;
 /** How likely each slice is (the last is the jackpot). */
 export const WHEEL_WEIGHTS = [28, 20, 20, 18, 10, 4] as const;
+/**
+ * 神秘商人 (Sky 2026-10-08): three offers a day, bought with 能量 (prices in coins: 1 coin = 100 能量). The prices
+ * (and a daily 特價) are picked from the day, so everyone sees the same shop all day and a new one tomorrow.
+ */
+export type ShopItem = "dice" | "meat" | "juice";
+export type ShopOffer = { item: ShopItem; amount: number; price: number; deal: boolean };
+const SHOP_BASE: Record<ShopItem, { amount: number; low: number; high: number }> = {
+  dice: { amount: 2, low: 5, high: 8 },
+  meat: { amount: 5, low: 3, high: 6 },
+  juice: { amount: 1, low: 5, high: 9 },
+};
+function dayHash(dayKey: string): number {
+  let h = 2166136261;
+  for (let k = 0; k < dayKey.length; k++) h = Math.imul(h ^ dayKey.charCodeAt(k), 16777619) >>> 0;
+  return h;
+}
+export function shopOffers(dayKey: string): ShopOffer[] {
+  let h = dayHash(dayKey || "day");
+  const next = () => ((h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0), h / 4294967296);
+  const deal = Math.floor(next() * 3);
+  return (["dice", "meat", "juice"] as ShopItem[]).map((item, k) => {
+    const base = SHOP_BASE[item];
+    const price = base.low + Math.floor(next() * (base.high - base.low + 1));
+    return k === deal
+      ? { item, amount: base.amount * 2, price: Math.max(1, Math.round(price * 1.4)), deal: true }
+      : { item, amount: base.amount, price, deal: false };
+  });
+}
 export function spinWheel(r: number): number {
   const total = WHEEL_WEIGHTS.reduce((a, b) => a + b, 0);
   let at = r * total;
@@ -133,6 +161,8 @@ export type GameState = {
   stealBoxes: StealBox[] | null;
   /** Crates opened so far on this raid, in order. */
   stealOpened: number[];
+  /** 神秘商人: which of today's offers you bought this visit. */
+  shopBought: number[];
   /** Which theme (page) of your town you are building now, 0 = the first. Earlier pages are finished and locked. */
   theme: number;
   /** The five buildings' levels on the current page, 0 (empty plot) to 5. */
@@ -205,6 +235,7 @@ export type Action =
   | { type: "pick-pet"; element: number }
   | { type: "grow-pet" }
   | { type: "steal-pick"; index: number }
+  | { type: "shop-buy"; index: number }
   | { type: "return-walk" }
   | { type: "place-nft"; slot: number; id: string }
   | { type: "remove-nft"; slot: number }
@@ -276,6 +307,7 @@ export function createGame(now: number, dayKey: string): GameState {
     juice: 0,
     stealBoxes: null,
     stealOpened: [],
+    shopBought: [],
     theme: 0,
     levels: noLevels(),
     best: noLevels(),
@@ -503,6 +535,7 @@ export function sanitizeState(
     juice: clampInt(value.juice, 0, 1_000_000, 0),
     stealBoxes: null,
     stealOpened: [],
+    shopBought: [],
     theme: inRange(value.theme, 0, THEMES.length - 1) ? value.theme : 0,
     levels,
     best,
@@ -692,6 +725,7 @@ export function reduce(state: GameState, action: Action): GameState {
         };
       }
       const stealing = TILES[moved.position]?.kind === "steal";
+      const shopping = TILES[moved.position]?.kind === "shop";
       const stealBoxes = stealing ? readBoxes(action.stealBoxes) : null;
       const tile = TILES[moved.position];
       const enemyFaces = tile?.kind === "attack" ? readPair(action.enemyDice) : null;
@@ -729,7 +763,8 @@ export function reduce(state: GameState, action: Action): GameState {
       const hatched = !!egg && nextPet?.stage === 1;
       const next: GameState = {
         ...state,
-        phase: searching ? "search" : stealing ? "steal" : "walk",
+        phase: searching ? "search" : stealing ? "steal" : shopping ? "shop" : "walk",
+        shopBought: [],
         dice: moved.dice,
         meat: state.meat + moved.meat,
         juice: state.juice + moved.juice,
@@ -825,8 +860,22 @@ export function reduce(state: GameState, action: Action): GameState {
     }
     case "return-walk": {
       if (state.phase === "steal") return { ...state, phase: "walk", stealBoxes: null, stealOpened: [] };
+      if (state.phase === "shop") return { ...state, phase: "walk", shopBought: [] };
       if (state.phase !== "search") return state;
       return { ...state, phase: "walk" };
+    }
+    case "shop-buy": {
+      if (state.phase !== "shop" || state.shopBought.includes(action.index)) return state;
+      const offer = shopOffers(state.dayKey)[action.index];
+      if (!offer || state.points < offer.price || (offer.item === "dice" && state.dice >= DICE_CAP)) return state;
+      return {
+        ...state,
+        points: state.points - offer.price,
+        dice: offer.item === "dice" ? Math.min(DICE_CAP, state.dice + offer.amount) : state.dice,
+        meat: offer.item === "meat" ? state.meat + offer.amount : state.meat,
+        juice: offer.item === "juice" ? state.juice + offer.amount : state.juice,
+        shopBought: [...state.shopBought, action.index],
+      };
     }
     case "steal-pick": {
       if (state.phase !== "steal" || !state.stealBoxes || stealDone(state)) return state;

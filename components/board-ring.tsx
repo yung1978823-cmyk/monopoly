@@ -37,6 +37,7 @@ const TINT: Record<TileKind, string | null> = {
   jail: "rgba(70,80,110,0.9)",
   hole: "rgba(40,20,70,0.95)",
   wheel: "rgba(217,70,239,0.9)",
+  shop: "rgba(124,58,237,0.92)",
 };
 
 export function BoardRing({
