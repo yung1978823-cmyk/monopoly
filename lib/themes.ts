@@ -119,14 +119,14 @@ export const MECH: Theme = {
   art: {
     dir: "/art/city/mech",
     // Sky's five clockwork statues (2026-10-08): the beasts in front (Sky: 神獸係前面比較好) — knight back left,
-    // titan back centre (front-facing), goddess back right, lion front right, dragon front left. Pictures facing
-    // the wrong way are mirrored so all look in to the middle. No pedestals, no smoke or glow in the art: the
+    // titan back centre (front-facing), goddess back right, lion front right, dragon front left. The knight
+    // and dragon pictures face left so they are mirrored; the goddess and lion already face left, toward the middle. No pedestals, no smoke or glow in the art: the
     // light, gear rings, steam and sparks are drawn by code.
     names: ["knight", "titan", "goddess", "lion", "dragon"],
     space: true,
     island: true,
     showcase: true,
-    mirror: ["knight", "goddess", "dragon"],
+    mirror: ["knight", "dragon"],
     based: ["knight", "titan", "dragon", "lion", "goddess"],
     stageColours: [0xffffff, 0xffe2b0, 0xffb85c, 0xff7d3a, 0xffc21a],
     steam: true,
