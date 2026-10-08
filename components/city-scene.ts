@@ -154,6 +154,8 @@ export function createCityScene(
   /** Higher levels stand taller still, so level 5 looks grand. */
   const ART_GROW = [1, 1, 1.05, 1.12, 1.3];
   const showcase = !!theme.art?.showcase;
+  /** How far the 展示台 island turns either way when dragged (about 15°). */
+  const SHOW_TURN = 0.26;
   /** 展示台: every level a clear step bigger, level 5 towering over the rest. */
   const SHOW_GROW = [0.62, 0.74, 0.86, 0.98, 1.12];
   /** How tall the pedestal under each level is (0 = straight on the ground). */
@@ -1011,11 +1013,14 @@ export function createCityScene(
     view.idle = 0;
     if (pts.length === 1) {
       // Sky: the island only turns left and right; the tilt and the distance stay fixed.
-      if (!showcase) view.goalYaw -= (e.clientX - before.x) * 0.006;
+      view.goalYaw -= (e.clientX - before.x) * 0.006;
+      // 展示台 (Sky 2026-10-08): the island turns only a little either way, then springs back on release.
+      if (showcase) view.goalYaw = Math.max(HOME_YAW - SHOW_TURN, Math.min(HOME_YAW + SHOW_TURN, view.goalYaw));
     }
   };
   const onUp = (e: PointerEvent) => {
     pointers.delete(e.pointerId);
+    if (showcase && pointers.size === 0) view.goalYaw = HOME_YAW;
     const t0 = tap;
     tap = null;
     if (e.type !== "pointerup" || !t0 || Math.hypot(e.clientX - t0.x, e.clientY - t0.y) > 10 || performance.now() - t0.at > 600) return;
@@ -1602,7 +1607,7 @@ export function createCityScene(
     view.yaw += (view.goalYaw - view.yaw) * Math.min(1, dt * 8);
     view.elev += (view.goalElev - view.elev) * Math.min(1, dt * 8);
     view.dist += (view.goalDist - view.dist) * Math.min(1, dt * 6);
-    const sway = reduceMotion || showcase ? 0 : Math.sin(now / 7000) * 0.15 * Math.min(1, Math.max(0, view.idle - 2) / 3);
+    const sway = reduceMotion ? 0 : Math.sin(now / 7000) * (showcase ? 0.06 : 0.15) * Math.min(1, Math.max(0, view.idle - 2) / 3);
     const yaw = view.yaw + sway, flatD = Math.cos(view.elev) * view.dist;
     // 展示台: on a level-up the camera leans in toward the building, then eases back.
     const lean = showcase ? focusLean(now) : 0;
