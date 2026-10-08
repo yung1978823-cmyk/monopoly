@@ -2,7 +2,7 @@
 
 import { createBoardScene, loadThree, type BoardScene, type Decor } from "@/components/eight-scene";
 import { CAST, EightBoard } from "@/components/table-game";
-import { loadWallet, saveWallet } from "@/components/wallet-store";
+import { loadCollection, loadWallet, saveCollection, saveWallet } from "@/components/wallet-store";
 import { ENERGY_ICON, formatEnergy, tableEnergy } from "@/lib/energy";
 import { useLang } from "@/lib/i18n";
 import {
@@ -348,6 +348,12 @@ function RealmEditor({
   const [loaded, setLoaded] = useState<"loading" | "ready" | "failed">("loading");
   const [picking, setPicking] = useState<number | null>(null);
   const [panel, setPanel] = useState<Panel>("build");
+  // 商店 房屋券 (Sky 2026-10-08): a voucher builds its house without materials.
+  const [vouchers, setVouchers] = useState<Partial<Record<BuildingKind, number>>>({});
+  useEffect(() => {
+    const id = window.setTimeout(() => setVouchers(loadCollection().vouchers), 0);
+    return () => window.clearTimeout(id);
+  }, []);
   const realmRef = useRef(realm);
   realmRef.current = realm;
 
@@ -402,7 +408,8 @@ function RealmEditor({
     const base = slot !== null && slot >= 0 && realm.slots[slot] ? demolish(realm, slot) : realm;
     const same = slot !== null && slot >= 0 && realm.slots[slot] === kind;
     const fits = canPlace(base, kind) && !same;
-    const enough = hasStock(wallet.stock, RECIPES[kind]);
+    const voucher = (vouchers[kind] ?? 0) > 0;
+    const enough = voucher || hasStock(wallet.stock, RECIPES[kind]);
     const ok = fits && enough && slot !== null && slot >= 0;
     return (
       <button
@@ -413,7 +420,16 @@ function RealmEditor({
           if (!ok) return;
           play("build");
           juice("medium");
-          onChange(build(base, wallet, slot, kind));
+          if (voucher) {
+            // Pay with the voucher: lend the recipe to the wallet so building takes it straight back out.
+            const lent = { ...wallet, stock: { ...wallet.stock } };
+            for (const m of MATERIALS) lent.stock[m] += RECIPES[kind][m];
+            onChange(build(base, lent, slot, kind));
+            const col = loadCollection();
+            const left = Math.max(0, (col.vouchers[kind] ?? 0) - 1);
+            saveCollection({ ...col, vouchers: { ...col.vouchers, [kind]: left } });
+            setVouchers((v) => ({ ...v, [kind]: left }));
+          } else onChange(build(base, wallet, slot, kind));
           after?.();
         }}
         className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border-[3px] border-[#FBD000] bg-[#FFF8D6] px-3 py-1.5 text-left disabled:cursor-default disabled:border-[#E5EAF2] disabled:bg-[#F4F6FA] disabled:opacity-70"
@@ -426,7 +442,7 @@ function RealmEditor({
             {same ? t("而家起緊呢款") : !fits ? t("已經到上限") : !enough ? t("材料唔夠") : slot === null || slot < 0 ? t("冇空位，拆走一間先") : describe(kind)}
           </span>
         </span>
-        <span className="text-right text-xs font-black text-[#B45309]">{recipe(kind)}</span>
+        <span className="text-right text-xs font-black text-[#B45309]">{voucher ? t("用房屋券（{n} 張）", { n: vouchers[kind] ?? 0 }) : recipe(kind)}</span>
       </button>
     );
   };

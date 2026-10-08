@@ -7,6 +7,10 @@ import { PetScreen } from "@/components/pet-screen";
 import { StoryVideo } from "@/components/story-video";
 import { StealScreen } from "@/components/steal-screen";
 import { ShopScreen } from "@/components/shop-screen";
+import { StoreScreen } from "@/components/store-screen";
+import { FakeAd } from "@/components/fake-ad";
+import { loadCollection, saveCollection } from "@/components/wallet-store";
+import { ADS_PER_DAY, adsLeft, watchAd } from "@/lib/shop";
 import { AttackIntro, ATTACK_INTRO_MS } from "@/components/attack-intro";
 import { HatchIntro, HATCH_MS } from "@/components/hatch-intro";
 import { StealIntro, STEAL_INTRO_MS } from "@/components/steal-intro";
@@ -36,6 +40,7 @@ import {
   parseSave,
   reduce,
   spinWheel,
+  canDouble,
   type GameState,
   type StealBox,
   SAVE_PAGES,
@@ -196,6 +201,16 @@ export function DailyGame() {
   /** Whether the public table (第二層) is showing instead of the board. */
   const [tableOpen, setTableOpen] = useState(false);
   const [realmOpen, setRealmOpen] = useState(false);
+  const [storeOpen, setStoreOpen] = useState(false);
+  // 睇廣告雙倍 (Sky 2026-10-08): after a chest, wheel or 龍巢, offer the reward again for an ad (14 ads a day in all).
+  const [adsToday, setAdsToday] = useState(ADS_PER_DAY);
+  const [adFor, setAdFor] = useState<number | null>(null);
+  const [offerSkip, setOfferSkip] = useState(-1);
+  useEffect(() => {
+    if (storeOpen) return;
+    const id = window.setTimeout(() => setAdsToday(adsLeft(loadCollection(), dayKeyOf(Date.now()))), 0);
+    return () => window.clearTimeout(id);
+  }, [storeOpen, state.rollCount]);
   const [storyOpen, setStoryOpen] = useState(false);
   /** Whether your monster's screen (🐾) is showing. */
   const [petOpen, setPetOpen] = useState(false);
@@ -497,6 +512,9 @@ export function DailyGame() {
 
   const intro = state.phase === "search" && introSeen !== state.rollCount;
 
+  if (storeOpen && state.phase === "walk") {
+    return <StoreScreen onExit={() => setStoreOpen(false)} />;
+  }
   if (realmOpen && state.phase === "walk") {
     return <RealmScreen onExit={() => setRealmOpen(false)} />;
   }
@@ -572,6 +590,48 @@ export function DailyGame() {
         onEggTap={() => !pending?.running && setPetOpen(true)}
       />
       {/* What you got on the square you stopped on: its picture big in the middle, then what it paid (Sky: the words were too small). */}
+      {pending?.committed &&
+      state.landing &&
+      !state.landing.doubled &&
+      canDouble(state.landing) &&
+      offerSkip !== state.rollCount &&
+      adsToday > 0 &&
+      state.phase === "walk" ? (
+        <div
+          key={`ad-${state.rollCount}`}
+          className="absolute inset-x-0 top-[62%] z-40 flex flex-col items-center gap-1"
+          style={{ animation: `pop 0.35s ease-out ${(state.landing.kind === "wheel" ? WHEEL_SPIN_MS / 1000 : 0) + (state.landing.tornado ? 2.2 : 0.8)}s both` }}
+          data-testid="ad-double"
+        >
+          <button
+            type="button"
+            onClick={() => setAdFor(state.rollCount)}
+            className="h-12 cursor-pointer rounded-full border-4 border-[#FBD000] bg-[#E52521] px-5 text-lg font-black text-white shadow-[0_4px_0_#991B1B] active:translate-y-0.5"
+          >
+            {t("📺 睇廣告雙倍")}
+          </button>
+          <button type="button" onClick={() => setOfferSkip(state.rollCount)} className="cursor-pointer text-sm font-black text-white drop-shadow">
+            {t("唔使（今日仲有 {n} 次）", { n: adsToday })}
+          </button>
+        </div>
+      ) : null}
+      {adFor !== null ? (
+        <FakeAd
+          onCancel={() => setAdFor(null)}
+          onDone={() => {
+            const day = dayKeyOf(Date.now());
+            const counted = watchAd(loadCollection(), day);
+            if (counted && adFor === state.rollCount) {
+              saveCollection(counted);
+              setAdsToday(adsLeft(counted, day));
+              dispatch({ type: "ad-double" });
+              play("chest");
+              juice("medium", undefined, window.innerHeight * 0.45);
+            }
+            setAdFor(null);
+          }}
+        />
+      ) : null}
       {pending?.committed && state.landing && state.landing.kind !== "attack" && state.landing.kind !== "steal" && popGone !== state.rollCount ? (
         <div
           key={state.rollCount}
@@ -698,6 +758,15 @@ export function DailyGame() {
           data-testid="open-realm"
         >
           <img src="/art/ui/land.webp" alt="" draggable={false} className="size-11 object-contain drop-shadow-[0_3px_2px_rgba(0,0,0,0.45)]" />
+        </button>
+        <button
+          type="button"
+          onClick={() => !pending?.running && setStoreOpen(true)}
+          className="flex size-11 shrink-0 cursor-pointer items-center justify-center text-3xl active:scale-90"
+          aria-label={t("商店")}
+          data-testid="open-store"
+        >
+          🛒
         </button>
         <button
           type="button"

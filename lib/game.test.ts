@@ -587,3 +587,12 @@ it("龍巢: stopping on the first square feeds your dragon for its grade", () =>
   const egg = reduce({ ...base, pet: { element: 0, stage: 0, hungry: 0, rolls: 10 } }, { type: "move", faces: [1, 1], now: 0 });
   assert.equal(egg.pet?.rolls, 17);
 });
+
+it("睇廣告雙倍 doubles a chest once", () => {
+  const base = { ...createGame(0, "2026-10-08"), position: 2, dice: 5 };
+  const landed = reduce(base, { type: "move", faces: [1, 1], chest: 5, now: 0 });
+  assert.equal(landed.landing?.kind, "chest");
+  const once = reduce(landed, { type: "ad-double" });
+  assert.equal(once.points - landed.points, landed.landing!.points);
+  assert.equal(reduce(once, { type: "ad-double" }), once);
+});

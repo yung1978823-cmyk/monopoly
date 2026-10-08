@@ -114,6 +114,11 @@ export const NEST_FOOD: readonly (readonly [number, number])[] = [
 export const NEST_EGG_ROLLS = 6;
 /** Without a dragon the nest still leaves a little meat. */
 export const NEST_NO_PET_MEAT = 4;
+/** Which landings can be doubled by an ad: the ones that pay out something good. */
+export const DOUBLE_KINDS: readonly TileKind[] = ["chest", "wheel", "start"];
+export function canDouble(l: Landing): boolean {
+  return DOUBLE_KINDS.includes(l.kind) && (l.points > 0 || l.dice > 0 || l.meat > 0 || (l.juice ?? 0) > 0);
+}
 export function spinWheel(r: number): number {
   const total = WHEEL_WEIGHTS.reduce((a, b) => a + b, 0);
   let at = r * total;
@@ -145,6 +150,8 @@ export type WeaponReadout = {
 /** What the last stop did, for the picture shown on the board. */
 export type Landing = {
   kind: TileKind;
+  /** 睇廣告雙倍 (Sky 2026-10-08): the reward was doubled once by watching an ad. */
+  doubled?: boolean;
   /** Points actually gained (negative for jail or the black hole), start bonus included. */
   points: number;
   /** Dice gained. */
@@ -250,6 +257,8 @@ export type Action =
   | { type: "grow-pet" }
   | { type: "steal-pick"; index: number }
   | { type: "shop-buy"; index: number }
+  /** 睇廣告雙倍: the last landing's reward again (chest, wheel, 龍巢 only), once. */
+  | { type: "ad-double" }
   | { type: "return-walk" }
   | { type: "place-nft"; slot: number; id: string }
   | { type: "remove-nft"; slot: number }
@@ -892,6 +901,19 @@ export function reduce(state: GameState, action: Action): GameState {
         "you",
         `總攻擊 ${attackTotal}，總防守 ${defenseTotal}，${edge > 0 ? "屬性克制，" : edge < 0 ? "屬性被克，" : ""}機會 ${chance}%。${verdict}。${smashText}得 ${formatEnergy(coinEnergy(pointsGained))} 能量，合計 ${formatEnergy(coinEnergy(nextPoints))}。`,
       );
+    }
+    case "ad-double": {
+      const l = state.landing;
+      if (!l || l.doubled || !canDouble(l)) return state;
+      const points = Math.max(0, l.points - (l.passedStart ? POINTS.start : 0));
+      return {
+        ...state,
+        points: state.points + points,
+        dice: Math.min(DICE_CAP, state.dice + l.dice),
+        meat: state.meat + l.meat,
+        juice: state.juice + (l.juice ?? 0),
+        landing: { ...l, doubled: true, points: l.points + points, dice: l.dice * 2, meat: l.meat * 2, juice: (l.juice ?? 0) * 2 },
+      };
     }
     case "return-walk": {
       if (state.phase === "steal") return { ...state, phase: "walk", stealBoxes: null, stealOpened: [] };
