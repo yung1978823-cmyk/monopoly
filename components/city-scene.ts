@@ -245,6 +245,40 @@ export function createCityScene(
     }
     return new T.CanvasTexture(c);
   })();
+  // 機械星: a glowing gear outline on the floor under each statue, turning slowly.
+  const gearRingTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 256;
+    const x = c.getContext("2d")!;
+    const teeth = 24;
+    x.beginPath();
+    for (let k = 0; k <= teeth * 4; k++) {
+      const a = (k / (teeth * 4)) * Math.PI * 2;
+      const r = k % 4 < 2 ? 112 : 98;
+      x[k ? "lineTo" : "moveTo"](128 + Math.cos(a) * r, 128 + Math.sin(a) * r);
+    }
+    x.closePath();
+    x.shadowColor = "rgba(255,255,255,1)";
+    x.shadowBlur = 10;
+    x.strokeStyle = "rgba(255,255,255,0.95)";
+    x.lineWidth = 6;
+    x.stroke();
+    x.beginPath();
+    x.arc(128, 128, 80, 0, Math.PI * 2);
+    x.lineWidth = 3;
+    x.strokeStyle = "rgba(255,255,255,0.6)";
+    x.stroke();
+    // Spokes, so the turning shows.
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2;
+      x.beginPath();
+      x.moveTo(128 + Math.cos(a) * 80, 128 + Math.sin(a) * 80);
+      x.lineTo(128 + Math.cos(a) * 94, 128 + Math.sin(a) * 94);
+      x.lineWidth = 5;
+      x.stroke();
+    }
+    return new T.CanvasTexture(c);
+  })();
   const haloTex = soft("rgba(255,255,255,0.9)", "rgba(255,255,255,0)");
   const beamTex = (() => {
     const c = document.createElement("canvas");
@@ -266,7 +300,7 @@ export function createCityScene(
     return new T.CanvasTexture(c);
   })();
   const STAGE_COLOUR = [0xffffff, 0xb9a8ff, 0x58c8ff, 0xa45cff, 0xffc21a];
-  type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote" | "steam"; base: number; phase: number; r?: number; y?: number; speed?: number };
+  type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote" | "steam" | "spark"; base: number; phase: number; r?: number; y?: number; speed?: number; vx?: number; vy?: number };
   const auras: Aura[] = [];
   function dressStage(g: any, level: number, w: number, h: number, lift: number) {
     const colour = (theme.art?.stageColours ?? STAGE_COLOUR)[level - 1];
@@ -296,16 +330,19 @@ export function createCityScene(
       y += sh;
     }
     // A ring of light on the floor (3 up), turning from 4.
-    if (level >= 3) {
-      const size = r * (level >= 5 ? 3.0 : level >= 4 ? 2.6 : 2.3);
+    const gears = !!theme.art?.steam;
+    if (level >= (gears ? 2 : 3)) {
+      const size = r * (level >= 5 ? 3.0 : level >= 4 ? 2.6 : 2.3) * (gears ? 0.6 : 1);
       const ring = new T.Mesh(
         new T.PlaneGeometry(size, size),
-        new T.MeshBasicMaterial({ map: ringGlowTex, color: colour, transparent: true, depthWrite: false, opacity: level >= 5 ? 0.75 : 0.5 }),
+        gears
+          ? new T.MeshBasicMaterial({ map: gearRingTex, color: 0xffcf6a, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: level >= 4 ? 0.8 : 0.6 })
+          : new T.MeshBasicMaterial({ map: ringGlowTex, color: colour, transparent: true, depthWrite: false, opacity: level >= 5 ? 0.75 : 0.5 }),
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = 0.015;
       g.add(ring);
-      auras.push({ obj: ring, kind: "ring", base: ring.material.opacity, phase: Math.random() * 6, speed: level >= 4 ? (level >= 5 ? 0.5 : 0.3) : 0 });
+      auras.push({ obj: ring, kind: "ring", base: ring.material.opacity, phase: Math.random() * 6, speed: gears ? (level % 2 ? 0.25 : -0.25) : level >= 4 ? (level >= 5 ? 0.5 : 0.3) : 0 });
     }
     // A glow behind the building (4 up).
     if (level >= 4) {
@@ -343,7 +380,15 @@ export function createCityScene(
       const m = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: 0xfff6ea, transparent: true, depthWrite: false, opacity: 0 }));
       m.renderOrder = -1;
       g.add(m);
-      auras.push({ obj: m, kind: "steam", base: 0.55, phase: k / puffs, r: (Math.random() - 0.5) * w * 0.7, y: h * (0.35 + Math.random() * 0.45), speed: 0.12 + Math.random() * 0.08 });
+      auras.push({ obj: m, kind: "steam", base: 0.7, phase: k / puffs, r: (Math.random() - 0.5) * w * 0.7, y: h * (0.35 + Math.random() * 0.45), speed: 0.12 + Math.random() * 0.08 });
+    }
+    // Sparks flying off the metal and falling back, like a forge.
+    const sparks = level >= 5 ? 16 : level >= 4 ? 9 : level >= 3 ? 4 : 0;
+    for (let k = 0; k < sparks; k++) {
+      const m = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: k % 3 ? 0xffb340 : 0xfff2b0, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
+      m.scale.setScalar(0.09 + Math.random() * 0.06);
+      g.add(m);
+      auras.push({ obj: m, kind: "spark", base: 1, phase: Math.random(), r: (Math.random() - 0.5) * w * 0.5, y: h * (0.3 + Math.random() * 0.5), speed: 0.35 + Math.random() * 0.3, vx: (Math.random() - 0.5) * 1.6, vy: 0.9 + Math.random() * 0.9 });
     }
   }
   function auraStep(now: number) {
@@ -363,11 +408,16 @@ export function createCityScene(
       } else if (a.kind === "beam") {
         a.obj.material.opacity = a.base * (0.7 + 0.3 * Math.sin(t * 2.4 + a.phase));
         a.obj.rotation.y = t * 0.4;
+      } else if (a.kind === "spark") {
+        const life = (t * a.speed! + a.phase) % 1;
+        const s2 = life * 1.1;
+        a.obj.position.set(a.r! + a.vx! * s2, Math.max(0.02, a.y! + a.vy! * s2 - 2.2 * s2 * s2), 0.05);
+        a.obj.material.opacity = a.base * (1 - life) * (life < 0.05 ? life / 0.05 : 1);
       } else if (a.kind === "steam") {
         // Each puff rises, swells and fades, then starts again.
         const life = (t * a.speed! + a.phase) % 1;
         a.obj.position.set(a.r! + Math.sin(t * 0.7 + a.phase * 6) * 0.08, a.y! + life * 0.9, -0.05);
-        a.obj.scale.setScalar(0.18 + life * 0.42);
+        a.obj.scale.setScalar(0.22 + life * 0.55);
         a.obj.material.opacity = a.base * Math.sin(life * Math.PI);
       } else {
         const ang = a.phase + t * (a.speed ?? 0.6);
