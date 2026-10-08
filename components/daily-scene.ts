@@ -69,6 +69,7 @@ const TOPS: Record<TileKind, number> = {
   attack: 0xe52521,
   jail: 0x64748b,
   hole: 0x2e1f4d,
+  wheel: 0xd946ef,
 };
 
 /** Square i on the diamond: start at the front corner, then round the left, back and right corners. */

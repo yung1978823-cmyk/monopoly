@@ -17,6 +17,7 @@ import {
   parseSave,
   SAVE_PAGES,
   reduce,
+  spinWheel,
   type GameState,
 } from "./game";
 import { rollElement } from "./pet";
@@ -75,12 +76,27 @@ describe("daily board", () => {
     assert.equal(parseSave(JSON.stringify({ v: 1, state: { ...old, levels: [6, 0, 0] } }), NOW, DAY), null);
   });
 
+  it("幸運轉盤 pays the slice it stops on", () => {
+    assert.equal(TILES[8]?.kind, "wheel");
+    const dice = reduce({ ...start(), dice: 1 }, { type: "move", faces: [4, 4], wheel: 1, now: NOW });
+    assert.deepEqual(dice.landing, { kind: "wheel", points: 0, dice: 2, meat: 0, passedStart: false, wheel: 1, juice: 0 });
+    assert.equal(dice.dice, 2);
+    const gems = reduce({ ...start(), dice: 1, juice: 1 }, { type: "move", faces: [4, 4], wheel: 4, now: NOW });
+    assert.equal(gems.juice, 3);
+    const big = reduce({ ...start(), dice: 1 }, { type: "move", faces: [4, 4], wheel: 5, now: NOW });
+    assert.equal(big.landing?.points, 20);
+    const odd = reduce({ ...start(), dice: 1 }, { type: "move", faces: [4, 4], wheel: 9, now: NOW });
+    assert.equal(odd.landing?.wheel, 0, "a bad slice falls back to the first");
+    assert.equal(spinWheel(0), 0);
+    assert.equal(spinWheel(0.999), 5);
+  });
+
   it("opens 搜尋敵人 when the walk lands on 攻擊", () => {
     assert.equal(TILES.length, 28);
     const count = (kind: string) => TILES.filter((tile) => tile.kind === kind).length;
     assert.deepEqual(
-      [count("start"), count("coin"), count("meat"), count("chest"), count("lucky"), count("attack"), count("steal"), count("jail"), count("hole")],
-      [1, 9, 5, 3, 2, 4, 2, 1, 1],
+      [count("start"), count("coin"), count("meat"), count("chest"), count("lucky"), count("attack"), count("steal"), count("jail"), count("hole"), count("wheel")],
+      [1, 6, 5, 3, 2, 4, 2, 1, 1, 3],
     );
     const state = reduce(start(), { type: "move", faces: [1, 2], enemyDice: [1, 2], now: NOW });
     assert.equal(state.position, 3);

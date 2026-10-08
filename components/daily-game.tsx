@@ -17,6 +17,7 @@ import { DailyBoard, type DailyFloat } from "@/components/daily-board";
 import { CHARACTERS, savePick, savedPick } from "@/lib/characters";
 import { LangPicker } from "@/components/lang-picker";
 import { TipHand } from "@/components/tip-hand";
+import { PrizeWheel, WHEEL_SPIN_MS } from "@/components/prize-wheel";
 import { Button } from "@/components/ui/button";
 import { TILES, TILE_INFO } from "@/lib/board";
 import { THEMES } from "@/lib/themes";
@@ -33,6 +34,7 @@ import {
   holdsNft,
   parseSave,
   reduce,
+  spinWheel,
   type GameState,
   type StealBox,
   SAVE_PAGES,
@@ -63,6 +65,8 @@ type PendingWalk = {
   chestMeat: boolean;
   /** Where the 龍捲風 blows you, if the walk stops on it. */
   tornado: number | null;
+  /** The slice the 幸運轉盤 stops on. */
+  wheel: number;
   stealBoxes: StealBox[];
   running: boolean;
   committed: boolean;
@@ -315,6 +319,7 @@ export function DailyGame() {
       meat: "coin",
       steal: "lucky",
       lucky: "lucky",
+      wheel: "lucky",
       jail: "bad",
       hole: "bad",
       attack: "attack",
@@ -332,7 +337,7 @@ export function DailyGame() {
   useEffect(() => {
     if (!pending?.committed || !state.landing) return;
     const roll = state.rollCount;
-    const timer = window.setTimeout(() => setPopGone(roll), state.landing.tornado ? 5100 : 3300);
+    const timer = window.setTimeout(() => setPopGone(roll), (state.landing.tornado ? 5100 : 3300) + (state.landing.kind === "wheel" ? WHEEL_SPIN_MS : 0));
     return () => window.clearTimeout(timer);
   }, [pending?.committed, state.landing, state.rollCount]);
 
@@ -389,6 +394,7 @@ export function DailyGame() {
         chestMeat: move.chestMeat,
         stealBoxes: move.stealBoxes,
         tornado: move.tornado ?? undefined,
+        wheel: move.wheel,
         now: Date.now(),
       });
     }, STEP_MS);
@@ -432,7 +438,7 @@ export function DailyGame() {
       .sort(() => Math.random() - 0.5)
       .slice(0, 2);
     const stealBoxes: StealBox[] = [...dangers, rare, ...commons].sort(() => Math.random() - 0.5);
-    setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalFace, rivalElement, rivalNfts, chest, chestMeat, stealBoxes, tornado, running: true, committed: false });
+    setPending({ faces, steps, from, step: 0, enemyDice, rivalLevels, rivalCity, rivalFace, rivalElement, rivalNfts, chest, chestMeat, stealBoxes, tornado, wheel: spinWheel(Math.random()), running: true, committed: false });
   }
 
   function onBuild() {
@@ -556,10 +562,20 @@ export function DailyGame() {
           key={state.rollCount}
           className="pointer-events-none absolute inset-x-0 top-[26%] z-40 flex flex-col items-center opacity-75 animate-[pop_0.35s_ease-out,fade-out_0.6s_ease-in_2.6s_forwards]"
           // After a 龍捲風 ride, wait until you've been dropped on the new square.
-          style={state.landing.tornado ? { animation: "pop 0.35s ease-out 1.8s both, fade-out 0.6s ease-in 4.4s forwards" } : undefined}
+          style={
+            state.landing.tornado
+              ? { animation: `pop 0.35s ease-out 1.8s both, fade-out 0.6s ease-in ${4.4 + (state.landing.kind === "wheel" ? WHEEL_SPIN_MS / 1000 : 0)}s forwards` }
+              : state.landing.kind === "wheel"
+                ? { animation: `pop 0.35s ease-out, fade-out 0.6s ease-in ${2.6 + WHEEL_SPIN_MS / 1000}s forwards` }
+                : undefined
+          }
           data-testid="landing-pop"
         >
-          <img src={`/art/icons/${state.landing.kind}.webp`} alt="" draggable={false} className="size-[38cqw] max-h-40 max-w-40 object-contain drop-shadow-[0_6px_12px_rgba(0,0,0,0.45)]" />
+          {state.landing.kind === "wheel" ? (
+            <PrizeWheel stop={state.landing.wheel ?? 0} />
+          ) : (
+            <img src={`/art/icons/${state.landing.kind}.webp`} alt="" draggable={false} className="size-[38cqw] max-h-40 max-w-40 object-contain drop-shadow-[0_6px_12px_rgba(0,0,0,0.45)]" />
+          )}
           <p
             className={cn(
               "mt-1 rounded-full border-4 px-5 py-1 text-2xl font-black text-white shadow-xl",
@@ -568,8 +584,11 @@ export function DailyGame() {
           >
             {t(TILE_INFO[state.landing.kind].name)}
           </p>
-          {state.landing.points || state.landing.dice || state.landing.meat ? (
-            <p className="mt-2 flex items-center gap-3 rounded-2xl bg-white/95 px-4 py-1.5 text-3xl font-black tabular-nums text-[#1E3A8A] shadow-xl">
+          {state.landing.points || state.landing.dice || state.landing.meat || state.landing.juice ? (
+            <p
+              className="mt-2 flex items-center gap-3 rounded-2xl bg-white/95 px-4 py-1.5 text-3xl font-black tabular-nums text-[#1E3A8A] shadow-xl"
+              style={state.landing.kind === "wheel" ? { animation: `pop 0.35s ease-out ${WHEEL_SPIN_MS / 1000}s both` } : undefined}
+            >
               {state.landing.points ? (
                 <span className={cn("flex items-center gap-1", state.landing.points < 0 && "text-[#E52521]")}>
                   <img src={ENERGY_ICON} alt={t("能量")} className="size-8" />
@@ -579,6 +598,7 @@ export function DailyGame() {
               ) : null}
               {state.landing.dice ? <span>+{state.landing.dice}🎲</span> : null}
               {state.landing.meat ? <span>+{state.landing.meat}🍖</span> : null}
+              {state.landing.juice ? <span>+{state.landing.juice}💎</span> : null}
             </p>
           ) : null}
         </div>

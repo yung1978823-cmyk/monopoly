@@ -395,3 +395,8 @@ body.juice-shake-large > * { animation: juice-shake-l 500ms ease-out; }
   }
 }
 @keyframes rotate-lock-turn { 0%, 20% { transform: rotate(-90deg); } 55%, 100% { transform: rotate(0deg); } }
+/* 幸運轉盤: spins several turns and eases to a stop on the prize (--to set per spin). */
+@keyframes wheel-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(var(--to)); }
+}

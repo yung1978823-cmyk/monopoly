@@ -58,6 +58,29 @@ export const STEAL_PICKS = 3;
 export const JACKPOT = { coins: 20, juice: 3 } as const;
 /** 🍖 each meat square gives. */
 export const MEAT_PER_SQUARE = 2;
+/**
+ * 幸運轉盤 (Sky 2026-10-08): the wheel's six prizes, clockwise from the top. The page spins it (picking a slice by
+ * WHEEL_WEIGHTS) and the game pays what it stopped on.
+ */
+export const WHEEL_PRIZES = [
+  { coins: 3, dice: 0, meat: 0, juice: 0 },
+  { coins: 0, dice: 2, meat: 0, juice: 0 },
+  { coins: 0, dice: 0, meat: 4, juice: 0 },
+  { coins: 8, dice: 0, meat: 0, juice: 0 },
+  { coins: 0, dice: 0, meat: 0, juice: 2 },
+  { coins: 20, dice: 1, meat: 0, juice: 0 },
+] as const;
+/** How likely each slice is (the last is the jackpot). */
+export const WHEEL_WEIGHTS = [28, 20, 20, 18, 10, 4] as const;
+export function spinWheel(r: number): number {
+  const total = WHEEL_WEIGHTS.reduce((a, b) => a + b, 0);
+  let at = r * total;
+  for (let k = 0; k < WHEEL_WEIGHTS.length; k++) {
+    if (at < WHEEL_WEIGHTS[k]) return k;
+    at -= WHEEL_WEIGHTS[k];
+  }
+  return 0;
+}
 
 export type WeaponReadout = {
   weapon: number;
@@ -89,6 +112,10 @@ export type Landing = {
   passedStart: boolean;
   /** 龍捲風: the walk stopped on the tornado square and you were blown on to this square (what it did is above). */
   tornado?: boolean;
+  /** 幸運轉盤: which slice the wheel stopped on. */
+  wheel?: number;
+  /** 💎 gained (from the wheel). */
+  juice?: number;
 };
 
 export type GameState = {
@@ -168,6 +195,8 @@ export type Action =
       stealBoxes?: StealBox[];
       /** Where the 龍捲風 blows you if the walk stops on it (any other square; defaults to 3 back). */
       tornado?: number;
+      /** The slice the 幸運轉盤 stops on, if the walk stops on one (0–5). */
+      wheel?: number;
       now: number;
     }
   | { type: "weapon"; target?: number | null; /** A random number in [0, 1) deciding the hit. */ roll?: number }
@@ -529,7 +558,8 @@ function landOn(
   dice: number,
   chest: number,
   chestMeat = false,
-): { position: number; points: number; dice: number; meat: number; landing: Landing } {
+  wheel = 0,
+): { position: number; points: number; dice: number; meat: number; juice: number; landing: Landing } {
   const position = (from + roll) % TILES.length;
   const passedStart = from + roll >= TILES.length;
   const kind = TILES[position].kind;
@@ -541,6 +571,14 @@ function landOn(
   else if (kind === "chest") change += chest;
   if (kind === "hole") change -= holeLoss(points + change);
   if (kind === "lucky" && dice < DICE_CAP) diceGained = 1;
+  let juice = 0;
+  if (kind === "wheel") {
+    const prize = WHEEL_PRIZES[wheel] ?? WHEEL_PRIZES[0];
+    change += prize.coins;
+    meat += prize.meat;
+    juice = prize.juice;
+    diceGained = Math.max(0, Math.min(prize.dice, DICE_CAP - dice));
+  }
   // Penalties sting a little but never push points below zero.
   const nextPoints = Math.max(0, points + change);
   return {
@@ -548,7 +586,8 @@ function landOn(
     points: nextPoints,
     dice: dice + diceGained,
     meat,
-    landing: { kind, points: nextPoints - points, dice: diceGained, meat, passedStart },
+    juice,
+    landing: { kind, points: nextPoints - points, dice: diceGained, meat, passedStart, ...(kind === "wheel" ? { wheel, juice } : {}) },
   };
 }
 
@@ -638,14 +677,15 @@ export function reduce(state: GameState, action: Action): GameState {
       const spent = spendDice(state.dice, state.lastRefillAt, action.now, 1);
       if (!spent) return state;
       const chest = inRange(action.chest, CHEST_MIN, CHEST_MAX) ? action.chest : CHEST_DEFAULT;
-      let moved = landOn(state.position, steps, state.points, spent.dice, chest, action.chestMeat === true);
+      const wheel = inRange(action.wheel, 0, WHEEL_PRIZES.length - 1) ? action.wheel : 0;
+      let moved = landOn(state.position, steps, state.points, spent.dice, chest, action.chestMeat === true, wheel);
       // 龍捲風 (Sky 2026-09-30, instead of jail): it picks you up and drops you on another square, which then
       // does its thing — a surprise, good or bad. The start bonus from the walk itself still counts.
       if (moved.landing.kind === "jail") {
         const to = inRange(action.tornado, 0, TILES.length - 1) && action.tornado !== moved.position
           ? action.tornado
           : (moved.position - 3 + TILES.length) % TILES.length;
-        const blown = landOn(to, 0, moved.points, moved.dice, chest, action.chestMeat === true);
+        const blown = landOn(to, 0, moved.points, moved.dice, chest, action.chestMeat === true, wheel);
         moved = {
           ...blown,
           landing: { ...blown.landing, points: blown.points - state.points, passedStart: moved.landing.passedStart, tornado: true },
@@ -692,6 +732,7 @@ export function reduce(state: GameState, action: Action): GameState {
         phase: searching ? "search" : stealing ? "steal" : "walk",
         dice: moved.dice,
         meat: state.meat + moved.meat,
+        juice: state.juice + moved.juice,
         stealBoxes,
         stealOpened: [],
         lastRefillAt: spent.lastRefillAt,

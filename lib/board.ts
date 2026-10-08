@@ -6,7 +6,7 @@ export const BOARD_SIDE = 8;
  * What a square does when you stop on it. Every kind is shown as a picture on the board:
  * 🏁 start, 🪙 能量 (energy), 🍖 meat (monster food), 🎁 chest, 🎲 lucky die, 🔨 attack, 🦝 steal, 🚔 jail, 🕳️ black hole.
  */
-export type TileKind = "start" | "coin" | "meat" | "chest" | "lucky" | "attack" | "steal" | "jail" | "hole";
+export type TileKind = "start" | "coin" | "meat" | "chest" | "lucky" | "attack" | "steal" | "jail" | "hole" | "wheel";
 
 export type Tile = {
   id: string;
@@ -18,7 +18,7 @@ export type Tile = {
 export const LANDMARK_NAMES = ["一號樓", "二號樓", "三號樓", "四號樓", "五號樓"] as const;
 
 /**
- * The 28 squares (2026-09-27): start 1, 能量 9, 🍖 meat 5, chests 3, lucky dice 2, 攻擊 4 (one per
+ * The 28 squares (2026-09-27; 2026-10-08: 能量 9 → 6, plus 3 幸運轉盤): start 1, 能量 6, 轉盤 3, 🍖 meat 5, chests 3, lucky dice 2, 攻擊 4 (one per
  * side), 🦝 偷嘢 2 (steal 💎 水晶 from a rival's store), jail 1, black hole 1.
  */
 export const ATTACK_SQUARES = [3, 10, 17, 24] as const;
@@ -29,6 +29,8 @@ export const JAIL_SQUARE = 7;
 export const HOLE_SQUARE = 21;
 export const CHEST_SQUARES = [4, 12, 25] as const;
 export const LUCKY_SQUARES = [9, 23] as const;
+/** 幸運轉盤 (Sky 2026-10-08): three of the old 能量 squares (9 → 6) became prize wheels. */
+export const WHEEL_SQUARES = [8, 16, 22] as const;
 
 /** Each square's name, its emoji stand-in, and its drawn picture once one exists. */
 export const TILE_INFO: Record<TileKind, { name: string; icon: string; art?: string }> = {
@@ -41,6 +43,7 @@ export const TILE_INFO: Record<TileKind, { name: string; icon: string; art?: str
   steal: { name: "偷嘢", icon: "🦝" },
   jail: { name: "龍捲風", icon: "🌪️", art: "/art/tiles/jail.png" },
   hole: { name: "黑洞", icon: "🕳️" },
+  wheel: { name: "幸運轉盤", icon: "🎡" },
 };
 
 function kindOf(index: number): TileKind {
@@ -53,6 +56,7 @@ function kindOf(index: number): TileKind {
   if (index === HOLE_SQUARE) return "hole";
   if ((CHEST_SQUARES as readonly number[]).includes(index)) return "chest";
   if ((LUCKY_SQUARES as readonly number[]).includes(index)) return "lucky";
+  if ((WHEEL_SQUARES as readonly number[]).includes(index)) return "wheel";
   return "coin";
 }
 
