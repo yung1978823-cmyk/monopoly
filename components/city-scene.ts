@@ -421,6 +421,68 @@ export function createCityScene(
     x.fillRect(0, 0, 256, 256);
     return new T.CanvasTexture(c);
   })();
+  // 霓虹星: a round neon grid (rings and spokes) for the floor.
+  const gridTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 256;
+    const x = c.getContext("2d")!;
+    x.strokeStyle = "rgba(255,255,255,1)";
+    x.shadowColor = "rgba(255,255,255,1)";
+    x.shadowBlur = 8;
+    x.lineWidth = 6;
+    x.beginPath();
+    x.arc(128, 128, 110, 0, Math.PI * 2);
+    x.stroke();
+    x.lineWidth = 2.5;
+    for (const r of [84, 58, 32]) {
+      x.beginPath();
+      x.arc(128, 128, r, 0, Math.PI * 2);
+      x.stroke();
+    }
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      x.beginPath();
+      x.moveTo(128 + Math.cos(a) * 32, 128 + Math.sin(a) * 32);
+      x.lineTo(128 + Math.cos(a) * 110, 128 + Math.sin(a) * 110);
+      x.stroke();
+    }
+    return new T.CanvasTexture(c);
+  })();
+  // A hologram scan band: a thin bright line with a soft fade below it.
+  const scanTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = 128;
+    c.height = 64;
+    const x = c.getContext("2d")!;
+    const g = x.createLinearGradient(0, 0, 0, 64);
+    g.addColorStop(0, "rgba(255,255,255,0)");
+    g.addColorStop(0.45, "rgba(255,255,255,0.25)");
+    g.addColorStop(0.5, "rgba(255,255,255,1)");
+    g.addColorStop(0.56, "rgba(255,255,255,0.15)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = g;
+    x.fillRect(0, 0, 128, 64);
+    x.globalCompositeOperation = "destination-in";
+    const side = x.createLinearGradient(0, 0, 128, 0);
+    side.addColorStop(0, "rgba(0,0,0,0)");
+    side.addColorStop(0.2, "rgba(0,0,0,1)");
+    side.addColorStop(0.8, "rgba(0,0,0,1)");
+    side.addColorStop(1, "rgba(0,0,0,0)");
+    x.fillStyle = side;
+    x.fillRect(0, 0, 128, 64);
+    return new T.CanvasTexture(c);
+  })();
+  // A little square "data bit".
+  const bitTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 32;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "rgba(255,255,255,0.35)";
+    x.fillRect(4, 4, 24, 24);
+    x.fillStyle = "#fff";
+    x.fillRect(9, 9, 14, 14);
+    return new T.CanvasTexture(c);
+  })();
   // An aurora curtain: soft vertical streaks fading at top and bottom.
   const auroraTex = (() => {
     const c = document.createElement("canvas");
@@ -520,7 +582,7 @@ export function createCityScene(
     return new T.CanvasTexture(c);
   })();
   const STAGE_COLOUR = [0xffffff, 0xb9a8ff, 0x58c8ff, 0xa45cff, 0xffc21a];
-  type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote" | "steam" | "spark" | "jelly" | "sprinkle" | "bubble" | "glint" | "dust" | "snow" | "aurora" | "ember" | "blob" | "smoke" | "crack"; base: number; phase: number; r?: number; y?: number; speed?: number; vx?: number; vy?: number };
+  type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote" | "steam" | "spark" | "jelly" | "sprinkle" | "bubble" | "glint" | "dust" | "snow" | "aurora" | "ember" | "blob" | "smoke" | "crack" | "grid" | "scan" | "glitch" | "bit"; base: number; phase: number; r?: number; y?: number; speed?: number; vx?: number; vy?: number };
   const auras: Aura[] = [];
   function dressStage(g: any, level: number, w: number, h: number, lift: number) {
     const colour = (theme.art?.stageColours ?? STAGE_COLOUR)[level - 1];
@@ -555,7 +617,15 @@ export function createCityScene(
     const prism = !!theme.art?.prism;
     const frost = !!theme.art?.frost;
     const magma = !!theme.art?.magma;
-    if (magma && level >= 2) {
+    const neon = !!theme.art?.neon;
+    if (neon && level >= 2) {
+      const size = r * (level >= 5 ? 3.0 : level >= 4 ? 2.6 : 2.3) * 0.62;
+      const grid = new T.Mesh(new T.PlaneGeometry(size, size), new T.MeshBasicMaterial({ map: gridTex, color: 0x4fe8ff, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.8 }));
+      grid.rotation.x = -Math.PI / 2;
+      grid.position.y = 0.015;
+      g.add(grid);
+      auras.push({ obj: grid, kind: "grid", base: level >= 4 ? 0.95 : 0.7, phase: Math.random() * 6 });
+    } else if (magma && level >= 2) {
       // Cracks of lava under the statue, throbbing like a heartbeat (no turning).
       const size = r * (level >= 5 ? 3.2 : level >= 4 ? 2.8 : 2.4) * 0.7;
       const crack = new T.Mesh(new T.PlaneGeometry(size, size), new T.MeshBasicMaterial({ map: crackTex, color: 0xff7a1a, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.8 }));
@@ -603,7 +673,7 @@ export function createCityScene(
       auras.push({ obj: beam, kind: "beam", base: 0.3, phase: Math.random() * 6 });
     }
     // Sparkles circling (4: a few, 5: many).
-    const motes = candy || prism || frost || magma ? 0 : level >= 5 ? 14 : level >= 4 ? 6 : level >= 3 ? 3 : 0;
+    const motes = candy || prism || frost || magma || neon ? 0 : level >= 5 ? 14 : level >= 4 ? 6 : level >= 3 ? 3 : 0;
     for (let k = 0; k < motes; k++) {
       const m = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.9 }));
       m.scale.setScalar(0.07 + Math.random() * 0.06);
@@ -615,6 +685,41 @@ export function createCityScene(
     if (prism) addPrism(g, level, w, h);
     if (frost) addFrost(g, level, w, h);
     if (magma) addMagma(g, level, w, h);
+    if (neon) addNeon(g, level, w, h);
+  }
+  function addNeon(g: any, level: number, w: number, h: number) {
+    // Data bits: little cyan and magenta squares rising straight up and blinking out.
+    const bits = level >= 5 ? 14 : level >= 4 ? 9 : level >= 3 ? 5 : 0;
+    for (let k = 0; k < bits; k++) {
+      const m = new T.Sprite(new T.SpriteMaterial({ map: bitTex, color: k % 2 ? 0x4fe8ff : 0xff5fd2, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
+      m.scale.setScalar(0.06 + Math.random() * 0.04);
+      g.add(m);
+      auras.push({ obj: m, kind: "bit", base: 1, phase: Math.random(), r: (Math.random() - 0.5) * w * 1.1, y: h * (0.8 + Math.random() * 0.5), speed: 0.15 + Math.random() * 0.12, vx: Math.random() * 10 });
+    }
+    // A hologram scan ring sweeping up the statue (3 up).
+    if (level >= 3) {
+      const m = new T.Sprite(new T.SpriteMaterial({ map: scanTex, color: 0x4fe8ff, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
+      m.renderOrder = 2;
+      m.scale.set(w * 1.15, w * 0.3, 1);
+      g.add(m);
+      auras.push({ obj: m, kind: "scan", base: level >= 4 ? 0.95 : 0.7, phase: Math.random(), y: h, speed: 0.32 });
+    }
+    // Glitch (4 up): now and then the statue jumps sideways and splits into a cyan / magenta flicker.
+    const body = g.children[0];
+    if (level >= 4 && body?.material) {
+      const ghost = (colour: number) => {
+        const s2 = new T.Sprite(new T.SpriteMaterial({ map: body.material.map, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0, alphaTest: 0.2 }));
+        s2.center.copy(body.center);
+        s2.scale.copy(body.scale);
+        s2.position.copy(body.position);
+        s2.renderOrder = 2;
+        g.add(s2);
+        return s2;
+      };
+      auras.push({ obj: body, kind: "glitch", base: 1, phase: Math.random() * 20, r: body.position.x, y: w, speed: level >= 5 ? 0.55 : 0.4, vx: 0 });
+      const a = auras[auras.length - 1] as any;
+      a.ghosts = [ghost(0x00e5ff), ghost(0xff2fd0)];
+    }
   }
   function addMagma(g: any, level: number, w: number, h: number) {
     // Embers: little sparks of fire drifting up in a zigzag, flickering.
@@ -752,6 +857,33 @@ export function createCityScene(
       } else if (a.kind === "beam") {
         a.obj.material.opacity = a.base * (0.7 + 0.3 * Math.sin(t * 2.4 + a.phase));
         a.obj.rotation.y = t * 0.4;
+      } else if (a.kind === "grid") {
+        // Colour slides cyan → violet → magenta and back; a quick bright pulse now and then.
+        const k = 0.5 + 0.5 * Math.sin(t * 0.9 + a.phase);
+        a.obj.material.color.setRGB(0.31 + 0.69 * k, 0.91 - 0.54 * k, 1 - 0.18 * k);
+        const blip = Math.max(0, Math.sin(t * 2.6 + a.phase)) ** 8;
+        a.obj.material.opacity = a.base * (0.6 + 0.4 * blip);
+      } else if (a.kind === "scan") {
+        const life = (t * a.speed! + a.phase) % 1;
+        a.obj.position.set(0, life * a.y! * 1.05, 0.07);
+        a.obj.material.opacity = a.base * Math.min(1, life * 8, (1 - life) * 5);
+        a.obj.material.color.setHSL(life < 0.5 ? 0.52 : 0.88, 1, 0.6);
+      } else if (a.kind === "bit") {
+        const life = (t * a.speed! + a.phase) % 1;
+        a.obj.position.set(a.r!, life * a.y!, 0.06);
+        const on = Math.sin(t * 14 + a.vx!) > -0.3 ? 1 : 0.2;
+        a.obj.material.opacity = a.base * on * Math.min(1, life * 6, (1 - life) * 3);
+      } else if (a.kind === "glitch") {
+        const any = a as any;
+        const cyc = (t * a.speed! + a.phase) % 1;
+        const on = cyc < 0.06;
+        const n = Math.floor(t * 40);
+        const jx = on ? (((n * 7919) % 13) / 13 - 0.5) * a.y! * 0.12 : 0;
+        a.obj.position.x = a.r! + jx;
+        any.ghosts.forEach((gh: any, k: number) => {
+          gh.position.x = a.r! + jx + (k ? 1 : -1) * a.y! * 0.04;
+          gh.material.opacity = on ? 0.55 : 0;
+        });
       } else if (a.kind === "crack") {
         // A heartbeat: two quick throbs, then a rest.
         const beat = (t * 0.9 + a.phase) % 1;

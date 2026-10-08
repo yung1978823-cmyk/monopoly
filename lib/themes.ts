@@ -56,6 +56,8 @@ export type ThemeArt = {
   frost?: boolean;
   /** 熔岩星: glowing lava cracks under each statue, embers rising and eruptions of lava from level 4. */
   magma?: boolean;
+  /** 霓虹星: a neon grid disc cycling cyan↔magenta, a hologram scan ring, glitch flickers and rising data bits. */
+  neon?: boolean;
   /** A smoking vent on one statue (the turtle's volcano) for levels 3–5: [across, down] in its picture. */
   vent?: { name: string; at: readonly (readonly [number, number])[] };
 };
@@ -288,19 +290,28 @@ export const NEON: Theme = {
   sky: "#3a2fa0",
   art: {
     dir: "/art/city/neon",
-    names: ["house", "port", "rocket", "wheel", "elevator"],
+    // Sky's five neon statues (2026-10-08, drawn cooler and less cartoony): ninja back left, space emperor back
+    // centre (front-facing), cowboy back right, mecha T-rex front right, cyber panther front left. Every side picture
+    // faces left, so the two on the left are mirrored. Neon effects (colour-cycling grid, hologram scan, glitch,
+    // data bits) are code.
+    names: ["ninja", "emperor", "cowboy", "trex", "panther"],
     space: true,
     island: true,
+    showcase: true,
+    mirror: ["ninja", "panther"],
+    based: ["ninja", "emperor", "cowboy", "trex", "panther"],
+    stageColours: [0xffffff, 0x9ff6ff, 0x4fe8ff, 0xff5fd2, 0xffc21a],
+    neon: true,
     islandCore: 0x1a1f3a,
     islandTrim: 0x3b4a7a,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {
-      house: [[128, 153], [165, 246], [183, 329], [205, 468], [267, 560]],
-      port: [[137, 75], [233, 185], [227, 239], [252, 378], [300, 543]],
-      rocket: [[123, 95], [167, 168], [217, 271], [281, 379], [300, 544]],
-      wheel: [[92, 118], [150, 187], [172, 239], [242, 319], [300, 412]],
-      elevator: [[131, 115], [141, 201], [153, 366], [173, 496], [216, 560]],
+      ninja: [[79, 89], [141, 291], [118, 335], [242, 346], [275, 441]],
+      emperor: [[82, 87], [136, 269], [188, 342], [243, 387], [276, 532]],
+      cowboy: [[78, 96], [108, 268], [142, 342], [178, 397], [240, 440]],
+      trex: [[51, 69], [155, 122], [212, 191], [336, 310], [345, 460]],
+      panther: [[74, 79], [148, 167], [212, 256], [257, 353], [300, 449]],
     },
   },
 };
