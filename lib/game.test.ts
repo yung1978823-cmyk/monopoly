@@ -577,3 +577,13 @@ it("神秘商人: buying spends 能量 and gives the goods once per visit", () =
   assert.equal(reduce({ ...base, points: 0 }, { type: "shop-buy", index: i }).meat, 0);
   assert.equal(reduce(after, { type: "return-walk" }).phase, "walk");
 });
+
+it("龍巢: stopping on the first square feeds your dragon for its grade", () => {
+  const base = { ...createGame(0, "2026-10-08"), position: 26, dice: 5, pet: { element: 0, stage: 2, hungry: 0, rolls: 60 } };
+  const after = reduce(base, { type: "move", faces: [1, 1], now: 0 });
+  assert.equal(after.position, 0);
+  assert.equal(after.meat, 14);
+  assert.equal(after.juice, 2);
+  const egg = reduce({ ...base, pet: { element: 0, stage: 0, hungry: 0, rolls: 10 } }, { type: "move", faces: [1, 1], now: 0 });
+  assert.equal(egg.pet?.rolls, 17);
+});

@@ -114,6 +114,7 @@ const DICT: Record<string, { hans: string; en: string }> = {
   "去下一頁：{name}": { hans: "去下一页：{name}", en: "Next page: {name}" },
   "所有主題都完成咗，新主題陸續有嚟！": { hans: "所有主题都完成了，新主题陆续推出！", en: "Every theme finished. More are coming!" },
   "幸運轉盤": { hans: "幸运转盘", en: "Lucky Wheel" },
+  "龍巢": { hans: "龙巢", en: "Dragon Nest" },
   "神秘商人": { hans: "神秘商人", en: "Mystery Merchant" },
   "骰仔": { hans: "骰子", en: "Dice" },
   "水晶": { hans: "水晶", en: "Crystal" },

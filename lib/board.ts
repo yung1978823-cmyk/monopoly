@@ -36,7 +36,8 @@ export const SHOP_SQUARES = [16] as const;
 
 /** Each square's name, its emoji stand-in, and its drawn picture once one exists. */
 export const TILE_INFO: Record<TileKind, { name: string; icon: string; art?: string }> = {
-  start: { name: "起點", icon: "🏁", art: "/art/tiles/start.png" },
+  // 龍巢 (Sky 2026-10-08): no start or finish any more; the first square is the dragons' nest (a free meal).
+  start: { name: "龍巢", icon: "🐉", art: "/art/tiles/start.png" },
   coin: { name: "能量格", icon: "🪙", art: "/art/tiles/coin.png" },
   meat: { name: "肉", icon: "🍖" },
   chest: { name: "寶箱", icon: "🎁", art: "/art/tiles/chest.png" },

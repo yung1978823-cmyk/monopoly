@@ -100,6 +100,20 @@ export function shopOffers(dayKey: string): ShopOffer[] {
       : { item, amount: base.amount, price, deal: false };
   });
 }
+/**
+ * 龍巢 (Sky 2026-10-08, in place of 起點): stopping on it feeds your dragon for free — food sized to its grade, so a
+ * bigger dragon gets a bigger meal. An egg in the nest gets warmed: it hatches NEST_EGG_ROLLS rolls sooner.
+ */
+export const NEST_FOOD: readonly (readonly [number, number])[] = [
+  [0, 0],
+  [8, 1],
+  [14, 2],
+  [20, 3],
+  [24, 4],
+];
+export const NEST_EGG_ROLLS = 6;
+/** Without a dragon the nest still leaves a little meat. */
+export const NEST_NO_PET_MEAT = 4;
 export function spinWheel(r: number): number {
   const total = WHEEL_WEIGHTS.reduce((a, b) => a + b, 0);
   let at = r * total;
@@ -742,12 +756,32 @@ export function reduce(state: GameState, action: Action): GameState {
       const rivalLevels = searching
         ? (given ?? Array.from({ length: BUILDINGS }, (_, index) => state.rivalLevels[index] ?? 0))
         : state.rivalLevels;
-      const passed = moved.landing.passedStart ? "經過起點。" : "";
+      // 龍巢: a free meal for your dragon (or a warm nest for the egg).
+      const nesting = TILES[moved.position]?.kind === "start";
+      const pet0 = state.pet;
+      const [nestMeat, nestJuice] = !nesting
+        ? [0, 0]
+        : !pet0
+          ? [NEST_NO_PET_MEAT, 0]
+          : (NEST_FOOD[Math.max(0, Math.min(NEST_FOOD.length - 1, pet0.stage))] ?? [0, 0]);
+      if (nesting) {
+        moved = {
+          ...moved,
+          meat: moved.meat + nestMeat,
+          juice: moved.juice + nestJuice,
+          landing: { ...moved.landing, meat: moved.landing.meat + nestMeat, juice: (moved.landing.juice ?? 0) + nestJuice },
+        };
+      }
+      const passed = moved.landing.passedStart ? "經過龍巢。" : "";
       const change = moved.landing.points;
       const effect = searching
         ? `搜尋敵人，配到${CHARACTERS[rivalFace].name}（${THEMES[rivalCity].name}），佢啲建築合共 ${totalLevels(rivalLevels)} 級。`
         : moved.landing.dice > 0
           ? "多一粒骰。"
+          : nesting
+            ? pet0 && pet0.stage === 0
+              ? "龍巢暖住龍蛋，快啲孵。"
+              : `龍巢免費餵食：${nestMeat} 🍖${nestJuice ? `、${nestJuice} 💎` : ""}。`
           : moved.meat > 0
             ? `攞到 ${moved.meat} 🍖。`
             : stealing
@@ -755,10 +789,11 @@ export function reduce(state: GameState, action: Action): GameState {
               : "";
       // A dragon egg counts board rolls and hatches by itself at the 60th.
       const egg = state.pet && state.pet.stage === 0 ? state.pet : null;
+      const eggRolls = egg ? egg.rolls + 1 + (nesting ? NEST_EGG_ROLLS : 0) : 0;
       const nextPet: Pet | null = egg
-        ? egg.rolls + 1 >= HATCH_ROLLS
+        ? eggRolls >= HATCH_ROLLS
           ? { ...egg, stage: 1, rolls: HATCH_ROLLS, hungry: 0 }
-          : { ...egg, rolls: egg.rolls + 1 }
+          : { ...egg, rolls: eggRolls }
         : state.pet;
       const hatched = !!egg && nextPet?.stage === 1;
       const next: GameState = {
