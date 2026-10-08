@@ -346,6 +346,68 @@ export function createCityScene(
     }
     return new T.CanvasTexture(c);
   })();
+  // 冰晶星: a six-armed snowflake emblem for the floor (big) and for falling snow (small).
+  const flakeTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const x = c.getContext("2d")!;
+    x.translate(64, 64);
+    x.strokeStyle = "rgba(255,255,255,1)";
+    x.shadowColor = "rgba(255,255,255,1)";
+    x.shadowBlur = 4;
+    x.lineCap = "round";
+    for (let k = 0; k < 6; k++) {
+      x.save();
+      x.rotate((k / 6) * Math.PI * 2);
+      x.lineWidth = 6;
+      x.beginPath();
+      x.moveTo(0, 0);
+      x.lineTo(0, -56);
+      x.stroke();
+      x.lineWidth = 4;
+      for (const [y, l] of [[-22, 13], [-38, 10]]) {
+        x.beginPath();
+        x.moveTo(-l, y - l);
+        x.lineTo(0, y);
+        x.lineTo(l, y - l);
+        x.stroke();
+      }
+      x.restore();
+    }
+    x.lineWidth = 3;
+    x.beginPath();
+    x.arc(0, 0, 10, 0, Math.PI * 2);
+    x.stroke();
+    return new T.CanvasTexture(c);
+  })();
+  // An aurora curtain: soft vertical streaks fading at top and bottom.
+  const auroraTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = 128;
+    c.height = 256;
+    const x = c.getContext("2d")!;
+    for (let i = 0; i < 128; i++) {
+      const a = 0.35 + 0.65 * Math.abs(Math.sin(i * 0.21) * Math.sin(i * 0.057 + 1));
+      const top = 30 + Math.sin(i * 0.09) * 26;
+      const g = x.createLinearGradient(0, top, 0, 256);
+      g.addColorStop(0, "rgba(255,255,255,0)");
+      g.addColorStop(0.25, `rgba(255,255,255,${a})`);
+      g.addColorStop(0.7, `rgba(255,255,255,${a * 0.5})`);
+      g.addColorStop(1, "rgba(255,255,255,0)");
+      x.fillStyle = g;
+      x.fillRect(i, top, 1, 256 - top);
+    }
+    // Soft left and right edges.
+    x.globalCompositeOperation = "destination-in";
+    const side = x.createLinearGradient(0, 0, 128, 0);
+    side.addColorStop(0, "rgba(0,0,0,0)");
+    side.addColorStop(0.2, "rgba(0,0,0,1)");
+    side.addColorStop(0.8, "rgba(0,0,0,1)");
+    side.addColorStop(1, "rgba(0,0,0,0)");
+    x.fillStyle = side;
+    x.fillRect(0, 0, 128, 256);
+    return new T.CanvasTexture(c);
+  })();
   // A four-pointed star glint.
   const glintTex = (() => {
     const c = document.createElement("canvas");
@@ -417,7 +479,7 @@ export function createCityScene(
     return new T.CanvasTexture(c);
   })();
   const STAGE_COLOUR = [0xffffff, 0xb9a8ff, 0x58c8ff, 0xa45cff, 0xffc21a];
-  type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote" | "steam" | "spark" | "jelly" | "sprinkle" | "bubble" | "glint" | "dust"; base: number; phase: number; r?: number; y?: number; speed?: number; vx?: number; vy?: number };
+  type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote" | "steam" | "spark" | "jelly" | "sprinkle" | "bubble" | "glint" | "dust" | "snow" | "aurora"; base: number; phase: number; r?: number; y?: number; speed?: number; vx?: number; vy?: number };
   const auras: Aura[] = [];
   function dressStage(g: any, level: number, w: number, h: number, lift: number) {
     const colour = (theme.art?.stageColours ?? STAGE_COLOUR)[level - 1];
@@ -450,11 +512,14 @@ export function createCityScene(
     const gears = !!theme.art?.steam;
     const candy = !!theme.art?.candy;
     const prism = !!theme.art?.prism;
-    if (level >= (gears || candy || prism ? 2 : 3)) {
-      const size = r * (level >= 5 ? 3.0 : level >= 4 ? 2.6 : 2.3) * (gears || candy || prism ? 0.6 : 1);
+    const frost = !!theme.art?.frost;
+    if (level >= (gears || candy || prism || frost ? 2 : 3)) {
+      const size = r * (level >= 5 ? 3.0 : level >= 4 ? 2.6 : 2.3) * (gears || candy || prism || frost ? 0.6 : 1);
       const ring = new T.Mesh(
         new T.PlaneGeometry(size, size),
-        prism
+        frost
+          ? new T.MeshBasicMaterial({ map: flakeTex, color: 0x7fd0ff, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: level >= 4 ? 0.6 : 0.4 })
+          : prism
           ? new T.MeshBasicMaterial({ map: runeTex, color: colour === 0xffffff ? 0xd9ccff : colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: level >= 4 ? 0.9 : 0.65 })
           : candy
           ? new T.MeshBasicMaterial({ map: swirlTex, transparent: true, depthWrite: false, opacity: level >= 4 ? 0.85 : 0.65 })
@@ -465,7 +530,7 @@ export function createCityScene(
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = 0.015;
       g.add(ring);
-      auras.push({ obj: ring, kind: "ring", base: ring.material.opacity, phase: Math.random() * 6, speed: prism ? -0.35 : candy ? 0.5 : gears ? (level % 2 ? 0.25 : -0.25) : level >= 4 ? (level >= 5 ? 0.5 : 0.3) : 0 });
+      auras.push({ obj: ring, kind: "ring", base: ring.material.opacity, phase: Math.random() * 6, speed: frost ? 0.18 : prism ? -0.35 : candy ? 0.5 : gears ? (level % 2 ? 0.25 : -0.25) : level >= 4 ? (level >= 5 ? 0.5 : 0.3) : 0 });
     }
     // A glow behind the building (4 up).
     if (level >= 4) {
@@ -487,7 +552,7 @@ export function createCityScene(
       auras.push({ obj: beam, kind: "beam", base: 0.3, phase: Math.random() * 6 });
     }
     // Sparkles circling (4: a few, 5: many).
-    const motes = candy || prism ? 0 : level >= 5 ? 14 : level >= 4 ? 6 : level >= 3 ? 3 : 0;
+    const motes = candy || prism || frost ? 0 : level >= 5 ? 14 : level >= 4 ? 6 : level >= 3 ? 3 : 0;
     for (let k = 0; k < motes; k++) {
       const m = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.9 }));
       m.scale.setScalar(0.07 + Math.random() * 0.06);
@@ -497,6 +562,27 @@ export function createCityScene(
     if (theme.art?.steam) addSteam(g, level, w, h);
     if (candy) addCandy(g, level, w, h);
     if (prism) addPrism(g, level, w, h);
+    if (frost) addFrost(g, level, w, h);
+  }
+  function addFrost(g: any, level: number, w: number, h: number) {
+    // Snow drifting down round the statue, each flake turning and swaying.
+    const flakes = level >= 5 ? 16 : level >= 4 ? 10 : level >= 3 ? 5 : 0;
+    for (let k = 0; k < flakes; k++) {
+      const m = new T.Sprite(new T.SpriteMaterial({ map: flakeTex, transparent: true, depthWrite: false, opacity: 0 }));
+      m.scale.setScalar(0.07 + Math.random() * 0.06);
+      g.add(m);
+      auras.push({ obj: m, kind: "snow", base: 0.95, phase: Math.random(), r: (Math.random() - 0.5) * w * 1.4, y: h * (1 + Math.random() * 0.3), speed: 0.09 + Math.random() * 0.06, vx: (Math.random() - 0.5) * 2 });
+    }
+    // An aurora veil behind the statue, shifting green, cyan and violet (4 up).
+    if (level >= 4) {
+      const m = new T.Sprite(new T.SpriteMaterial({ map: auroraTex, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
+      m.renderOrder = -2;
+      m.center.set(0.5, 0);
+      m.scale.set(w * (level >= 5 ? 1.7 : 1.4), h * (level >= 5 ? 1.25 : 1.1), 1);
+      m.position.set(0, h * 0.05, -0.1);
+      g.add(m);
+      auras.push({ obj: m, kind: "aurora", base: level >= 5 ? 0.55 : 0.4, phase: Math.random() * 6, r: m.scale.x });
+    }
   }
   function addPrism(g: any, level: number, w: number, h: number) {
     // Rainbow glints flashing on the crystal, each at a new spot every time.
@@ -574,6 +660,18 @@ export function createCityScene(
       } else if (a.kind === "beam") {
         a.obj.material.opacity = a.base * (0.7 + 0.3 * Math.sin(t * 2.4 + a.phase));
         a.obj.rotation.y = t * 0.4;
+      } else if (a.kind === "snow") {
+        const life = (t * a.speed! + a.phase) % 1;
+        a.obj.position.set(a.r! + Math.sin(t * 0.9 + a.phase * 7) * 0.12, a.y! * (1 - life), 0.08);
+        a.obj.material.rotation = t * a.vx!;
+        a.obj.material.opacity = a.base * Math.min(1, life * 6, (1 - life) * 5);
+      } else if (a.kind === "aurora") {
+        // Colour drifts round green → cyan → violet; the veil breathes and sways a little.
+        const hue = 0.36 + 0.14 * Math.sin(t * 0.25 + a.phase);
+        a.obj.material.color.setHSL(hue, 0.9, 0.6);
+        a.obj.material.opacity = a.base * (0.7 + 0.3 * Math.sin(t * 0.8 + a.phase));
+        a.obj.scale.x = a.r! * (1 + 0.06 * Math.sin(t * 0.6 + a.phase));
+        a.obj.material.rotation = 0.04 * Math.sin(t * 0.4 + a.phase);
       } else if (a.kind === "glint") {
         // A quick twinkle, then dark until the next cycle; each cycle picks a new spot and colour.
         const cyc = t * a.speed! + a.phase;

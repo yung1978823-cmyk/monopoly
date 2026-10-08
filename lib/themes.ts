@@ -52,6 +52,8 @@ export type ThemeArt = {
   candy?: boolean;
   /** 水晶星: a turning crystal rune circle, rainbow prism glints on the statue and crystal dust rising. */
   prism?: boolean;
+  /** 冰晶星: a turning snowflake emblem, snow drifting down and an aurora veil behind the top statues. */
+  frost?: boolean;
 };
 
 export type Theme = {
@@ -202,20 +204,28 @@ export const ICE: Theme = {
   sky: "#4a74d8",
   art: {
     dir: "/art/city/ice",
-    names: ["house", "penguin", "rink", "dragon", "castle"],
+    // Sky's five ice statues (2026-10-08): viking back left, snowman king back centre (front-facing), samurai back
+    // right, snow owl front right, mammoth front left. Every side picture faces left, so the two on the left are
+    // mirrored. Ice effects (snowflake emblem, falling snow, aurora) are code.
+    names: ["viking", "snowman", "samurai", "owl", "mammoth"],
     space: true,
     island: true,
+    showcase: true,
+    mirror: ["viking", "mammoth"],
+    based: ["viking", "snowman", "samurai", "owl", "mammoth"],
+    stageColours: [0xffffff, 0xd8f0ff, 0x9fdcff, 0x6fc4ff, 0xbfe9ff],
+    frost: true,
     islandDepth: 3.4,
     islandCore: 0x2c4f7a,
     islandTrim: 0xbfdcf2,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {
-      house: [[120, 105], [175, 168], [216, 264], [249, 382], [300, 452]],
-      penguin: [[106, 114], [158, 177], [200, 228], [238, 316], [300, 454]],
-      rink: [[135, 102], [170, 123], [216, 196], [243, 252], [300, 360]],
-      dragon: [[123, 106], [145, 155], [163, 186], [209, 243], [300, 328]],
-      castle: [[158, 171], [200, 231], [216, 306], [260, 405], [296, 560]],
+      viking: [[88, 110], [120, 188], [209, 299], [284, 368], [315, 455]],
+      snowman: [[88, 88], [150, 148], [259, 265], [315, 407], [390, 499]],
+      samurai: [[111, 130], [149, 225], [188, 365], [237, 421], [270, 456]],
+      owl: [[77, 95], [108, 135], [139, 202], [289, 263], [345, 370]],
+      mammoth: [[95, 97], [147, 150], [209, 232], [278, 302], [330, 377]],
     },
   },
 };
