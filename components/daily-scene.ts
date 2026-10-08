@@ -73,6 +73,22 @@ const TOPS: Record<TileKind, number> = {
   shop: 0x7c3aed,
 };
 
+/** 方案 A (Sky 2026-10-08): each stone keeps its grey top and gets a coloured rim by what kind of square it is —
+ *  gold for the good ones, red for fights and dangers, purple for the special ones. */
+const RIMS: Record<TileKind, number> = {
+  coin: 0xffc21a,
+  meat: 0xffc21a,
+  chest: 0xffc21a,
+  lucky: 0xffc21a,
+  attack: 0xff3b30,
+  steal: 0xff3b30,
+  hole: 0xff3b30,
+  jail: 0xff3b30,
+  start: 0xb15cff,
+  wheel: 0xb15cff,
+  shop: 0xb15cff,
+};
+
 /** Square i on the diamond: start at the front corner, then round the left, back and right corners. */
 /** Ease an angle toward another the short way round. */
 function turnToward(from: number, to: number, rate: number) {
@@ -219,7 +235,7 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
 
   // ---------- The ring of islands ----------
   const breathers: { obj: any; phase: number; period: number; shadow: any; glow: any; base: number; glowY: number; amp?: number }[] = [];
-  const islands: { group: any; top: any; base: number; glow: any; tag: any }[] = [];
+  const islands: { group: any; top: any; base: number; glow: any; tag: any; rim: any }[] = [];
   TILES.forEach((tile, i) => {
     const [x, z] = squarePoint(i);
     const big = tile.kind !== "coin";
@@ -244,17 +260,27 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
     tag.position.set(0, TOP + 0.03, 0);
     tag.renderOrder = 2;
     isle.group.add(tag);
+    // The coloured rim round the stone's top edge.
+    const r = 0.5 * (big ? 1.3 : 1.1);
+    const rimColour = new T.Color(RIMS[tile.kind]).convertSRGBToLinear();
+    const rim = new T.Mesh(
+      new T.TorusGeometry(r * 1.01, 0.055, 8, 40),
+      new T.MeshStandardMaterial({ color: rimColour, emissive: rimColour, emissiveIntensity: 0.55, roughness: 0.35, metalness: 0.3 }),
+    );
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = TOP + 0.005;
+    isle.group.add(rim);
     const shadow = new T.Mesh(new T.PlaneGeometry(1.8, 1.8), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
     shadow.position.set(x, FLOOR + 0.02, z);
     scene.add(shadow);
-    const glow = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: tile.kind === "start" ? 0xffe27a : 0xaad2ff, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.45 }));
+    const glow = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: RIMS[tile.kind], transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.45 }));
     glow.scale.set(1.5, 0.9, 1);
     glow.position.set(x, TOP - 1.2, z);
     scene.add(glow);
     // Neighbours are well out of step (golden-angle phases), so some rise while others sink.
     breathers.push({ obj: isle.group, phase: i * 2.39996 + Math.random() * 0.4, period: 4.2 + Math.random() * 1.6, shadow, glow, base: 0, glowY: TOP - 1.2, amp: 0.08 });
-    islands.push({ group: isle.group, top: isle.top, base: TOPS[tile.kind], glow, tag });
+    islands.push({ group: isle.group, top: isle.top, base: TOPS[tile.kind], glow, tag, rim });
   });
   // The main island in the middle: a big stone with GO carved in as a rune. Tap it to roll;
   // the rune glows when it's your go. Open air between it and the ring of squares.
@@ -937,7 +963,11 @@ export function createDailyScene(T: any, container: HTMLElement, labels: string[
       }
       p.needsUpdate = true;
     }
-    islands.forEach((isle, i) => (isle.glow.material.opacity = i === lit ? 0.95 : 0.4));
+    islands.forEach((isle, i) => {
+      isle.glow.material.opacity = i === lit ? 0.95 : 0.4;
+      // The square you'll stop on: its rim flashes.
+      isle.rim.material.emissiveIntensity = i === lit ? 0.9 + 0.6 * Math.abs(Math.sin(performance.now() / 160)) : 0.55;
+    });
     // The ship glides to its square with a little hop, hovers, and points the way it's going.
     const blowing = now - blow.at >= 0 && now - blow.at <= BLOW_LIFT + BLOW_FLY;
     const lift = blowStep(now);
