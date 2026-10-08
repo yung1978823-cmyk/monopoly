@@ -308,6 +308,64 @@ export function createCityScene(
     x.fillRect(0, 0, 256, 256);
     return new T.CanvasTexture(c);
   })();
+  // 水晶星: a crystal rune circle — a hexagram inside two rings, with gem marks round the edge.
+  const runeTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 256;
+    const x = c.getContext("2d")!;
+    x.strokeStyle = "rgba(255,255,255,0.95)";
+    x.shadowColor = "rgba(255,255,255,1)";
+    x.shadowBlur = 8;
+    x.lineWidth = 4;
+    x.beginPath();
+    x.arc(128, 128, 112, 0, Math.PI * 2);
+    x.stroke();
+    x.lineWidth = 2.5;
+    x.beginPath();
+    x.arc(128, 128, 96, 0, Math.PI * 2);
+    x.stroke();
+    for (const off of [0, Math.PI / 3]) {
+      x.beginPath();
+      for (let k = 0; k <= 3; k++) {
+        const a = off + (k / 3) * Math.PI * 2 - Math.PI / 2;
+        x[k ? "lineTo" : "moveTo"](128 + Math.cos(a) * 92, 128 + Math.sin(a) * 92);
+      }
+      x.stroke();
+    }
+    x.fillStyle = "rgba(255,255,255,1)";
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      const cx = 128 + Math.cos(a) * 104, cy = 128 + Math.sin(a) * 104;
+      x.beginPath();
+      x.moveTo(cx, cy - 6);
+      x.lineTo(cx + 4, cy);
+      x.lineTo(cx, cy + 6);
+      x.lineTo(cx - 4, cy);
+      x.closePath();
+      x.fill();
+    }
+    return new T.CanvasTexture(c);
+  })();
+  // A four-pointed star glint.
+  const glintTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const x = c.getContext("2d")!;
+    const g = x.createRadialGradient(32, 32, 0, 32, 32, 12);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = g;
+    x.fillRect(0, 0, 64, 64);
+    x.fillStyle = "rgba(255,255,255,1)";
+    x.beginPath();
+    x.moveTo(32, 0);
+    x.quadraticCurveTo(34, 30, 64, 32);
+    x.quadraticCurveTo(34, 34, 32, 64);
+    x.quadraticCurveTo(30, 34, 0, 32);
+    x.quadraticCurveTo(30, 30, 32, 0);
+    x.fill();
+    return new T.CanvasTexture(c);
+  })();
   // A sprinkle: a little rounded stick, tinted per sprinkle.
   const sprinkleTex = (() => {
     const c = document.createElement("canvas");
@@ -359,7 +417,7 @@ export function createCityScene(
     return new T.CanvasTexture(c);
   })();
   const STAGE_COLOUR = [0xffffff, 0xb9a8ff, 0x58c8ff, 0xa45cff, 0xffc21a];
-  type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote" | "steam" | "spark" | "jelly" | "sprinkle" | "bubble"; base: number; phase: number; r?: number; y?: number; speed?: number; vx?: number; vy?: number };
+  type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote" | "steam" | "spark" | "jelly" | "sprinkle" | "bubble" | "glint" | "dust"; base: number; phase: number; r?: number; y?: number; speed?: number; vx?: number; vy?: number };
   const auras: Aura[] = [];
   function dressStage(g: any, level: number, w: number, h: number, lift: number) {
     const colour = (theme.art?.stageColours ?? STAGE_COLOUR)[level - 1];
@@ -391,11 +449,14 @@ export function createCityScene(
     // A ring of light on the floor (3 up), turning from 4.
     const gears = !!theme.art?.steam;
     const candy = !!theme.art?.candy;
-    if (level >= (gears || candy ? 2 : 3)) {
-      const size = r * (level >= 5 ? 3.0 : level >= 4 ? 2.6 : 2.3) * (gears || candy ? 0.6 : 1);
+    const prism = !!theme.art?.prism;
+    if (level >= (gears || candy || prism ? 2 : 3)) {
+      const size = r * (level >= 5 ? 3.0 : level >= 4 ? 2.6 : 2.3) * (gears || candy || prism ? 0.6 : 1);
       const ring = new T.Mesh(
         new T.PlaneGeometry(size, size),
-        candy
+        prism
+          ? new T.MeshBasicMaterial({ map: runeTex, color: colour === 0xffffff ? 0xd9ccff : colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: level >= 4 ? 0.9 : 0.65 })
+          : candy
           ? new T.MeshBasicMaterial({ map: swirlTex, transparent: true, depthWrite: false, opacity: level >= 4 ? 0.85 : 0.65 })
           : gears
           ? new T.MeshBasicMaterial({ map: gearRingTex, color: 0xffcf6a, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: level >= 4 ? 0.8 : 0.6 })
@@ -404,7 +465,7 @@ export function createCityScene(
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = 0.015;
       g.add(ring);
-      auras.push({ obj: ring, kind: "ring", base: ring.material.opacity, phase: Math.random() * 6, speed: candy ? 0.5 : gears ? (level % 2 ? 0.25 : -0.25) : level >= 4 ? (level >= 5 ? 0.5 : 0.3) : 0 });
+      auras.push({ obj: ring, kind: "ring", base: ring.material.opacity, phase: Math.random() * 6, speed: prism ? -0.35 : candy ? 0.5 : gears ? (level % 2 ? 0.25 : -0.25) : level >= 4 ? (level >= 5 ? 0.5 : 0.3) : 0 });
     }
     // A glow behind the building (4 up).
     if (level >= 4) {
@@ -426,7 +487,7 @@ export function createCityScene(
       auras.push({ obj: beam, kind: "beam", base: 0.3, phase: Math.random() * 6 });
     }
     // Sparkles circling (4: a few, 5: many).
-    const motes = candy ? 0 : level >= 5 ? 14 : level >= 4 ? 6 : level >= 3 ? 3 : 0;
+    const motes = candy || prism ? 0 : level >= 5 ? 14 : level >= 4 ? 6 : level >= 3 ? 3 : 0;
     for (let k = 0; k < motes; k++) {
       const m = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.9 }));
       m.scale.setScalar(0.07 + Math.random() * 0.06);
@@ -435,6 +496,26 @@ export function createCityScene(
     }
     if (theme.art?.steam) addSteam(g, level, w, h);
     if (candy) addCandy(g, level, w, h);
+    if (prism) addPrism(g, level, w, h);
+  }
+  function addPrism(g: any, level: number, w: number, h: number) {
+    // Rainbow glints flashing on the crystal, each at a new spot every time.
+    const glints = level >= 5 ? 9 : level >= 4 ? 6 : level >= 3 ? 3 : 0;
+    for (let k = 0; k < glints; k++) {
+      const m = new T.Sprite(new T.SpriteMaterial({ map: glintTex, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
+      m.renderOrder = 2;
+      g.add(m);
+      auras.push({ obj: m, kind: "glint", base: 1, phase: k / glints, r: w, y: h, speed: 0.35 + Math.random() * 0.2, vx: -1 });
+    }
+    // Fine crystal dust rising off the floor round the statue (4 up).
+    const dust = level >= 5 ? 16 : level >= 4 ? 9 : 0;
+    for (let k = 0; k < dust; k++) {
+      const m = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: k % 3 ? 0xc9b6ff : 0x9fe8ff, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
+      m.scale.setScalar(0.05 + Math.random() * 0.04);
+      g.add(m);
+      const a = Math.random() * Math.PI * 2;
+      auras.push({ obj: m, kind: "dust", base: 0.9, phase: Math.random(), r: Math.cos(a) * w * (0.4 + Math.random() * 0.3), vy: Math.sin(a) * w * 0.3, y: h * (0.6 + Math.random() * 0.5), speed: 0.15 + Math.random() * 0.1 });
+    }
   }
   const SPRINKLE_COLOURS = [0xff5fa8, 0x7fe0c8, 0xffd23f, 0x9f8bff, 0xffffff, 0xff8a5c];
   function addCandy(g: any, level: number, w: number, h: number) {
@@ -493,6 +574,24 @@ export function createCityScene(
       } else if (a.kind === "beam") {
         a.obj.material.opacity = a.base * (0.7 + 0.3 * Math.sin(t * 2.4 + a.phase));
         a.obj.rotation.y = t * 0.4;
+      } else if (a.kind === "glint") {
+        // A quick twinkle, then dark until the next cycle; each cycle picks a new spot and colour.
+        const cyc = t * a.speed! + a.phase;
+        const life = cyc % 1;
+        const n = Math.floor(cyc);
+        if (n !== a.vx) {
+          a.vx = n;
+          a.obj.position.set((Math.random() - 0.5) * a.r! * 0.7, a.y! * (0.2 + Math.random() * 0.7), 0.06);
+          a.obj.material.color.setHSL(Math.random(), 0.7, 0.85);
+        }
+        const flash = life < 0.25 ? Math.sin((life / 0.25) * Math.PI) : 0;
+        a.obj.scale.setScalar(0.04 + flash * 0.26);
+        a.obj.material.rotation = life * 2;
+        a.obj.material.opacity = flash;
+      } else if (a.kind === "dust") {
+        const life = (t * a.speed! + a.phase) % 1;
+        a.obj.position.set(a.r!, life * a.y!, a.vy!);
+        a.obj.material.opacity = a.base * Math.sin(life * Math.PI);
       } else if (a.kind === "jelly") {
         const q = Math.sin(t * a.speed! + a.phase) * 0.025;
         a.obj.scale.set(a.r! * (1 + q), a.y! * (1 - q), 1);

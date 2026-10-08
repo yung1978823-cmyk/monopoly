@@ -50,6 +50,8 @@ export type ThemeArt = {
   steam?: boolean;
   /** 糖果星: jelly bounce, falling sprinkles, bubble-gum bubbles and a lollipop swirl under each statue. */
   candy?: boolean;
+  /** 水晶星: a turning crystal rune circle, rainbow prism glints on the statue and crystal dust rising. */
+  prism?: boolean;
 };
 
 export type Theme = {
@@ -81,14 +83,16 @@ export const CRYSTAL: Theme = {
   sky: "#3b2f9f",
   art: {
     dir: "/art/city/crystal",
-    // Sky's five crystal statues (2026-10-08): knight back left, titan king back centre (the grandest), dragon
-    // right, lion front right, goddess front left. Each picture faces left; the two on the left are mirrored.
-    names: ["knight", "titan", "dragon", "lion", "goddess"],
+    // Sky's five crystal statues (redrawn 2026-10-08): knight back left, titan king back centre (front-facing),
+    // archer back right, stag front right, nine-tailed fox front left. The knight and fox face left in their
+    // pictures and the archer faces right, so those three are mirrored to look in to the middle.
+    names: ["knight", "titan", "archer", "stag", "fox"],
     space: true,
     island: true,
     showcase: true,
-    mirror: ["knight", "goddess"],
-    based: ["knight", "titan", "dragon", "lion", "goddess"],
+    mirror: ["knight", "archer", "fox"],
+    based: ["knight", "titan", "archer", "stag", "fox"],
+    prism: true,
     islandCore: 0x4a4266,
     islandTrim: 0xa99ad6,
     boatAspect: 1,
@@ -99,11 +103,11 @@ export const CRYSTAL: Theme = {
       observatory: [[94, 98], [130, 154], [179, 268], [242, 360], [300, 474]],
       tower: [[98, 173], [132, 270], [171, 379], [189, 460], [255, 560]],
       palace: [[143, 180], [194, 235], [218, 346], [259, 425], [300, 515]],
-      knight: [[109, 149], [134, 247], [151, 302], [174, 360], [300, 466]],
-      goddess: [[91, 142], [115, 195], [136, 250], [186, 314], [300, 446]],
-      titan: [[99, 149], [124, 211], [145, 268], [167, 331], [300, 442]],
-      dragon: [[81, 100], [106, 146], [136, 210], [183, 296], [300, 424]],
-      lion: [[93, 125], [146, 181], [162, 228], [199, 297], [300, 436]],
+      knight: [[81, 105], [102, 178], [191, 253], [217, 340], [324, 459]],
+      titan: [[99, 120], [163, 170], [214, 295], [287, 389], [300, 535]],
+      archer: [[88, 93], [115, 192], [173, 278], [241, 376], [246, 458]],
+      stag: [[91, 103], [116, 172], [142, 282], [196, 400], [255, 455]],
+      fox: [[78, 83], [110, 125], [202, 194], [249, 296], [300, 416]],
     },
   },
 };
