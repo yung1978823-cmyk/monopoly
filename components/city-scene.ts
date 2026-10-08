@@ -279,6 +279,65 @@ export function createCityScene(
     }
     return new T.CanvasTexture(c);
   })();
+  // 糖果星: a pink-and-white lollipop swirl for the floor under each statue.
+  const swirlTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 256;
+    const x = c.getContext("2d")!;
+    for (let k = 0; k < 8; k++) {
+      x.beginPath();
+      x.moveTo(128, 128);
+      for (let t = 0; t <= 1.001; t += 0.02) {
+        const a = (k / 8) * Math.PI * 2 + t * Math.PI * 1.6;
+        x.lineTo(128 + Math.cos(a) * t * 118, 128 + Math.sin(a) * t * 118);
+      }
+      for (let t = 1; t >= 0; t -= 0.02) {
+        const a = ((k + 0.5) / 8) * Math.PI * 2 + t * Math.PI * 1.6;
+        x.lineTo(128 + Math.cos(a) * t * 118, 128 + Math.sin(a) * t * 118);
+      }
+      x.closePath();
+      x.fillStyle = k % 2 ? "#ffffff" : "#ff7fbf";
+      x.fill();
+    }
+    x.globalCompositeOperation = "destination-in";
+    const fade = x.createRadialGradient(128, 128, 0, 128, 128, 120);
+    fade.addColorStop(0, "rgba(0,0,0,1)");
+    fade.addColorStop(0.85, "rgba(0,0,0,0.9)");
+    fade.addColorStop(1, "rgba(0,0,0,0)");
+    x.fillStyle = fade;
+    x.fillRect(0, 0, 256, 256);
+    return new T.CanvasTexture(c);
+  })();
+  // A sprinkle: a little rounded stick, tinted per sprinkle.
+  const sprinkleTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 32;
+    const x = c.getContext("2d")!;
+    x.fillStyle = "#fff";
+    x.beginPath();
+    x.roundRect(4, 12, 24, 8, 4);
+    x.fill();
+    return new T.CanvasTexture(c);
+  })();
+  // A bubble-gum bubble: see-through pink with a bright rim and a shine.
+  const bubbleTex = (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const x = c.getContext("2d")!;
+    const g = x.createRadialGradient(32, 32, 10, 32, 32, 30);
+    g.addColorStop(0, "rgba(255,170,215,0.25)");
+    g.addColorStop(0.8, "rgba(255,120,190,0.55)");
+    g.addColorStop(1, "rgba(255,90,170,0.95)");
+    x.fillStyle = g;
+    x.beginPath();
+    x.arc(32, 32, 30, 0, Math.PI * 2);
+    x.fill();
+    x.fillStyle = "rgba(255,255,255,0.9)";
+    x.beginPath();
+    x.ellipse(22, 20, 7, 4, -0.6, 0, Math.PI * 2);
+    x.fill();
+    return new T.CanvasTexture(c);
+  })();
   const haloTex = soft("rgba(255,255,255,0.9)", "rgba(255,255,255,0)");
   const beamTex = (() => {
     const c = document.createElement("canvas");
@@ -300,7 +359,7 @@ export function createCityScene(
     return new T.CanvasTexture(c);
   })();
   const STAGE_COLOUR = [0xffffff, 0xb9a8ff, 0x58c8ff, 0xa45cff, 0xffc21a];
-  type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote" | "steam" | "spark"; base: number; phase: number; r?: number; y?: number; speed?: number; vx?: number; vy?: number };
+  type Aura = { obj: any; kind: "ring" | "halo" | "beam" | "mote" | "steam" | "spark" | "jelly" | "sprinkle" | "bubble"; base: number; phase: number; r?: number; y?: number; speed?: number; vx?: number; vy?: number };
   const auras: Aura[] = [];
   function dressStage(g: any, level: number, w: number, h: number, lift: number) {
     const colour = (theme.art?.stageColours ?? STAGE_COLOUR)[level - 1];
@@ -331,18 +390,21 @@ export function createCityScene(
     }
     // A ring of light on the floor (3 up), turning from 4.
     const gears = !!theme.art?.steam;
-    if (level >= (gears ? 2 : 3)) {
-      const size = r * (level >= 5 ? 3.0 : level >= 4 ? 2.6 : 2.3) * (gears ? 0.6 : 1);
+    const candy = !!theme.art?.candy;
+    if (level >= (gears || candy ? 2 : 3)) {
+      const size = r * (level >= 5 ? 3.0 : level >= 4 ? 2.6 : 2.3) * (gears || candy ? 0.6 : 1);
       const ring = new T.Mesh(
         new T.PlaneGeometry(size, size),
-        gears
+        candy
+          ? new T.MeshBasicMaterial({ map: swirlTex, transparent: true, depthWrite: false, opacity: level >= 4 ? 0.85 : 0.65 })
+          : gears
           ? new T.MeshBasicMaterial({ map: gearRingTex, color: 0xffcf6a, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: level >= 4 ? 0.8 : 0.6 })
           : new T.MeshBasicMaterial({ map: ringGlowTex, color: colour, transparent: true, depthWrite: false, opacity: level >= 5 ? 0.75 : 0.5 }),
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = 0.015;
       g.add(ring);
-      auras.push({ obj: ring, kind: "ring", base: ring.material.opacity, phase: Math.random() * 6, speed: gears ? (level % 2 ? 0.25 : -0.25) : level >= 4 ? (level >= 5 ? 0.5 : 0.3) : 0 });
+      auras.push({ obj: ring, kind: "ring", base: ring.material.opacity, phase: Math.random() * 6, speed: candy ? 0.5 : gears ? (level % 2 ? 0.25 : -0.25) : level >= 4 ? (level >= 5 ? 0.5 : 0.3) : 0 });
     }
     // A glow behind the building (4 up).
     if (level >= 4) {
@@ -364,7 +426,7 @@ export function createCityScene(
       auras.push({ obj: beam, kind: "beam", base: 0.3, phase: Math.random() * 6 });
     }
     // Sparkles circling (4: a few, 5: many).
-    const motes = level >= 5 ? 14 : level >= 4 ? 6 : level >= 3 ? 3 : 0;
+    const motes = candy ? 0 : level >= 5 ? 14 : level >= 4 ? 6 : level >= 3 ? 3 : 0;
     for (let k = 0; k < motes; k++) {
       const m = new T.Sprite(new T.SpriteMaterial({ map: haloTex, color: colour, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.9 }));
       m.scale.setScalar(0.07 + Math.random() * 0.06);
@@ -372,6 +434,29 @@ export function createCityScene(
       auras.push({ obj: m, kind: "mote", base: 0.9, phase: (k / motes) * Math.PI * 2, r: r * (1.2 + Math.random() * 0.5), y: lift + h * (0.15 + Math.random() * 0.8), speed: 0.5 + Math.random() * 0.5 });
     }
     if (theme.art?.steam) addSteam(g, level, w, h);
+    if (candy) addCandy(g, level, w, h);
+  }
+  const SPRINKLE_COLOURS = [0xff5fa8, 0x7fe0c8, 0xffd23f, 0x9f8bff, 0xffffff, 0xff8a5c];
+  function addCandy(g: any, level: number, w: number, h: number) {
+    // The statue itself wobbles like jelly (feet stay put).
+    const body = g.children[0];
+    if (body) auras.push({ obj: body, kind: "jelly", base: 1, phase: Math.random() * 6, r: body.scale.x, y: body.scale.y, speed: 2.2 + level * 0.15 });
+    // Sprinkles drifting down round the statue, turning as they fall.
+    const sprinkles = level >= 5 ? 18 : level >= 4 ? 11 : level >= 3 ? 6 : 0;
+    for (let k = 0; k < sprinkles; k++) {
+      const m = new T.Sprite(new T.SpriteMaterial({ map: sprinkleTex, color: SPRINKLE_COLOURS[k % SPRINKLE_COLOURS.length], transparent: true, depthWrite: false, opacity: 0 }));
+      m.scale.setScalar(0.09 + Math.random() * 0.04);
+      g.add(m);
+      auras.push({ obj: m, kind: "sprinkle", base: 1, phase: Math.random(), r: (Math.random() - 0.5) * w * 1.3, y: h * (0.9 + Math.random() * 0.4), speed: 0.12 + Math.random() * 0.08, vx: (Math.random() - 0.5) * 3 });
+    }
+    // Bubble-gum bubbles swelling up behind the statue and popping (4 up).
+    const bubbles = level >= 5 ? 4 : level >= 4 ? 2 : 0;
+    for (let k = 0; k < bubbles; k++) {
+      const m = new T.Sprite(new T.SpriteMaterial({ map: bubbleTex, transparent: true, depthWrite: false, opacity: 0 }));
+      m.renderOrder = -1;
+      g.add(m);
+      auras.push({ obj: m, kind: "bubble", base: 0.95, phase: k / bubbles, r: (k % 2 ? 1 : -1) * w * (0.3 + Math.random() * 0.2), y: h * (0.4 + Math.random() * 0.4), speed: 0.18 + Math.random() * 0.06 });
+    }
   }
   function addSteam(g: any, level: number, w: number, h: number) {
     // 機械星: soft white puffs drifting up from behind the statue, more for bigger levels.
@@ -408,6 +493,21 @@ export function createCityScene(
       } else if (a.kind === "beam") {
         a.obj.material.opacity = a.base * (0.7 + 0.3 * Math.sin(t * 2.4 + a.phase));
         a.obj.rotation.y = t * 0.4;
+      } else if (a.kind === "jelly") {
+        const q = Math.sin(t * a.speed! + a.phase) * 0.025;
+        a.obj.scale.set(a.r! * (1 + q), a.y! * (1 - q), 1);
+      } else if (a.kind === "sprinkle") {
+        const life = (t * a.speed! + a.phase) % 1;
+        a.obj.position.set(a.r! + Math.sin(t * 1.5 + a.phase * 9) * 0.06, a.y! * (1 - life), 0.08);
+        a.obj.material.rotation = t * a.vx! + a.phase * 6;
+        a.obj.material.opacity = a.base * Math.min(1, life * 8, (1 - life) * 6);
+      } else if (a.kind === "bubble") {
+        // Swell for most of the cycle, then pop: a quick puff bigger and gone.
+        const life = (t * a.speed! + a.phase) % 1;
+        const grow = life < 0.85 ? life / 0.85 : 1 + (life - 0.85) * 4;
+        a.obj.position.set(a.r!, a.y! + life * 0.25, -0.05);
+        a.obj.scale.setScalar(0.08 + grow * 0.3);
+        a.obj.material.opacity = a.base * (life < 0.85 ? Math.min(1, life * 5) : Math.max(0, 1 - (life - 0.85) / 0.15));
       } else if (a.kind === "spark") {
         const life = (t * a.speed! + a.phase) % 1;
         const s2 = life * 1.1;

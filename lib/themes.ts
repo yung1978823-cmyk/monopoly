@@ -48,6 +48,8 @@ export type ThemeArt = {
   stageColours?: readonly number[];
   /** Steam puffs rising round the statues from level 3 (機械星), drawn by code rather than in the pictures. */
   steam?: boolean;
+  /** 糖果星: jelly bounce, falling sprinkles, bubble-gum bubbles and a lollipop swirl under each statue. */
+  candy?: boolean;
 };
 
 export type Theme = {
@@ -157,20 +159,28 @@ export const CANDY: Theme = {
   sky: "#e07ab8",
   art: {
     dir: "/art/city/candy",
-    names: ["house", "icecream", "choc", "bakery", "castle"],
+    // Sky's five candy statues (2026-10-08): soldier back left, cake king back centre (front-facing), ice cream
+    // wizard back right, unicorn front right, chocolate gorilla front left. Every side picture faces left, so the
+    // two on the left are mirrored. Candy effects (jelly bounce, sprinkles, bubble gum, lollipop swirl) are code.
+    names: ["soldier", "king", "wizard", "unicorn", "gorilla"],
     space: true,
     island: true,
+    showcase: true,
+    mirror: ["soldier", "gorilla"],
+    based: ["soldier", "king", "wizard", "unicorn", "gorilla"],
+    stageColours: [0xffffff, 0xffd6ea, 0xff9ccc, 0xff6fb5, 0xffc21a],
+    candy: true,
     islandDepth: 3.6,
     islandCore: 0x3b2216,
     islandTrim: 0xd9a46a,
     boatAspect: 1,
     gullAspect: 1,
     sizes: {
-      house: [[132, 142], [203, 227], [219, 306], [257, 373], [300, 481]],
-      icecream: [[126, 165], [192, 234], [207, 310], [221, 426], [281, 560]],
-      choc: [[111, 111], [172, 198], [193, 256], [233, 337], [300, 522]],
-      bakery: [[150, 160], [206, 226], [226, 277], [259, 394], [300, 560]],
-      castle: [[119, 132], [176, 187], [207, 260], [251, 351], [300, 534]],
+      soldier: [[145, 121], [80, 188], [135, 287], [197, 378], [245, 459]],
+      king: [[95, 121], [148, 168], [220, 285], [257, 360], [390, 469]],
+      wizard: [[73, 109], [105, 148], [194, 306], [195, 352], [270, 460]],
+      unicorn: [[71, 103], [133, 148], [193, 219], [248, 284], [300, 402]],
+      gorilla: [[148, 107], [126, 168], [198, 259], [246, 334], [300, 425]],
     },
   },
 };
