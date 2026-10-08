@@ -9,7 +9,7 @@ import { StealScreen } from "@/components/steal-screen";
 import { ShopScreen } from "@/components/shop-screen";
 import { StoreScreen } from "@/components/store-screen";
 import { FakeAd } from "@/components/fake-ad";
-import { loadCollection, saveCollection } from "@/components/wallet-store";
+import { ENERGY_EVENT, loadCollection, saveCollection, takeOldRealmEnergy } from "@/components/wallet-store";
 import { ADS_PER_DAY, adsLeft, watchAd } from "@/lib/shop";
 import { AttackIntro, ATTACK_INTRO_MS } from "@/components/attack-intro";
 import { HatchIntro, HATCH_MS } from "@/components/hatch-intro";
@@ -283,6 +283,19 @@ export function DailyGame() {
     }, 0);
     return () => window.clearTimeout(id);
   }, [dispatch]);
+
+  // 一個錢包 (Sky 2026-10-08): spending or earning in the shop, 領地 or a table changes this board's 能量 too; and
+  // once, the old 領地 wallet's 能量 moves in here.
+  useEffect(() => {
+    const onEnergy = (event: Event) => dispatch({ type: "set-points", points: Number((event as CustomEvent).detail) });
+    window.addEventListener(ENERGY_EVENT, onEnergy);
+    return () => window.removeEventListener(ENERGY_EVENT, onEnergy);
+  }, [dispatch]);
+  useEffect(() => {
+    if (!booted) return;
+    const extra = takeOldRealmEnergy();
+    if (extra > 0) setState((current) => reduce(current, { type: "set-points", points: current.points + extra }));
+  }, [booted]);
 
   useEffect(() => {
     if (!booted) return;

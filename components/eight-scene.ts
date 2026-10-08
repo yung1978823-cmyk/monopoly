@@ -793,7 +793,12 @@ export function createBoardScene(
     start: 0xfbd000, jail: 0x64748b, chest: 0xf2c230, fly: 0x38bdf8, dock: 0x38bdf8, chance: 0x8b5cf6, tax: 0x334155, fork: 0xffffff, cross: 0xff7a59,
   };
   /** 三葉草 tile pictures: Sky's material art where there is some, an emoji for the rest until drawn. */
-  const CLOVER_ART: Record<string, string> = { wood: "/art/realm/wood.webp", stone: "/art/realm/stone.webp", gold: "/art/realm/gold.webp" };
+  const CLOVER_ART: Record<string, string> = {
+    wood: "/art/realm/wood.webp",
+    stone: "/art/realm/stone.webp",
+    gold: "/art/realm/gold.webp",
+    ...Object.fromEntries(["plaza", "toll", "map", "artisan", "caravan", "termite", "landslide", "bandit", "sand"].map((k) => [k, `/art/tiles/clover/${k}.webp`])),
+  };
   const CLOVER_EMOJI: Record<string, string> = {
     plaza: "🏰", toll: "🚧", map: "🗺️", artisan: "🔨", caravan: "🐫", termite: "🐜", landslide: "⛰️", bandit: "🥷", sand: "🌀",
   };
@@ -833,7 +838,7 @@ export function createBoardScene(
     ring.rotation.x = Math.PI / 2;
     ring.position.y = TOP + 0.005;
     group.add(ring);
-    const picSize = size * (plaza ? 0.62 : 0.8);
+    const picSize = size * (plaza ? 0.95 : 0.85);
     const pic = new T.Mesh(
       new T.PlaneGeometry(picSize, picSize),
       new T.MeshBasicMaterial({ map: CLOVER_ART[square.kind] ? tilePic(CLOVER_ART[square.kind]) : emojiPic(CLOVER_EMOJI[square.kind] ?? "❔"), transparent: true, alphaTest: 0.1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
@@ -958,14 +963,7 @@ export function createBoardScene(
         }
       }
     });
-    // 三葉草: a flag on the plaza (the owner's castle square) and palms in the gaps between the loops.
-    const pole = shadowy(new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 2.2, 8), matC(0xffffff, 0.4)));
-    pole.position.set(0, TOP + 1.1, -0.35);
-    scene.add(pole);
-    const flag = shadowy(new T.Mesh(new T.BoxGeometry(0.75, 0.45, 0.03), matC(0xe52521, 0.5)));
-    flag.position.set(0.4, TOP + 1.95, -0.35);
-    scene.add(flag);
-    floaters.push({ obj: flag, base: TOP + 1.95 });
+    // 三葉草: palms in the gaps between the loops (the plaza's castle picture carries its own flag).
     for (let n = 0; n < 6; n++) {
       const a = CLOVER_ANGLES[n % 3] + Math.PI / 3 + (n < 3 ? 0 : 0.18), r = n < 3 ? 4.9 : 6.1;
       const palm = new T.Group();

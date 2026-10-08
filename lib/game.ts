@@ -259,6 +259,8 @@ export type Action =
   | { type: "shop-buy"; index: number }
   /** 睇廣告雙倍: the last landing's reward again (chest, wheel, 龍巢 only), once. */
   | { type: "ad-double" }
+  /** 一個錢包: 能量 changed outside the board (shop, 領地, tables); `points` is the new total in coins. */
+  | { type: "set-points"; points: number }
   | { type: "return-walk" }
   | { type: "place-nft"; slot: number; id: string }
   | { type: "remove-nft"; slot: number }
@@ -902,6 +904,8 @@ export function reduce(state: GameState, action: Action): GameState {
         `總攻擊 ${attackTotal}，總防守 ${defenseTotal}，${edge > 0 ? "屬性克制，" : edge < 0 ? "屬性被克，" : ""}機會 ${chance}%。${verdict}。${smashText}得 ${formatEnergy(coinEnergy(pointsGained))} 能量，合計 ${formatEnergy(coinEnergy(nextPoints))}。`,
       );
     }
+    case "set-points":
+      return Number.isFinite(action.points) ? { ...state, points: Math.max(0, Math.min(1_000_000, Math.round(action.points))) } : state;
     case "ad-double": {
       const l = state.landing;
       if (!l || l.doubled || !canDouble(l)) return state;

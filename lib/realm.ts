@@ -22,7 +22,7 @@ export type LandKind = "island" | "mountain" | "volcano";
 export const LAND_KINDS: readonly LandKind[] = ["island", "mountain", "volcano"];
 export const LANDS: Record<LandKind, { price: number; slots: number; squares: number; board: BoardId | null }> = {
   // 海島 plays on the 三葉草 board (Sky 2026-10-08): materials and the owner's tolls, no land to buy.
-  island: { price: 150, slots: 2, squares: 22, board: "clover" },
+  island: { price: 150, slots: 4, squares: 22, board: "clover" },
   mountain: { price: 300, slots: 4, squares: 28, board: null },
   volcano: { price: 500, slots: 6, squares: 36, board: null },
 };

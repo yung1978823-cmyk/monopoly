@@ -348,6 +348,8 @@ function RealmEditor({
   const [loaded, setLoaded] = useState<"loading" | "ready" | "failed">("loading");
   const [picking, setPicking] = useState<number | null>(null);
   const [panel, setPanel] = useState<Panel>("build");
+  const [sheetOpen, setSheetOpen] = useState(true);
+  const dragFrom = useRef<number | null>(null);
   // 商店 房屋券 (Sky 2026-10-08): a voucher builds its house without materials.
   const [vouchers, setVouchers] = useState<Partial<Record<BuildingKind, number>>>({});
   useEffect(() => {
@@ -472,42 +474,63 @@ function RealmEditor({
             {loaded === "loading" ? t("載入立體棋盤⋯") : t("立體畫面載入唔到，請檢查網絡再試。")}
           </p>
         ) : null}
-        {/* Build spots in the bottom corners (Sky 2026-10-02), so the island in the middle stays clear. */}
-        {[realm.slots.slice(0, Math.ceil(realm.slots.length / 2)), realm.slots.slice(Math.ceil(realm.slots.length / 2))].map((side, s) => (
-          <div key={s} className={cn("absolute bottom-2 flex flex-col gap-1.5", s ? "right-2" : "left-2")} data-testid={s ? "slots-right" : "slots-left"}>
-            {side.map((kind, k) => {
-              const slot = s ? Math.ceil(realm.slots.length / 2) + k : k;
-              return kind ? (
-                <button
-                  key={slot}
-                  type="button"
-                  onClick={() => setPicking(slot)}
-                  className="flex size-14 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-[#FBD000] bg-white/85 shadow-[0_4px_12px_rgba(0,0,0,0.35)] backdrop-blur"
-                  aria-label={t("換走或者拆咗{b}", { b: t(NAMES[kind]) })}
-                  data-testid={`slot-${slot}`}
-                >
-                  {pic(ICONS[kind], "size-9")}
-                  <span className="text-[10px] font-black leading-none">{t(NAMES[kind])}</span>
-                </button>
-              ) : (
-                <button
-                  key={slot}
-                  type="button"
-                  onClick={() => setPicking(slot)}
-                  className="flex size-14 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/80 bg-[#7C3AED]/55 font-black text-white shadow-[0_4px_12px_rgba(0,0,0,0.35)] backdrop-blur animate-[breathe_3s_ease-in-out_infinite]"
-                  aria-label={t("喺第 {n} 個位起嘢", { n: slot + 1 })}
-                  data-testid={`slot-${slot}`}
-                >
-                  <img src="/art/ui/build.webp" alt="" className="size-7 object-contain" />
-                  <span className="text-[11px] leading-none">{t("起樓")}</span>
-                </button>
-              );
-            })}
-          </div>
-        ))}
       </div>
 
-      <div className="mx-auto flex w-full max-w-xl shrink-0 flex-col gap-2 rounded-t-[32px] bg-white/95 px-4 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+      {/* Sky (2026-10-08): the build spots sit in a row on top of the sheet, and the sheet's lower part can be
+          pulled down out of the way (tap or drag the handle) and pulled back up. */}
+      <div
+        className="mx-auto flex w-full max-w-xl shrink-0 flex-col gap-2 rounded-t-[32px] bg-white/95 px-4 pt-1.5 pb-[max(env(safe-area-inset-bottom),0.75rem)]"
+        onPointerDown={(e: { clientY: number }) => (dragFrom.current = e.clientY)}
+        onPointerUp={(e: { clientY: number }) => {
+          if (dragFrom.current === null) return;
+          const dy = e.clientY - dragFrom.current;
+          dragFrom.current = null;
+          if (dy > 30) setSheetOpen(false);
+          else if (dy < -30) setSheetOpen(true);
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setSheetOpen((v) => !v)}
+          className="mx-auto flex h-5 w-24 cursor-pointer items-center justify-center"
+          aria-label={sheetOpen ? t("收埋") : t("打開")}
+          data-testid="sheet-handle"
+        >
+          <span className="h-1.5 w-12 rounded-full bg-[#C7D2E5]" />
+        </button>
+        <div className="flex justify-center gap-2" data-testid="slots">
+          {realm.slots.map((kind, slot) =>
+            kind ? (
+              <button
+                key={slot}
+                type="button"
+                onClick={() => setPicking(slot)}
+                className="flex size-14 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-[#FBD000] bg-[#FFF8D6] shadow-md"
+                aria-label={t("換走或者拆咗{b}", { b: t(NAMES[kind]) })}
+                data-testid={`slot-${slot}`}
+              >
+                {pic(ICONS[kind], "size-9")}
+                <span className="text-[10px] font-black leading-none">{t(NAMES[kind])}</span>
+              </button>
+            ) : (
+              <button
+                key={slot}
+                type="button"
+                onClick={() => {
+                  setPicking(slot);
+                }}
+                className="flex size-14 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#7C3AED] bg-[#F3EEFF] font-black text-[#7C3AED] shadow-md animate-[breathe_3s_ease-in-out_infinite]"
+                aria-label={t("喺第 {n} 個位起嘢", { n: slot + 1 })}
+                data-testid={`slot-${slot}`}
+              >
+                <img src="/art/ui/build.webp" alt="" className="size-7 object-contain" />
+                <span className="text-[11px] leading-none">{t("起樓")}</span>
+              </button>
+            ),
+          )}
+        </div>
+        {sheetOpen ? (
+        <>
         <div className="grid grid-cols-3 gap-1 rounded-full bg-[#EEF2FA] p-1" role="tablist">
           {(
             [
@@ -530,11 +553,11 @@ function RealmEditor({
           ))}
         </div>
 
-        <div className="h-[30dvh] max-h-72 min-h-44 space-y-2 overflow-y-auto">
+        <div className="h-[26dvh] max-h-64 min-h-40 space-y-2 overflow-y-auto">
           {panel === "build" ? (
             <>
               {BUILDING_KINDS.map((kind) => option(kind, firstEmpty))}
-              <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("撳兩邊已起嘅建築可以換款或者拆走")}</p>
+              <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("撳上面已起嘅建築可以換款或者拆走")}</p>
             </>
           ) : panel === "shop" ? (
             <>
@@ -614,6 +637,8 @@ function RealmEditor({
             </>
           )}
         </div>
+        </>
+        ) : null}
 
         <button
           type="button"
