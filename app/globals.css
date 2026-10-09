@@ -414,3 +414,29 @@ body.juice-shake-large > * { animation: juice-shake-l 500ms ease-out; }
   0%, 100% { transform: scale(1, 1); opacity: 0.8; }
   50% { transform: scale(1.15, 1.4); opacity: 0.55; }
 }
+/* 領地 decorations (Sky 2026-10-09). */
+@keyframes blade-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes flag-wave {
+  0%, 100% { transform: scaleX(1) skewY(0deg); }
+  25% { transform: scaleX(0.92) skewY(5deg); }
+  50% { transform: scaleX(0.97) skewY(-2deg); }
+  75% { transform: scaleX(0.9) skewY(4deg); }
+}
+@keyframes dragon-breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.015, 1.035); }
+}
+@keyframes balloon-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-18px) rotate(2deg); }
+}
+@keyframes ship-bob {
+  0%, 100% { transform: translateY(-100%); }
+  50% { transform: translateY(calc(-100% - 10px)); }
+}
+@keyframes airship-fly {
+  from { left: 110%; }
+  to { left: -40%; }
+}

@@ -17,9 +17,16 @@ export type IslandArt = {
   castle: At;
   /** Sky's dry cliff channels, where code runs the water. */
   falls: Fall[];
-  /** 裝飾位: where bought decorations will stand. */
+  /** 裝飾位: where bought decorations stand (the foot of the thing), plus two in the sky. */
   spots: At[];
+  /** What stands where for now (Sky 2026-10-09: placed to see the look; buying comes later). */
+  decor: { kind: DecorKind; spot: number; w: number }[];
 };
+
+/** 裝飾 (Sky's drawings 2026-10-09); code moves them — blades turn, the flag waves, the dragon breathes. */
+export type DecorKind = "windmill" | "tower" | "dragon" | "balloon" | "airship";
+export const DECOR_NAMES: Record<DecorKind, string> = { windmill: "風車", tower: "瞭望塔", dragon: "小龍", balloon: "熱氣球", airship: "飛船" };
+const D = "/art/islands/decor/";
 
 /**
  * 領地 islands (Sky 2026-10-09): each one a painted island on its own. The first is 森林礦島: castle plaza at the
@@ -39,17 +46,65 @@ export const ISLANDS: IslandArt[] = [
       { x: 866, y: 555, w: 30, h: 175 },
     ],
     spots: [
-      { x: 420, y: 290 },
-      { x: 540, y: 290 },
-      { x: 480, y: 370 },
-      { x: 478, y: 600 },
-      { x: 245, y: 885 },
-      { x: 715, y: 880 },
+      { x: 462, y: 392 },
+      { x: 478, y: 610 },
+      { x: 220, y: 895 },
+      { x: 735, y: 960 },
+      { x: 95, y: 330 },
+      { x: 470, y: 150 },
+    ],
+    decor: [
+      { kind: "windmill", spot: 0, w: 92 },
+      { kind: "dragon", spot: 2, w: 135 },
+      { kind: "tower", spot: 3, w: 80 },
+      { kind: "balloon", spot: 4, w: 120 },
+      { kind: "airship", spot: 5, w: 230 },
     ],
   },
 ];
 
 const pct = (n: number, of: number) => `${(n / of) * 100}%`;
+
+/** One decoration, its foot on `at`, `w` wide (both in island pixels). */
+function Decor({ kind, at, w, island }: { kind: DecorKind; at: At; w: number; island: IslandArt }) {
+  const box = { left: pct(at.x, island.w), top: pct(at.y, island.h), width: pct(w, island.w) };
+  const img = (src: string, className = "", style?: Record<string, string | number>) => (
+    <img src={D + src} alt="" draggable={false} className={cn("pointer-events-none block w-full select-none", className)} style={style} />
+  );
+  if (kind === "airship") {
+    // Sails across the sky behind-to-front, right to left, bobbing; then round again.
+    return (
+      <div className="pointer-events-none absolute animate-[airship-fly_34s_linear_infinite]" style={{ top: pct(at.y, island.h), width: box.width }}>
+        <div className="animate-[ship-bob_4s_ease-in-out_infinite]">{img("airship.webp", "drop-shadow-[0_10px_10px_rgba(0,0,0,0.35)]")}</div>
+      </div>
+    );
+  }
+  return (
+    <div className="pointer-events-none absolute -translate-x-1/2 -translate-y-full" style={box} data-testid={`decor-${kind}`}>
+      {kind === "windmill" ? (
+        <div className="relative">
+          {img("windmill.webp", "drop-shadow-[0_4px_4px_rgba(0,0,0,0.4)]")}
+          {/* The sails turn on the axle (82.8%, 56% of the tower picture). */}
+          <div className="absolute aspect-[520/502] w-[174%] -translate-x-1/2 -translate-y-1/2" style={{ left: "82.8%", top: "56%" }}>
+            {img("blades.webp", "animate-[blade-spin_7s_linear_infinite] drop-shadow-[0_3px_3px_rgba(0,0,0,0.35)]", { transformOrigin: "50.4% 50.2%" })}
+          </div>
+        </div>
+      ) : kind === "tower" ? (
+        <div className="relative">
+          {img("tower.webp", "drop-shadow-[0_4px_4px_rgba(0,0,0,0.4)]")}
+          {/* The flag on the pole top (49.6% across, 7% down), waving from its hoist. */}
+          <div className="absolute w-[41%]" style={{ left: "47.5%", top: "6%" }}>
+            {img("flag.webp", "animate-[flag-wave_1.6s_ease-in-out_infinite]", { transformOrigin: "4% 50%" })}
+          </div>
+        </div>
+      ) : kind === "dragon" ? (
+        img("dragon.webp", "animate-[dragon-breathe_3.2s_ease-in-out_infinite] drop-shadow-[0_5px_5px_rgba(0,0,0,0.4)]", { transformOrigin: "50% 100%" })
+      ) : (
+        <div className="animate-[balloon-bob_6s_ease-in-out_infinite]">{img("balloon.webp", "drop-shadow-[0_12px_10px_rgba(0,0,0,0.3)]")}</div>
+      )}
+    </div>
+  );
+}
 
 /** One island, fitted inside its box without cropping, floating gently. */
 function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
@@ -90,8 +145,11 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
           className="absolute -translate-x-1/2 -translate-y-[82%] drop-shadow-[0_6px_6px_rgba(0,0,0,0.45)]"
           style={{ left: pct(island.castle.x, island.w), top: pct(island.castle.y, island.h), width: "26%" }}
         />
+        {island.decor.map((d) => (
+          <Decor key={d.kind} kind={d.kind} at={island.spots[d.spot]} w={d.w} island={island} />
+        ))}
         {editing
-          ? island.spots.map((s, i) => (
+          ? island.spots.map((s, i) => island.decor.some((d) => d.spot === i) ? null : (
               <span
                 key={i}
                 className="absolute flex aspect-square w-[9%] -translate-x-1/2 -translate-y-1/2 animate-[breathe_2.4s_ease-in-out_infinite] items-center justify-center rounded-full border-2 border-dashed border-white bg-[#7C3AED]/45 text-lg font-black text-white shadow-[0_0_12px_rgba(255,255,255,0.6)]"
@@ -127,7 +185,7 @@ export function IslandHome() {
         onScroll={(e: { currentTarget: HTMLDivElement }) => setPage(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))}
       >
         {ISLANDS.map((island) => (
-          <section key={island.id} className="relative flex h-full w-full shrink-0 snap-center flex-col px-2 pb-1">
+          <section key={island.id} className="relative flex h-full w-full shrink-0 snap-center flex-col overflow-hidden px-2 pb-1">
             <p className="mx-auto mt-1 rounded-full border-2 border-[#FBD000] bg-[#1E3A8A]/80 px-4 py-0.5 text-sm font-black text-white shadow">{t(island.name)}</p>
             <div className="min-h-0 flex-1">
               <Island island={island} editing={editing} />
