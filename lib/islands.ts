@@ -43,7 +43,7 @@ export const ISLANDS: IslandArt[] = [
     h: 1230,
     top: 230,
     squares: [
-      { x: 478, y: 838 },
+      { x: 478, y: 858 },
       // 平地 → 石場 → 森林 → 礦場 → 平地: floating stones all the way (Sky 2026-10-09: stones are the bridges)
       { x: 308, y: 623 }, { x: 233, y: 558 }, { x: 167, y: 484 }, { x: 126, y: 395 }, { x: 134, y: 299 }, { x: 208, y: 241 },
       { x: 283, y: 216 }, { x: 334, y: 133 }, { x: 421, y: 91 }, { x: 519, y: 85 }, { x: 614, y: 110 }, { x: 680, y: 180 },

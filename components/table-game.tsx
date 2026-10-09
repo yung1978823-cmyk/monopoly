@@ -5,6 +5,7 @@ import { ACTORS, createBoardScene, loadThree, type BoardScene, type Decor } from
 import { ENERGY_ICON, compactEnergy, formatEnergy, tableEnergy } from "@/lib/energy";
 import { CHARACTERS, savePick, savedPick } from "@/lib/characters";
 import {
+  BOARDS,
   BUY_RESERVE,
   BAIL,
   ENTRY_FEE,
@@ -298,7 +299,7 @@ export function TableGame({ onExit }: { onExit: () => void }) {
   return <EightBoard key={game.id} players={game.players} onExit={onExit} onAgain={() => setGame(null)} />;
 }
 
-type Toast = { key: number; text: string };
+type Toast = { key: number; text: string; x?: number; y?: number };
 
 /** Seconds of doing nothing on your turn before the game rolls for you. */
 const AUTO_SECONDS = 5;
@@ -366,9 +367,12 @@ export function EightBoard({
     setGotCard({ seat, power, key });
     window.setTimeout(() => setGotCard((now) => (now?.key === key ? null : now)), 2200);
   }, []);
+  /** Whose event is playing: its messages pop up over that player's token (Sky 2026-10-09: not over the board). */
+  const seatNow = useRef<number | null>(null);
   const say = useCallback((text: string, vars?: Record<string, string | number>) => {
     toastKey.current += 1;
-    setToast({ key: toastKey.current, text: tRef.current(text, vars) });
+    const at = seatNow.current !== null ? sceneRef.current?.anchorOf(seatNow.current) ?? null : null;
+    setToast({ key: toastKey.current, text: tRef.current(text, vars), x: at?.x, y: at?.y });
   }, []);
 
   /** Point the camera at a seat from the distance the player picked: 近, 中, or 遠 (the whole board). */
@@ -395,8 +399,18 @@ export function EightBoard({
         const actor = actorOf(state.seats[seat]?.avatar ?? "");
         if (actor && SPECIAL_WHEN[actor] === when) scene.special(seat);
       };
-      for (const event of events) {
+      for (let n = 0; n < events.length; n += 1) {
+        const event = events[n];
         if (sceneRef.current !== scene) return;
+        seatNow.current = "seat" in event && typeof event.seat === "number" ? event.seat : null;
+        // Before a run of steps, light up the stone it ends on (Sky 2026-10-09).
+        if (event.kind === "step" && events[n - 1]?.kind !== "step") {
+          let last = n;
+          while (events[last + 1]?.kind === "step") last += 1;
+          const end = events[last];
+          if (end.kind === "step") scene.markTarget(BOARDS[state.board].keyOf(end.to));
+        }
+        if (event.kind !== "step") scene.markTarget(null);
         switch (event.kind) {
           case "turn":
             scene.hideDice();
@@ -896,7 +910,7 @@ export function EightBoard({
               ) : null}
               {/* How much land and how many building levels they hold. */}
               {<span className="text-[10px] font-black leading-tight text-[#3B5BA9] tabular-nums" data-testid={`holdings-${index}`}>
-                {t("地 {l}・樓 {b}", { l: holdings[index].lots, b: holdings[index].levels })}
+                {table.board === "clover" ? t("地 {l}・升級 {b}", { l: holdings[index].lots, b: holdings[index].levels }) : t("地 {l}・樓 {b}", { l: holdings[index].lots, b: holdings[index].levels })}
               </span>}
               {seat.jailed ? <span className="text-xs">🔒</span> : null}
               {seat.powers.length ? (
@@ -940,7 +954,18 @@ export function EightBoard({
         </div>
       ) : null}
 
-      {toast ? (
+      {toast && toast.x !== undefined && toast.y !== undefined ? (
+        // Over the player's head: small, rising and fading, kept on screen.
+        <p
+          key={toast.key}
+          className="pointer-events-none fixed z-30 animate-[toast-rise_1.5s_ease-out_forwards] whitespace-nowrap rounded-full border-2 border-[#FBD000] bg-[#1E3A8A]/90 px-3 py-1 text-sm font-black text-white shadow-lg"
+          style={{ left: Math.max(70, Math.min(window.innerWidth - 70, toast.x)), top: toast.y, translate: "-50% -100%" }}
+          data-testid="table-toast"
+          role="status"
+        >
+          {toast.text}
+        </p>
+      ) : toast ? (
         <div className="pointer-events-none absolute inset-x-0 top-[24%] z-30 flex justify-center px-4">
           <p
             key={toast.key}
@@ -987,8 +1012,8 @@ export function EightBoard({
       {me.powers.length && table.phase !== "over" ? (
         <div
           className={cn(
-            "absolute inset-x-0 bottom-[calc(max(env(safe-area-inset-bottom),1rem)+10.5rem)] z-20 flex gap-2 overflow-x-auto px-4 pb-1",
-            me.powers.length > 3 ? "justify-start" : "justify-center",
+            // Sky (2026-10-09): small, down the right-hand side, not across the board.
+            "absolute right-2 bottom-[calc(max(env(safe-area-inset-bottom),1rem)+7.5rem)] z-20 flex max-h-[45dvh] flex-col gap-1.5 overflow-y-auto pb-1",
           )}
           data-testid="power-hand"
         >
@@ -1005,12 +1030,12 @@ export function EightBoard({
                   if ((power === "swap" || power === "monster") && others.length > 1) setPicking(index);
                   else void run({ type: "power", index, target: others[0] });
                 }}
-                className="flex w-24 shrink-0 cursor-pointer flex-col items-center rounded-2xl border-[3px] border-[#7C3AED] bg-white/95 px-2 py-1 text-[#1E3A8A] shadow-[0_4px_0_#4C1D95] disabled:cursor-default disabled:opacity-60 enabled:animate-[glow_1.8s_ease-in-out_infinite]"
+                className="flex w-16 shrink-0 cursor-pointer flex-col items-center rounded-xl border-2 border-[#7C3AED] bg-white/90 px-1 py-0.5 text-[#1E3A8A] shadow-[0_3px_0_#4C1D95] disabled:cursor-default disabled:opacity-60 enabled:animate-[glow_1.8s_ease-in-out_infinite]"
+                aria-label={`${t(info.name)}：${t(info.what)}`}
                 data-testid={`power-${power}`}
               >
-                <CardPic power={power} className="size-12 text-5xl drop-shadow" />
-                <span className="text-sm font-black">{t(info.name)}</span>
-                <span className="text-[10px] font-bold leading-tight">{t(info.what)}</span>
+                <CardPic power={power} className="size-9 text-3xl drop-shadow" />
+                <span className="text-[11px] font-black leading-tight">{t(info.name)}</span>
               </button>
             );
           })}

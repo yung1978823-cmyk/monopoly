@@ -182,6 +182,7 @@ const DICT: Record<string, { hans: string; en: string }> = {
   開始: { hans: "开始", en: "Start" },
   "起樓・材料店": { hans: "建楼・材料店", en: "Build · Materials" },
   "龍巢 {n} 級": { hans: "龙巢 {n} 级", en: "Dragon nest level {n}" },
+  "地 {l}・升級 {b}": { hans: "地 {l}・升级 {b}", en: "Land {l} · Upgrades {b}" },
   "神秘商人": { hans: "神秘商人", en: "Mystery Merchant" },
   "骰仔": { hans: "骰子", en: "Dice" },
   "水晶": { hans: "水晶", en: "Crystal" },

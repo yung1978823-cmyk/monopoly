@@ -74,6 +74,10 @@ export const CHARACTER_HEIGHT = 0.8;
 const FIREWORK_COLOURS = [0xfbd000, 0xe52521, 0x22c55e, 0x3b82f6, 0xec4899, 0xf97316];
 
 export type BoardScene = {
+  /** Where a seat's token is on the screen (viewport pixels, just above its head), for messages that follow it. */
+  anchorOf(seat: number): { x: number; y: number } | null;
+  /** Light up the square a move will end on (null clears it). */
+  markTarget(key: string | null): void;
   /** Fly in close to a seat, or null to pull back and see the whole board. */
   /** Follow a seat close up ("near") or from a little further back ("mid"); null shows the whole board. */
   focus(seat: number | null, level?: "near" | "mid"): void;
@@ -576,6 +580,8 @@ export function createBoardScene(
   const breathers: { obj: any; base: number; phase: number; period: number; shadow?: any; glow?: any; key?: string }[] = [];
   const bobOf = (key: string) => bobs.get(key) ?? 0;
   const bobs = new Map<string, number>();
+  /** A floating stone sinks a little when someone lands on it. */
+  const dips = new Map<string, number>();
   let deckMat: any = null;
   /** 三葉草: the painted island's moving bits (water, sails, flag, balloon, airship). */
   const islandAnims: ((now: number, dt: number) => void)[] = [];
@@ -924,11 +930,12 @@ export function createBoardScene(
       const r = 60;
       x.beginPath();
       x.roundRect(14, 14, 228, 122, r);
-      x.fillStyle = color;
+      x.fillStyle = "rgba(0,0,0,0.28)";
       x.fill();
-      x.lineWidth = 14;
-      x.strokeStyle = level >= 4 ? "#FBD000" : "#ffffff";
+      x.lineWidth = 12;
+      x.strokeStyle = level >= 4 ? "#FBD000" : "rgba(255,255,255,0.85)";
       x.stroke();
+      void color;
       x.font = "900 92px system-ui, sans-serif";
       x.textAlign = "center";
       x.textBaseline = "middle";
@@ -944,26 +951,21 @@ export function createBoardScene(
     return badgePics.get(id);
   };
   const badges: Record<string, any> = {};
+  const targets: Record<string, any> = {};
   function makeCloverTile(key: string, x: number, z: number) {
     const square = BOARDS[board].squares[key];
     const plaza = square.kind === "plaza";
     const group = new T.Group();
-    group.position.set(x, plaza ? 0 : STONE_LIFT, z);
+    group.position.set(x, STONE_LIFT, z);
     scene.add(group);
-    if (plaza) {
-      // The plaza: players stand on the painted paving in front of the 龍巢.
-      const pad = new T.Mesh(new T.CylinderGeometry(0.5, 0.5, 0.02, 20), matC(0xf4e2b8, 0.85));
-      pad.visible = false;
-      group.add(pad);
-      tiles[key] = { group, body: pad, base: 0xf4e2b8, inward: new T.Vector3(0, 0, -0.27), house: null, yaw: 0 };
-      return;
-    }
     // Sky's stone picture, standing up to the camera with the middle of its flat top on the square; a white copy of
     // just the top, tinted, shows the owner's colour.
     const holder = new T.Group();
     holder.rotation.x = -CLOVER_ELEV;
     group.add(holder);
-    const w = STONE_W_PX * CLOVER_PX, h = w * (294 / 320);
+    // The start (Sky 2026-10-09): a bigger stone in front of the 龍巢, at the same height as the rest, so nobody
+    // drops to the ground and jumps back up when passing it.
+    const w = STONE_W_PX * CLOVER_PX * (plaza ? 1.6 : 1), h = w * (294 / 320);
     const plane = () => {
       const geo = new T.PlaneGeometry(w, h);
       geo.translate(w * (0.5 - 0.494), h * (0.5 - (1 - 0.261)), 0);
@@ -978,14 +980,18 @@ export function createBoardScene(
     holder.add(tint);
     const body = tint;
     breathers.push({ obj: group, base: STONE_LIFT, phase: Math.random() * Math.PI * 2, period: 3.4 + Math.random() * 1.2, key });
-    const badge = new T.Sprite(new T.SpriteMaterial({ transparent: true, depthWrite: false }));
-    badge.center.set(0.5, 0);
-    badge.scale.set(0.9, 0.53, 1);
-    badge.position.set(0.35, TOP + 0.62, -0.2);
-    badge.visible = false;
-    badge.renderOrder = 5;
-    group.add(badge);
-    badges[key] = badge;
+    // ×1…×4 printed on the stone top (Sky 2026-10-09), squashed like the top it lies on.
+    const decal = new T.Mesh(new T.PlaneGeometry(w * 0.62, w * 0.36), new T.MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false }));
+    decal.position.set(0, TOP - h * 0.04, 0.006);
+    decal.visible = false;
+    holder.add(decal);
+    if (!plaza) badges[key] = decal;
+    // The landing glow: a soft gold ring on the top face, shown before a move ends here.
+    const ring = new T.Mesh(new T.PlaneGeometry(w * 1.15, w * 0.72), new T.MeshBasicMaterial({ map: glowTex, color: 0xffe066, transparent: true, depthWrite: false, blending: T.AdditiveBlending, toneMapped: false }));
+    ring.position.set(0, TOP, 0.009);
+    ring.visible = false;
+    holder.add(ring);
+    targets[key] = ring;
     tiles[key] = { group, body, base: STONE, inward: new T.Vector3(0, 0, -0.27), house: null, yaw: 0 };
   }
   function makeTile(key: string, x: number, z: number, outward: any, yaw: number) {
@@ -1302,6 +1308,7 @@ export function createBoardScene(
   };
   const tokens = colours.map((css, seat) => {
     const g = pawn(hex(css));
+    if (clover) g.scale.setScalar(1.35); // Sky 2026-10-09: players easier to see on the island
     g.position.copy(place(seat, spots[seat]));
     scene.add(g);
     return g;
@@ -1632,7 +1639,7 @@ export function createBoardScene(
     // Every island breathes up and down on its own clock; its shadow shrinks as it rises.
     if (!reduceMotion) {
       for (const b of breathers) {
-        const h = Math.sin((now / 1000 / b.period) * Math.PI * 2 + b.phase) * 0.06;
+        const h = Math.sin((now / 1000 / b.period) * Math.PI * 2 + b.phase) * 0.06 - (b.key ? dips.get(b.key) ?? 0 : 0);
         b.obj.position.y = b.base + h;
         if (b.key) bobs.set(b.key, b.base + h);
         if (b.shadow) {
@@ -1714,6 +1721,7 @@ export function createBoardScene(
     if (!dragged || goal.follow < 0) cam.target.lerp(goal.target, ease);
     cam.dist += (goal.dist - cam.dist) * ease;
     if (!reduceMotion) islandAnims.forEach((step) => step(now, dt));
+    for (const k in targets) if (targets[k].visible) targets[k].material.opacity = 0.55 + Math.sin(now / 160) * 0.35;
     if (!reduceMotion) {
       floaters.forEach((f, i) => {
         if (f.bat !== undefined) {
@@ -1746,6 +1754,10 @@ export function createBoardScene(
   const squash = (key: string) => {
     const tile = tiles[key];
     if (!tile) return;
+    if (clover) {
+      void tween(320, (k) => dips.set(key, Math.sin(k * Math.PI) * 0.14)).then(() => dips.delete(key));
+      return;
+    }
     void tween(260, (k) => (tile.group.position.y = -Math.sin(k * Math.PI) * 0.08));
   };
 
@@ -1901,6 +1913,17 @@ export function createBoardScene(
   if (decor) applyDecor(decor);
 
   const api: BoardScene = {
+    anchorOf(seat) {
+      const token = tokens[seat];
+      if (!token) return null;
+      const v = token.position.clone().add(new T.Vector3(0, 1.3, 0)).project(camera);
+      if (v.z > 1) return null;
+      const r = canvas.getBoundingClientRect();
+      return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+    },
+    markTarget(key) {
+      for (const k of Object.keys(targets)) targets[k].visible = k === key;
+    },
     focus(seat, level = "near") {
       dragged = false;
       if (seat === null) {
@@ -1991,12 +2014,13 @@ export function createBoardScene(
           badge.material.map = badgePic(Math.min(4, level), colours[seat]);
           badge.material.needsUpdate = true;
           badge.visible = true;
+          badge.userData.base = badge.userData.base ?? badge.scale.clone();
         }
         await tween(600, (k) => {
           m.color.copy(from).lerp(to, Math.min(1, k * 1.5));
           if (badge) {
             const s = k < 0.7 ? (k / 0.7) * 1.25 : 1.25 - ((k - 0.7) / 0.3) * 0.25;
-            badge.scale.set(0.9 * s, 0.53 * s, 1);
+            badge.scale.set(s, s, 1);
           }
         });
         return;

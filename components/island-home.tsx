@@ -139,6 +139,20 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
           </span>
           <span className="pointer-events-none absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-[#1E3A8A]/80 px-1.5 text-[10px] font-black text-[#FBD000]">Lv{nest}</span>
         </button>
+        {/* The start: a bigger stone in front of the 龍巢, as high as the others. */}
+        <img
+          src="/art/islands/stone.webp"
+          alt=""
+          draggable={false}
+          className="pointer-events-none absolute select-none drop-shadow-[0_10px_6px_rgba(0,0,0,0.35)]"
+          style={{
+            left: pct(island.squares[0].x, island.w),
+            top: pct(island.squares[0].y - STONE_LIFT_PX, island.h),
+            width: pct(STONE_W_PX * 1.6, island.w),
+            transform: "translate(-49.4%, -26.1%)",
+            animation: "stone-bob 3.8s ease-in-out infinite",
+          }}
+        />
         {island.decor.map((d) => (
           <Decor key={d.kind} kind={d.kind} at={island.spots[d.spot]} w={d.w} island={island} />
         ))}
