@@ -326,7 +326,7 @@ function RealmList({ realm, wallet, onJoin, onMine }: { realm: Realm; wallet: Wa
   );
 }
 
-type Panel = "build" | "shop" | "rules";
+type Panel = "build" | "shop";
 
 /**
  * Your land (re-laid out with Sky 2026-10-01): the island floats in space with its build spots on a row over
@@ -347,6 +347,7 @@ function RealmEditor({
   const [picking, setPicking] = useState<number | null>(null);
   const [panel, setPanel] = useState<Panel>("build");
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [setup, setSetup] = useState(false);
   const dragFrom = useRef<number | null>(null);
   // 商店 房屋券 (Sky 2026-10-08): a voucher builds its house without materials.
   const [vouchers, setVouchers] = useState<Partial<Record<BuildingKind, number>>>({});
@@ -462,7 +463,7 @@ function RealmEditor({
             aria-label={t("打開")}
             data-testid="sheet-handle"
           >
-            ▲ {t("起樓・材料店・開局設定")}
+            ▲ {t("起樓・材料店")}
           </button>
         )}
         {sheetOpen ? <div className="flex justify-center gap-2" data-testid="slots">
@@ -498,12 +499,11 @@ function RealmEditor({
         </div> : null}
         {sheetOpen ? (
         <>
-        <div className="grid grid-cols-3 gap-1 rounded-full bg-[#EEF2FA] p-1" role="tablist">
+        <div className="grid grid-cols-2 gap-1 rounded-full bg-[#EEF2FA] p-1" role="tablist">
           {(
             [
               ["build", "起樓"],
               ["shop", "材料店"],
-              ["rules", "開局設定"],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -526,7 +526,7 @@ function RealmEditor({
               {BUILDING_KINDS.map((kind) => option(kind, firstEmpty))}
               <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("撳上面已起嘅建築可以換款或者拆走")}</p>
             </>
-          ) : panel === "shop" ? (
+          ) : (
             <>
               <div className="grid grid-cols-3 gap-2">
                 {MATERIALS.map((m) => (
@@ -553,7 +553,33 @@ function RealmEditor({
               </div>
               <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("玩公開桌，名次越前送越多材料")}</p>
             </>
-          ) : (
+          )}
+        </div>
+        </>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={() => {
+            play("coin");
+            setSetup(true);
+          }}
+          className="h-14 w-full shrink-0 cursor-pointer rounded-full border-4 border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-xl font-black text-white shadow-[0_5px_0_#8E1210] active:translate-y-1"
+          data-testid="host"
+        >
+          {t("開局")}
+        </button>
+      </div>
+
+      {/* 開局設定 (Sky 2026-10-09): out of the sheet; 開局 opens it, then 開始 starts the game. */}
+      {setup ? (
+        <div className="absolute inset-0 z-40 flex items-end bg-[#1E3A8A]/50" onClick={() => setSetup(false)}>
+          <div
+            className="w-full space-y-3 rounded-t-[32px] bg-white p-4 pb-[max(env(safe-area-inset-bottom),1rem)]"
+            onClick={(event: { stopPropagation: () => void }) => event.stopPropagation()}
+            data-testid="host-setup"
+          >
+            <p className="text-center text-lg font-black">{t("開局設定")}</p>
             <>
               <p className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm font-black" data-testid="realm-summary">
                 <span>{t("同時開 {n} 張枱", { n: tablesOf(realm) })}</span>
@@ -602,23 +628,21 @@ function RealmEditor({
                 <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("起咗機會屋就可以揀機會卡")}</p>
               )}
             </>
-          )}
+            <button
+              type="button"
+              onClick={() => {
+                play("coin");
+                setSetup(false);
+                onHost();
+              }}
+              className="h-14 w-full cursor-pointer rounded-full border-4 border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-xl font-black text-white shadow-[0_5px_0_#8E1210] active:translate-y-1"
+              data-testid="host-start"
+            >
+              {t("開始")}
+            </button>
+          </div>
         </div>
-        </>
-        ) : null}
-
-        <button
-          type="button"
-          onClick={() => {
-            play("coin");
-            onHost();
-          }}
-          className="h-14 w-full shrink-0 cursor-pointer rounded-full border-4 border-[#FBD000] bg-gradient-to-b from-[#F0403C] to-[#C21B17] text-xl font-black text-white shadow-[0_5px_0_#8E1210] active:translate-y-1"
-          data-testid="host"
-        >
-          {t("開局")}
-        </button>
-      </div>
+      ) : null}
 
       {/* Tapping an empty spot: pick what to build there. */}
       {picking !== null ? (

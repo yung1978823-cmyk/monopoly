@@ -179,6 +179,8 @@ const DICT: Record<string, { hans: string; en: string }> = {
   下一個島: { hans: "下一个岛", en: "Next island" },
   裝飾位: { hans: "装饰位", en: "Decor spots" },
   完成: { hans: "完成", en: "Done" },
+  開始: { hans: "开始", en: "Start" },
+  "起樓・材料店": { hans: "建楼・材料店", en: "Build · Materials" },
   "神秘商人": { hans: "神秘商人", en: "Mystery Merchant" },
   "骰仔": { hans: "骰子", en: "Dice" },
   "水晶": { hans: "水晶", en: "Crystal" },
