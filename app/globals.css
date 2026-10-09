@@ -440,3 +440,7 @@ body.juice-shake-large > * { animation: juice-shake-l 500ms ease-out; }
   from { left: 110%; }
   to { left: -40%; }
 }
+@keyframes nest-glow {
+  0%, 100% { filter: drop-shadow(0 6px 6px rgba(0,0,0,0.45)) drop-shadow(0 0 4px rgba(255,200,60,0.4)); }
+  50% { filter: drop-shadow(0 6px 6px rgba(0,0,0,0.45)) drop-shadow(0 0 14px rgba(255,200,60,0.9)); }
+}

@@ -88,3 +88,28 @@ export function saveCollection(collection: Collection): void {
     // Not remembered on this device.
   }
 }
+
+/** The player's own dragon (from the single-player board's save), for the 龍巢 on their island. */
+export function loadPet(): { element: number; stage: number } | null {
+  const pet = (readSave()?.state as { pet?: { element?: unknown; stage?: unknown } } | undefined)?.pet;
+  if (!pet || typeof pet.element !== "number" || typeof pet.stage !== "number") return null;
+  return { element: pet.element, stage: pet.stage };
+}
+
+/** 龍巢 level 1–3 (testing: tap the nest to try each level). */
+const NEST_KEY = "boolionaire-nest-level";
+export function loadNestLevel(): number {
+  try {
+    const n = Number(localStorage.getItem(NEST_KEY));
+    return n >= 1 && n <= 3 ? n : 1;
+  } catch {
+    return 1;
+  }
+}
+export function saveNestLevel(level: number): void {
+  try {
+    localStorage.setItem(NEST_KEY, String(level));
+  } catch {
+    // Not remembered.
+  }
+}

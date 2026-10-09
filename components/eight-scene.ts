@@ -11,6 +11,7 @@
  * functions to play back the events a move produced.
  */
 import { DECOR_DIR, ISLANDS } from "@/lib/islands";
+import { buildMonster } from "@/components/monster";
 import { BOARDS, EDGE_STEPS, cloverKey, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
 import { GALAXY_SPACE, TABLE_SPACE, createSpace, type Backdrop } from "@/components/backdrop";
 
@@ -125,7 +126,13 @@ export type BoardScene = {
   dispose(): void;
 };
 
-export type Decor = { houses: string[]; facade: boolean; stations: number };
+export type Decor = {
+  houses: string[];
+  facade: boolean;
+  stations: number;
+  /** 龍巢 (三葉草): its level 1–3 and the owner's dragon lying in it. */
+  nest?: { level: number; pet: { element: number; stage: number } | null };
+};
 
 // ---------- Layout (world units; x right, z toward the viewer) ----------
 
@@ -162,20 +169,14 @@ function islandPoint(i: number): [number, number] {
  * 三葉草 (領地 海島, Sky 2026-10-09): the squares sit where Sky's painted island has them — plaza at the front, the
  * quarry up the left, the forest arc at the back, the mine down the right. Picture pixels → world units.
  */
-export const CLOVER_ART_POINTS: readonly [number, number][] = [
-  [508, 1048],
-  [297, 888], [366, 829], [384, 750], [350, 677], [296, 621], [212, 589],
-  [280, 424], [322, 363], [405, 322], [513, 321], [596, 359], [639, 423],
-  [735, 588], [653, 644], [599, 708], [585, 785], [625, 856], [712, 890],
-];
 /** The 三葉草 camera looks down at 50° and never turns, so the painted island lies flat on the ground stretched by
  *  1 / sin 50° front to back, and looks just like Sky's picture from the camera. */
 export const CLOVER_ELEV = (50 * Math.PI) / 180;
 const CLOVER_PX = 1 / 75;
 const cloverAt = (px: number, py: number): [number, number] => [(px - 476) * CLOVER_PX, ((py - 680) * CLOVER_PX) / Math.sin(CLOVER_ELEV)];
-const CLOVER_POINTS: Record<string, [number, number]> = Object.fromEntries(CLOVER_ART_POINTS.map(([px, py], i) => [`o${i}`, cloverAt(px, py)]));
-/** Sky's painted island (2026-10-09): the picture is the original cropped from y = 120. */
-const CLOVER_ISLAND = { url: "/art/islands/forest.webp", w: 941, h: 1360, top: 120 };
+/** Sky's painted island (lib/islands): where each square is, in the original picture's pixels. */
+const CLOVER_ISLAND = { url: ISLANDS[0].art, w: ISLANDS[0].w, h: ISLANDS[0].h, top: ISLANDS[0].top };
+const CLOVER_POINTS: Record<string, [number, number]> = Object.fromEntries(ISLANDS[0].squares.map((p, i) => [`o${i}`, cloverAt(p.x, p.y + CLOVER_ISLAND.top)]));
 
 type TilePlan = { key: string; x: number; z: number; yaw: number; outward: [number, number] | null };
 type Layout = {
@@ -629,6 +630,42 @@ export function createBoardScene(
         img.src = DECOR_DIR + file;
         return mesh;
       };
+      // 龍巢 on the plaza, with the owner's own dragon lying in it (Sky 2026-10-09).
+      {
+        const level = decor?.nest?.level ?? 1;
+        const n = isle.nest;
+        const [x, z] = cloverAt(n.x, n.y + CLOVER_ISLAND.top);
+        const g = new T.Group();
+        g.position.set(x, TOP, z);
+        g.rotation.x = -CLOVER_ELEV;
+        scene.add(g);
+        const nestMesh = standee(level === 3 ? "nest3.webp" : "nest1.webp", n.w);
+        g.add(nestMesh);
+        const tall = n.w * CLOVER_PX * (409 / 560);
+        if (level >= 2) {
+          const glow = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0xffd65a, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.5 }));
+          glow.scale.set(n.w * CLOVER_PX * 1.1, tall * 1.1, 1);
+          glow.position.set(0, tall * 0.5, -0.05);
+          g.add(glow);
+          islandAnims.push((now) => (glow.material.opacity = 0.35 + Math.sin(now / 600) * 0.2));
+        }
+        const pet = decor?.nest?.pet ?? { element: 0, stage: 0 };
+        const dragon = buildMonster(T, pet.element, pet.stage);
+        dragon.setMood("rest");
+        const want = pet.stage === 0 ? 0.3 : 0.45;
+        const holder = new T.Group();
+        holder.add(dragon.group);
+        holder.scale.setScalar(want / Math.max(0.1, dragon.height));
+        // In the hollow: up the nest picture from its foot, and a little towards the camera so the dragon is in front.
+        const up = tall * 0.42;
+        holder.position.set(x, TOP + Math.cos(CLOVER_ELEV) * up + Math.sin(CLOVER_ELEV) * 0.3, z - Math.sin(CLOVER_ELEV) * up + Math.cos(CLOVER_ELEV) * 0.3);
+        dragon.group.rotation.y = 0.5;
+        scene.add(holder);
+        islandAnims.push((now) => {
+          dragon.group.rotation.y = 0.5 + Math.sin(now / 4000) * 0.35;
+          dragon.update(now);
+        });
+      }
       for (const d of isle.decor) {
         const at = isle.spots[d.spot];
         const [x, z] = cloverAt(at.x, at.y + CLOVER_ISLAND.top);
@@ -941,8 +978,7 @@ export function createBoardScene(
       rock.position.y = TOP - 0.26 - 0.8;
       rock.visible = false;
       group.add(rock);
-      castle.position.set(0, TOP, -0.15);
-      castle.scale.set(3.3, 3.3, 1);
+      castle.visible = false; // the 龍巢 stands on the plaza instead
     }
     // Sky (2026-10-09): no pictures on the squares — a square shows its owner's colour once bought.
     if (!plaza) pic.visible = false;

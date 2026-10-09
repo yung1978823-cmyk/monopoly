@@ -4,6 +4,8 @@ import { useLang } from "@/lib/i18n";
 import { cn } from "cn";
 import { useEffect, useRef, useState } from "react";
 
+import { NestDragon } from "@/components/nest-dragon";
+import { loadNestLevel, loadPet, saveNestLevel } from "@/components/wallet-store";
 import { DECOR_DIR as D, type At, type DecorKind, type IslandArt, ISLANDS } from "@/lib/islands";
 
 const pct = (n: number, of: number) => `${(n / of) * 100}%`;
@@ -53,6 +55,16 @@ function Decor({ kind, at, w, island }: { kind: DecorKind; at: At; w: number; is
 function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  const { t } = useLang();
+  const [nest, setNest] = useState(1);
+  const [pet, setPet] = useState<{ element: number; stage: number } | null>(null);
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setNest(loadNestLevel());
+      setPet(loadPet());
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, []);
   useEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -80,14 +92,32 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
             <div className="absolute inset-x-0 bottom-0 h-[10%] animate-[foam_1.2s_ease-in-out_infinite] rounded-full bg-white/80 blur-[2px]" />
           </div>
         ))}
-        {/* The castle on the plaza: a stand-in until Sky's own castle picture comes. */}
-        <img
-          src="/art/tiles/clover/plaza.webp"
-          alt=""
-          draggable={false}
-          className="absolute -translate-x-1/2 -translate-y-[82%] drop-shadow-[0_6px_6px_rgba(0,0,0,0.45)]"
-          style={{ left: pct(island.castle.x, island.w), top: pct(island.castle.y, island.h), width: "26%" }}
-        />
+        {/* 龍巢 on the plaza with the player's own dragon in it; tap the nest to try levels 1–3 (testing). */}
+        <button
+          type="button"
+          onClick={() => {
+            const next = (nest % 3) + 1;
+            setNest(next);
+            saveNestLevel(next);
+          }}
+          className="absolute -translate-x-1/2 -translate-y-full cursor-pointer"
+          style={{ left: pct(island.nest.x, island.w), top: pct(island.nest.y, island.h), width: pct(island.nest.w, island.w) }}
+          aria-label={t("龍巢 {n} 級", { n: nest })}
+          data-testid="nest"
+        >
+          <img
+            src={`${D}${nest === 3 ? "nest3" : "nest1"}.webp`}
+            alt=""
+            draggable={false}
+            className={cn("block w-full select-none drop-shadow-[0_6px_6px_rgba(0,0,0,0.45)]", nest === 2 && "animate-[nest-glow_2.4s_ease-in-out_infinite]")}
+          />
+          {nest >= 2 ? <span className="pointer-events-none absolute inset-[18%] animate-[breathe_2.4s_ease-in-out_infinite] rounded-full bg-[radial-gradient(closest-side,rgba(255,214,90,0.55),transparent)]" /> : null}
+          {/* The dragon lies in the hollow, a little behind the middle of the nest. */}
+          <span className="pointer-events-none absolute left-1/2 top-[-55%] aspect-square w-[95%] -translate-x-1/2">
+            {pet ? <NestDragon element={pet.element} stage={pet.stage} /> : <NestDragon element={0} stage={0} />}
+          </span>
+          <span className="pointer-events-none absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-[#1E3A8A]/80 px-1.5 text-[10px] font-black text-[#FBD000]">Lv{nest}</span>
+        </button>
         {island.decor.map((d) => (
           <Decor key={d.kind} kind={d.kind} at={island.spots[d.spot]} w={d.w} island={island} />
         ))}
@@ -95,7 +125,10 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
           ? island.spots.map((s, i) => island.decor.some((d) => d.spot === i) ? null : (
               <span
                 key={i}
-                className="absolute flex aspect-square w-[9%] -translate-x-1/2 -translate-y-1/2 animate-[breathe_2.4s_ease-in-out_infinite] items-center justify-center rounded-full border-2 border-dashed border-white bg-[#7C3AED]/45 text-lg font-black text-white shadow-[0_0_12px_rgba(255,255,255,0.6)]"
+                className={cn(
+                  "absolute flex aspect-[1.4] -translate-x-1/2 -translate-y-1/2 animate-[breathe_2.4s_ease-in-out_infinite] items-center justify-center rounded-full border-2 border-dashed border-white font-black text-white shadow-[0_0_12px_rgba(255,255,255,0.6)]",
+                  s.kind === "big" ? "w-[13%] bg-[#7C3AED]/55 text-xl" : s.kind === "sky" ? "w-[10%] bg-[#0EA5A5]/55 text-lg" : "w-[8%] bg-[#2563EB]/55 text-base",
+                )}
                 style={{ left: pct(s.x, island.w), top: pct(s.y, island.h) }}
                 data-testid={`deco-spot-${i}`}
               >

@@ -3,7 +3,7 @@
 import { type Decor } from "@/components/eight-scene";
 import { IslandHome } from "@/components/island-home";
 import { CAST, EightBoard } from "@/components/table-game";
-import { loadWallet, saveWallet } from "@/components/wallet-store";
+import { loadNestLevel, loadPet, loadWallet, saveWallet } from "@/components/wallet-store";
 import { ENERGY_ICON, formatEnergy, tableEnergy } from "@/lib/energy";
 import { useLang } from "@/lib/i18n";
 import {
@@ -39,7 +39,7 @@ const LAND_ICONS: Record<LandKind, string> = { island: "island", mountain: "moun
 const LAND_NAMES: Record<LandKind, string> = { island: "海島", mountain: "山城", volcano: "火山" };
 
 function decorOf(realm: Realm): Decor {
-  return { houses: housesOf(realm), facade: false, stations: count(realm, "station") };
+  return { houses: housesOf(realm), facade: false, stations: count(realm, "station"), nest: { level: loadNestLevel(), pet: loadPet() } };
 }
 
 function loadRealm(): Realm {
