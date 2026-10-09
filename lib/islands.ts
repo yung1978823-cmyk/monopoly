@@ -52,9 +52,8 @@ export const ISLANDS: IslandArt[] = [
       { x: 470, y: 150 },
     ],
     decor: [
-      { kind: "windmill", spot: 0, w: 92 },
       { kind: "dragon", spot: 2, w: 135 },
-      { kind: "tower", spot: 3, w: 80 },
+      { kind: "tower", spot: 0, w: 85 }, // Sky 2026-10-09: the tower on the lawn, no windmill for now
       { kind: "balloon", spot: 4, w: 120 },
       { kind: "airship", spot: 5, w: 230 },
     ],
