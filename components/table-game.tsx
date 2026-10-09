@@ -46,6 +46,9 @@ const VIEWS: [View, string][] = [
   ["far", "遠"],
 ];
 
+/** No pop-up messages on the table (Sky 2026-10-09). */
+const QUIET = true;
+
 /** You and the three computer players, in seat order. */
 const CAST = [
   { name: "你", avatar: "/art/avatars/vampire.jpg", colour: "#7C3AED", bot: false },
@@ -370,6 +373,9 @@ export function EightBoard({
   /** Whose event is playing: its messages pop up over that player's token (Sky 2026-10-09: not over the board). */
   const seatNow = useRef<number | null>(null);
   const say = useCallback((text: string, vars?: Record<string, string | number>) => {
+    // Sky (2026-10-09): no message boxes over the board or the players — whose turn it is shows on their card, and
+    // money shows as a small + or − on the card. Messages stay off.
+    if (QUIET) return;
     toastKey.current += 1;
     const at = seatNow.current !== null ? sceneRef.current?.anchorOf(seatNow.current) ?? null : null;
     setToast({ key: toastKey.current, text: tRef.current(text, vars), x: at?.x, y: at?.y });
@@ -836,6 +842,27 @@ export function EightBoard({
     return () => window.clearTimeout(id);
   }, [publicTable, table]);
 
+  // + / − on a player's card each time their 能量 changes (Sky 2026-10-09).
+  const lastCash = useRef<number[] | null>(null);
+  const [deltas, setDeltas] = useState<{ seat: number; amount: number; key: number }[]>([]);
+  const deltaKey = useRef(0);
+  useEffect(() => {
+    const now = table.seats.map((seat) => seat.cash);
+    const was = lastCash.current;
+    lastCash.current = now;
+    if (!was || was.length !== now.length) return;
+    const fresh = now.flatMap((cash, seat) => {
+      const amount = Math.round((cash - was[seat]) * 1000) / 1000;
+      if (!amount) return [];
+      deltaKey.current += 1;
+      return [{ seat, amount, key: deltaKey.current }];
+    });
+    if (!fresh.length) return;
+    // Not cleared on the next change: every number gets its own second and a half.
+    window.setTimeout(() => setDeltas((list) => [...list, ...fresh]), 0);
+    window.setTimeout(() => setDeltas((list) => list.filter((d) => !fresh.includes(d))), 1600);
+  }, [table.seats]);
+
   const me = table.seats[0];
   const mine = !busy && loaded === "ready" && table.current === 0 && table.phase !== "over" && !me.bankrupt;
   const turnsEach = table.rules.turnsEach;
@@ -874,12 +901,27 @@ export function EightBoard({
               key={seat.name}
               className={cn(
                 "relative flex min-w-0 flex-1 flex-col items-center rounded-2xl border-[3px] bg-white/90 py-1 shadow-md transition-transform",
-                table.current === index && table.phase !== "over" ? "scale-105 border-[#FBD000]" : "border-transparent",
+                table.current === index && table.phase !== "over" ? "scale-105 border-[#FBD000] shadow-[0_0_16px_4px_rgba(251,208,0,0.75)] animate-[breathe_1.6s_ease-in-out_infinite]" : "border-transparent",
                 seat.bankrupt && "opacity-40 grayscale",
                 gotCard?.seat === index && "animate-[icon-glow_0.9s_ease-in-out_2]",
               )}
               data-testid={`seat-${index}`}
             >
+              {deltas
+                .filter((d) => d.seat === index)
+                .map((d) => (
+                  <span
+                    key={d.key}
+                    className={cn(
+                      "pointer-events-none absolute -bottom-3 left-1/2 z-10 -translate-x-1/2 animate-[toast-rise_1.5s_ease-out_forwards] whitespace-nowrap rounded-full px-1.5 text-xs font-black tabular-nums text-white shadow",
+                      d.amount > 0 ? "bg-[#16A34A]" : "bg-[#E52521]",
+                    )}
+                    data-testid={`delta-${index}`}
+                  >
+                    {d.amount > 0 ? "+" : "−"}
+                    {compactEnergy(tableEnergy(Math.abs(d.amount)), lang)}
+                  </span>
+                ))}
               {/* Rank by what each player is worth (cash, land and buildings): gold, silver, bronze. */}
               <span
                 className={cn(
