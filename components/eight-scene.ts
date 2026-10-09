@@ -907,92 +907,68 @@ export function createBoardScene(
   const PLAIN: Record<string, number> = {
     start: 0xfbd000, jail: 0x64748b, chest: 0xf2c230, fly: 0x38bdf8, dock: 0x38bdf8, chance: 0x8b5cf6, tax: 0x334155, fork: 0xffffff, cross: 0xff7a59,
   };
-  /** 三葉草 tile pictures: Sky's material art where there is some, an emoji for the rest until drawn. */
-  const CLOVER_ART: Record<string, string> = {
-    wood: "/art/realm/wood.webp",
-    stone: "/art/realm/stone.webp",
-    gold: "/art/realm/gold.webp",
-    ...Object.fromEntries(["plaza", "toll", "map", "artisan", "caravan", "termite", "landslide", "bandit", "sand"].map((k) => [k, `/art/tiles/clover/${k}.webp`])),
-  };
-  const CLOVER_EMOJI: Record<string, string> = {
-    plaza: "🏰", toll: "🚧", map: "🗺️", artisan: "🔨", caravan: "🐫", termite: "🐜", landslide: "⛰️", bandit: "🥷", sand: "🌀",
-  };
-  /** Each loop's ground: forest grass, quarry sand, mine gold; the plaza is warm paving. Penalty squares get a red ring. */
-  const ZONE_GROUND = [0x6cc04a, 0xe6c98f, 0xf2c75c];
-  const BAD = new Set(["termite", "landslide", "bandit", "sand", "toll"]);
-  const emojiPics = new Map<string, any>();
-  const emojiPic = (emoji: string) => {
-    if (!emojiPics.has(emoji)) {
+  /** 三葉草 (Sky 2026-10-09): each square is a little floating stone over the painted island, the path hopping from
+   *  stone to stone. A bought stone turns the owner's colour and shows its toll as ×1…×4 instead of a building. */
+  const STONE = 0xa99d86, STONE_LIFT = 0.95;
+  const badgePics = new Map<string, any>();
+  const badgePic = (level: number, color: string) => {
+    const id = `${level}${color}`;
+    if (!badgePics.has(id)) {
       const c = document.createElement("canvas");
-      c.width = c.height = 256;
+      c.width = 256;
+      c.height = 150;
       const x = c.getContext("2d")!;
-      x.font = "170px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif";
+      const r = 60;
+      x.beginPath();
+      x.roundRect(14, 14, 228, 122, r);
+      x.fillStyle = color;
+      x.fill();
+      x.lineWidth = 14;
+      x.strokeStyle = level >= 4 ? "#FBD000" : "#ffffff";
+      x.stroke();
+      x.font = "900 92px system-ui, sans-serif";
       x.textAlign = "center";
       x.textBaseline = "middle";
-      x.fillText(emoji, 128, 140);
+      x.fillStyle = "#ffffff";
+      x.lineWidth = 10;
+      x.strokeStyle = "rgba(0,0,0,0.35)";
+      x.strokeText(`×${level}`, 128, 80);
+      x.fillText(`×${level}`, 128, 80);
       const t = new T.CanvasTexture(c);
       t.encoding = T.sRGBEncoding;
-      emojiPics.set(emoji, t);
+      badgePics.set(id, t);
     }
-    return emojiPics.get(emoji);
+    return badgePics.get(id);
   };
+  const badges: Record<string, any> = {};
   function makeCloverTile(key: string, x: number, z: number) {
     const square = BOARDS[board].squares[key];
     const plaza = square.kind === "plaza";
-    // The painted square is about 56 pixels across; the event picture sits inside it.
-    const size = plaza ? 2.2 : 56 * CLOVER_PX * 1.05;
     const group = new T.Group();
-    group.position.set(x, 0, z);
+    group.position.set(x, plaza ? 0 : STONE_LIFT, z);
     scene.add(group);
-    // A round pad on the sand — grass, sand or gold ground by loop, no rock (Sky: 唔好再係石頭).
-    const base = plaza ? 0xf4e2b8 : ZONE_GROUND[square.group % 3];
-    const pad = shadowy(new T.Mesh(new T.CylinderGeometry(size / 2, size / 2 + 0.06, 0.26, 40), matC(base, 0.85)));
-    pad.position.y = TOP - 0.13;
-    pad.receiveShadow = true;
-    pad.visible = false;
-    group.add(pad);
-    const ring = shadowy(new T.Mesh(new T.TorusGeometry(size / 2, 0.05, 8, 40), matC(plaza ? 0xd4a72c : BAD.has(square.kind) ? 0xe5484d : 0xffffff, 0.4)));
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = TOP + 0.005;
-    ring.visible = false;
-    group.add(ring);
-    const picSize = size * (plaza ? 0.95 : 0.85);
-    const pic = new T.Mesh(
-      new T.PlaneGeometry(picSize, picSize),
-      new T.MeshBasicMaterial({ map: CLOVER_ART[square.kind] ? tilePic(CLOVER_ART[square.kind]) : emojiPic(CLOVER_EMOJI[square.kind] ?? "❔"), transparent: true, alphaTest: 0.1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
-    );
-    pic.rotation.x = -Math.PI / 2;
-    pic.position.y = TOP + 0.01;
-    pic.renderOrder = 2;
     if (plaza) {
-      // Sky (2026-10-08): the castle stands up at the back of the plaza (a picture facing the camera, like the
-      // statues), on its own little floating rock, instead of lying flat on the ground.
-      pic.visible = false;
-      const castle = new T.Sprite(new T.SpriteMaterial({ map: tilePic(CLOVER_ART.plaza), transparent: true, alphaTest: 0.2 }));
-      castle.center.set(0.5, 0.12);
-      castle.scale.set(2.1, 2.1, 1);
-      castle.position.set(0, TOP + 0.05, -0.55);
-      group.add(castle);
-      const rock = shadowy(new T.Mesh(new T.ConeGeometry(size / 2 + 0.05, 1.6, 9, 2), matC(0x8a7f74, 0.95, { flatShading: true })));
-      rock.rotation.x = Math.PI;
-      rock.position.y = TOP - 0.26 - 0.8;
-      rock.visible = false;
-      group.add(rock);
-      castle.visible = false; // the 龍巢 stands on the plaza instead
+      // The plaza: players stand on the painted paving in front of the 龍巢.
+      const pad = new T.Mesh(new T.CylinderGeometry(0.5, 0.5, 0.02, 20), matC(0xf4e2b8, 0.85));
+      pad.visible = false;
+      group.add(pad);
+      tiles[key] = { group, body: pad, base: 0xf4e2b8, inward: new T.Vector3(0, 0, -0.27), house: null, yaw: 0 };
+      return;
     }
-    // Sky (2026-10-09): no pictures on the squares — a square shows its owner's colour once bought.
-    if (!plaza) pic.visible = false;
-    pad.scale.y = 0.15;
-    group.add(pic);
-    const shadow = new T.Mesh(new T.PlaneGeometry(1.7 * ISLE, 1.7 * ISLE), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
-    shadow.visible = false;
-    const glow = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0xfff1b0, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
-    // The painted ground doesn't bob, so neither do its squares.
-    void shadow;
-    void glow;
-    const holder = new T.Group();
-    group.add(holder);
-    tiles[key] = { group, body: pad, base, inward: new T.Vector3(0, 0, -0.27), house: null, yaw: 0 };
+    const isle = islandMesh(0.95 * ISLE, 300 + Number(key.slice(1)) * 23, STONE);
+    group.add(isle.group);
+    const body = isle.top;
+    body.material = matC(STONE, 0.8, { flatShading: true });
+    breathers.push({ obj: group, base: STONE_LIFT, phase: Math.random() * Math.PI * 2, period: 3.4 + Math.random() * 1.2, key });
+    const badge = new T.Sprite(new T.SpriteMaterial({ transparent: true, depthWrite: false }));
+    badge.center.set(0.5, 0);
+    badge.scale.set(0.9, 0.53, 1);
+    badge.position.set(0.35, TOP + 0.62, -0.2);
+    badge.visible = false;
+    badge.renderOrder = 5;
+    group.add(badge);
+    badges[key] = badge;
+    tiles[key] = { group, body, base: STONE, inward: new T.Vector3(0, 0, -0.27), house: null, yaw: 0 };
   }
   function makeTile(key: string, x: number, z: number, outward: any, yaw: number) {
     if (clover) return makeCloverTile(key, x, z);
@@ -1640,7 +1616,7 @@ export function createBoardScene(
       for (const b of breathers) {
         const h = Math.sin((now / 1000 / b.period) * Math.PI * 2 + b.phase) * 0.06;
         b.obj.position.y = b.base + h;
-        if (b.key) bobs.set(b.key, h);
+        if (b.key) bobs.set(b.key, b.base + h);
         if (b.shadow) {
           const sc = 1 - h * 1.5;
           b.shadow.scale.set(sc, sc, 1);
@@ -1951,15 +1927,17 @@ export function createBoardScene(
       if (rigs.has(seat)) {
         // 3D characters walk their own walk rather than hop.
         walking(seat, true);
+        const y1 = TOP + bobOf(squareOf(spot));
         await tween(380, (k) => {
           token.position.lerpVectors(from, to, k);
-          token.position.y = TOP + Math.abs(Math.sin(k * Math.PI * 2)) * 0.03;
+          token.position.y = from.y + (y1 - from.y) * k + Math.abs(Math.sin(k * Math.PI * 2)) * 0.03;
         });
         walking(seat, false);
       } else {
+        const y1 = TOP + bobOf(squareOf(spot));
         await tween(230, (k) => {
           token.position.lerpVectors(from, to, k);
-          token.position.y = TOP + Math.sin(k * Math.PI) * 0.6;
+          token.position.y = from.y + (y1 - from.y) * k + Math.sin(k * Math.PI) * 0.6;
         });
       }
       squash(keyOf(spot));
@@ -1986,6 +1964,24 @@ export function createBoardScene(
     async own(key, seat, level) {
       const tile = tiles[key];
       if (!tile) return;
+      if (clover) {
+        // 三葉草: the stone turns the owner's colour and its toll shows as ×1…×4 (Sky 2026-10-09: no buildings).
+        const m = tile.body.material, from = m.color.clone(), to = new T.Color(hex(colours[seat])).convertSRGBToLinear();
+        const badge = badges[key];
+        if (badge) {
+          badge.material.map = badgePic(Math.min(4, level), colours[seat]);
+          badge.material.needsUpdate = true;
+          badge.visible = true;
+        }
+        await tween(600, (k) => {
+          m.color.copy(from).lerp(to, Math.min(1, k * 1.5));
+          if (badge) {
+            const s = k < 0.7 ? (k / 0.7) * 1.25 : 1.25 - ((k - 0.7) / 0.3) * 0.25;
+            badge.scale.set(0.9 * s, 0.53 * s, 1);
+          }
+        });
+        return;
+      }
       const color = hex(colours[seat]);
       const m = tile.body.material, from = m.color.clone(), to = clover ? new T.Color(color) : new T.Color(color).multiplyScalar(0.3); // the land in the owner's own deep colour (Sky 2026-10-02: deeper still)
       if (clover) tile.body.visible = true; // the painted square turns the owner's colour
@@ -2012,7 +2008,10 @@ export function createBoardScene(
       if (tile.house) tile.group.remove(tile.house);
       tile.house = null;
       tile.body.material.color.setHex(tile.base);
-      if (clover) tile.body.visible = false;
+      if (clover) {
+        tile.body.material.color.convertSRGBToLinear();
+        if (badges[key]) badges[key].visible = false;
+      }
       tile.pic?.color.setHex(PIC_WHITE);
     },
     async coinsFly(fromSeat, toSeat, count) {

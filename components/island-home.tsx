@@ -8,6 +8,10 @@ import { NestDragon } from "@/components/nest-dragon";
 import { loadNestLevel, loadPet, saveNestLevel } from "@/components/wallet-store";
 import { DECOR_DIR as D, type At, type DecorKind, type IslandArt, ISLANDS } from "@/lib/islands";
 
+const SHOW_SPOTS = false;
+/** The board stones float 0.95 world units up (46 picture pixels seen from the camera) and are about 74 pixels across. */
+const STONE_LIFT_PX = 46;
+const STONE_W_PX = 74;
 const pct = (n: number, of: number) => `${(n / of) * 100}%`;
 
 /** One decoration, its foot on `at`, `w` wide (both in island pixels). */
@@ -91,6 +95,23 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
             <div className="absolute inset-0 animate-[water-flow_1.1s_linear_infinite] bg-[url(/art/islands/water.webp)] bg-[length:100%_96px] opacity-90 [mask-image:linear-gradient(90deg,transparent,#000_25%,#000_75%,transparent)]" />
             <div className="absolute inset-x-0 bottom-0 h-[10%] animate-[foam_1.2s_ease-in-out_infinite] rounded-full bg-white/80 blur-[2px]" />
           </div>
+        ))}
+        {/* The 18 squares: floating stones like the game board's, a little above their spot, each bobbing. */}
+        {island.squares.slice(1).map((sq, i) => (
+          <img
+            key={i}
+            src="/art/islands/stone.webp"
+            alt=""
+            draggable={false}
+            className="pointer-events-none absolute select-none drop-shadow-[0_10px_6px_rgba(0,0,0,0.35)]"
+            style={{
+              left: pct(sq.x, island.w),
+              top: pct(sq.y - STONE_LIFT_PX, island.h),
+              width: pct(STONE_W_PX, island.w),
+              transform: "translate(-50%, -34%)",
+              animation: `stone-bob ${3.4 + (i % 4) * 0.35}s ease-in-out ${-(i * 0.45)}s infinite`,
+            }}
+          />
         ))}
         {/* 龍巢 on the plaza with the player's own dragon in it; tap the nest to try levels 1–3 (testing). */}
         <button
@@ -184,7 +205,8 @@ export function IslandHome() {
             aria-label={t("第 {n} 頁", { n: n + 1 })}
           />
         ))}
-        {page < ISLANDS.length ? (
+        {/* 裝飾位 not settled yet (Sky 2026-10-09): the button comes back when the spots are decided. */}
+        {SHOW_SPOTS && page < ISLANDS.length ? (
           <button
             type="button"
             onClick={() => setEditing((on) => !on)}

@@ -444,3 +444,7 @@ body.juice-shake-large > * { animation: juice-shake-l 500ms ease-out; }
   0%, 100% { filter: drop-shadow(0 6px 6px rgba(0,0,0,0.45)) drop-shadow(0 0 4px rgba(255,200,60,0.4)); }
   50% { filter: drop-shadow(0 6px 6px rgba(0,0,0,0.45)) drop-shadow(0 0 14px rgba(255,200,60,0.9)); }
 }
+@keyframes stone-bob {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -4px; }
+}
