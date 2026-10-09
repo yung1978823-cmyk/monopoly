@@ -39,8 +39,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 /** Camera distance on the table: close on the player, a little back, or the whole board. */
 type View = "near" | "mid" | "far";
+// Sky (2026-10-09): no close-up any more, just 中 and 遠.
 const VIEWS: [View, string][] = [
-  ["near", "近"],
   ["mid", "中"],
   ["far", "遠"],
 ];
@@ -341,13 +341,13 @@ export function EightBoard({
   const [busy, setBusy] = useState(true);
   const [fast, setFast] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
-  const [view, setView] = useState<View>("near");
+  const [view, setView] = useState<View>("mid");
   const [picking, setPicking] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const { t, lang } = useLang();
   const tRef = useRef(t);
   tRef.current = t;
-  const viewRef = useRef<View>("near");
+  const viewRef = useRef<View>("mid");
   const mount = useRef<HTMLDivElement>(null);
   const decorRef = useRef(decor);
   const sceneRef = useRef<BoardScene | null>(null);

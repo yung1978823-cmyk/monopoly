@@ -49,7 +49,7 @@ export const ISLANDS: IslandArt[] = [
       { x: 462, y: 392 },
       { x: 478, y: 610 },
       { x: 220, y: 895 },
-      { x: 735, y: 960 },
+      { x: 665, y: 965 },
       { x: 95, y: 330 },
       { x: 470, y: 150 },
     ],
@@ -85,7 +85,7 @@ function Decor({ kind, at, w, island }: { kind: DecorKind; at: At; w: number; is
         <div className="relative">
           {img("windmill.webp", "drop-shadow-[0_4px_4px_rgba(0,0,0,0.4)]")}
           {/* The sails turn on the axle (82.8%, 56% of the tower picture). */}
-          <div className="absolute aspect-[520/502] w-[174%] -translate-x-1/2 -translate-y-1/2" style={{ left: "82.8%", top: "56%" }}>
+          <div className="absolute aspect-[520/502] w-[174%] [transform:translate(-50%,-50%)_scaleX(0.5)_skewY(-12deg)]" style={{ left: "88%", top: "55%" }}>
             {img("blades.webp", "animate-[blade-spin_7s_linear_infinite] drop-shadow-[0_3px_3px_rgba(0,0,0,0.35)]", { transformOrigin: "50.4% 50.2%" })}
           </div>
         </div>

@@ -592,7 +592,7 @@ export function createBoardScene(
       const tex = new T.TextureLoader().load(CLOVER_ISLAND.url);
       tex.encoding = T.sRGBEncoding;
       tex.anisotropy = 8;
-      const art = new T.Mesh(new T.PlaneGeometry(x1 - x0, z1 - z0), new T.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05, depthWrite: false }));
+      const art = new T.Mesh(new T.PlaneGeometry(x1 - x0, z1 - z0), new T.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05, depthWrite: false, toneMapped: false }));
       art.rotation.x = -Math.PI / 2;
       art.position.set((x0 + x1) / 2, TOP - 0.02, (z0 + z1) / 2);
       art.renderOrder = -1;
