@@ -44,14 +44,13 @@ export const MATERIAL_PRICE: Stock = { wood: 2, stone: 3, gold: 8 };
 
 // ---------- Buildings ----------
 
-export type BuildingKind = "facade" | "table" | "rent" | "station" | "chance";
-export const BUILDING_KINDS: readonly BuildingKind[] = ["facade", "rent", "station", "chance", "table"];
+// Sky 2026-10-09: 門面 and 機會屋 are gone (the painted islands have no roofs to gild and no chance squares).
+export type BuildingKind = "table" | "rent" | "station";
+export const BUILDING_KINDS: readonly BuildingKind[] = ["rent", "station", "table"];
 /** TEMPORARY recipes. */
 export const RECIPES: Record<BuildingKind, Stock> = {
-  facade: { wood: 5, stone: 0, gold: 0 },
   rent: { wood: 3, stone: 3, gold: 0 },
   station: { wood: 2, stone: 5, gold: 1 },
-  chance: { wood: 2, stone: 2, gold: 1 },
   table: { wood: 4, stone: 4, gold: 2 },
 };
 /** TEMPORARY: what a rent house charges (must stay at or below the public-table cap of 6). */
@@ -180,7 +179,6 @@ export function canPlace(realm: Realm, kind: BuildingKind): boolean {
   if (!realm.land || !realm.slots.includes(null)) return false;
   if (kind === "rent") return count(realm, "rent") < HOUSE_SPOTS[boardOf(realm)].length;
   if (kind === "station") return turnsOf(realm) > MIN_TURNS;
-  if (kind === "facade") return count(realm, "facade") === 0;
   return true;
 }
 
@@ -213,7 +211,7 @@ export function rulesOf(realm: Realm): Partial<TableRules> {
   return {
     turnsEach: turnsOf(realm),
     houses: Object.fromEntries(housesOf(realm).map((key) => [key, Math.min(RENT_CAP, HOUSE_RENT)])),
-    cards: count(realm, "chance") > 0 ? DECKS[realm.deck] : CARDS,
+    cards: CARDS,
     toll: TOLL + count(realm, "rent"),
   };
 }
@@ -230,8 +228,8 @@ export function hostReport(realm: Realm, guests: number, houseRent: number) {
 
 export type Listing = { id: string; owner: string; land: LandKind; realm: Realm };
 export const LISTINGS: readonly Listing[] = [
-  { id: "a", owner: "阿殭", land: "island", realm: { land: "island", slots: ["rent", "facade"], ticket: 8, minPlayers: 2, deck: "standard" } },
-  { id: "b", owner: "阿木", land: "island", realm: { land: "island", slots: ["station", "chance"], ticket: 15, minPlayers: 4, deck: "wild" } },
+  { id: "a", owner: "阿殭", land: "island", realm: { land: "island", slots: ["rent", null], ticket: 8, minPlayers: 2, deck: "standard" } },
+  { id: "b", owner: "阿木", land: "island", realm: { land: "island", slots: ["station", null], ticket: 15, minPlayers: 4, deck: "wild" } },
   { id: "c", owner: "阿強", land: "island", realm: { land: "island", slots: ["rent", "rent"], ticket: 0, minPlayers: 3, deck: "standard" } },
 ];
 

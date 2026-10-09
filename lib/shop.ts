@@ -41,9 +41,7 @@ export const HEROES: { id: string; name: string; rarity: Rarity; avatar?: string
 ];
 /** Houses: a 房屋券 builds that building on your 領地 without materials. */
 export const HOUSES: { id: BuildingKind; rarity: Rarity }[] = [
-  { id: "facade", rarity: "R" },
-  { id: "chance", rarity: "R" },
-  { id: "rent", rarity: "SR" },
+  { id: "rent", rarity: "R" },
   { id: "station", rarity: "SR" },
   { id: "table", rarity: "SSR" },
 ];
@@ -171,7 +169,8 @@ export type Deal = { id: string; prize: Prize; price: number; was: number };
 export function dealsOf(day: string): Deal[] {
   let h = 2166136261;
   for (let k = 0; k < day.length; k++) h = Math.imul(h ^ day.charCodeAt(k), 16777619) >>> 0;
-  const house = HOUSES.filter((x) => x.rarity === "SR")[h % 2];
+  const srHouses = HOUSES.filter((x) => x.rarity === "SR");
+  const house = srHouses[h % srHouses.length];
   const hero = HEROES.filter((x) => x.rarity === "SR")[(h >>> 3) % 2];
   return [
     { id: `house-${house.id}`, prize: { kind: "house", id: house.id }, price: 60, was: 100 },

@@ -40,7 +40,7 @@ describe("領地: buying land", () => {
     const realm = emptyRealm();
     assert.equal(realm.land, null);
     assert.deepEqual(realm.slots, []);
-    assert.equal(canPlace(realm, "facade"), false);
+    assert.equal(canPlace(realm, "rent"), false);
   });
 
   it("buys the island for its price and gets its build slots", () => {
@@ -84,10 +84,10 @@ describe("領地: materials and building", () => {
     assert.equal(buyMaterial(broke, "gold"), broke, "not enough points: nothing bought");
   });
 
-  it("only one facade; demolishing frees the slot without a refund", () => {
+  it("demolishing frees the slot without a refund", () => {
     const { realm } = buyLand(emptyRealm(), newWallet(), "island");
-    const first = build(realm, rich(), 0, "facade");
-    assert.equal(canPlace(first.realm, "facade"), false);
+    const first = build(realm, rich(), 0, "rent");
+    assert.equal(first.realm.slots[0], "rent");
     const down = demolish(first.realm, 0);
     assert.equal(down.slots[0], null);
   });

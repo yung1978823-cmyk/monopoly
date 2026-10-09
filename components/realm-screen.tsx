@@ -37,7 +37,6 @@ import {
   tablesOf,
   turnsOf,
   type BuildingKind,
-  type DeckId,
   type LandKind,
   type Listing,
   type Material,
@@ -51,8 +50,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /** Sky's drawn pictures (2026-10-01) for lands, materials and buildings, in place of emoji. */
 const pic = (name: string, className: string) => <img src={`/art/realm/${name}.webp`} alt="" draggable={false} className={cn("inline-block object-contain", className)} />;
-const ICONS: Record<BuildingKind, string> = { facade: "facade", table: "table", rent: "rent", station: "station", chance: "chance" };
-const NAMES: Record<BuildingKind, string> = { facade: "門面", table: "加枱", rent: "租金屋", station: "車站", chance: "機會屋" };
+const ICONS: Record<BuildingKind, string> = { table: "table", rent: "rent", station: "station" };
+const NAMES: Record<BuildingKind, string> = { table: "加枱", rent: "租金屋", station: "車站" };
 const LAND_ICONS: Record<LandKind, string> = { island: "island", mountain: "mountain", volcano: "volcano" };
 const LAND_NAMES: Record<LandKind, string> = { island: "海島", mountain: "山城", volcano: "火山" };
 const LAND_NOTES: Record<LandKind, string> = {
@@ -62,10 +61,9 @@ const LAND_NOTES: Record<LandKind, string> = {
 };
 const MATERIAL_ICONS: Record<Material, string> = { wood: "wood", stone: "stone", gold: "gold" };
 const MATERIAL_NAMES: Record<Material, string> = { wood: "木材", stone: "石磚", gold: "金塊" };
-const DECK_NAMES: Record<DeckId, string> = { standard: "標準", wild: "大起大落", calm: "平穩" };
 
 function decorOf(realm: Realm): Decor {
-  return { houses: housesOf(realm), facade: count(realm, "facade") > 0, stations: count(realm, "station") };
+  return { houses: housesOf(realm), facade: false, stations: count(realm, "station") };
 }
 
 function loadRealm(): Realm {
@@ -358,14 +356,12 @@ function RealmEditor({
 
   const describe = (kind: BuildingKind) =>
     ({
-      facade: t("只改外觀：金色屋頂"),
       table: t("同時多開一張枱"),
       rent:
         boardOf(realm) === "clover"
           ? t("地主關卡過路費加 {n} 能量", { n: formatEnergy(tableEnergy(1)) })
           : t("客人踩中要交租俾你（{n} 能量）", { n: formatEnergy(tableEnergy(HOUSE_RENT)) }),
       station: t("每人少 {n} 轉，打得快啲", { n: STATION_TURNS }),
-      chance: t("揀用邊套機會卡"),
     })[kind];
   const recipe = (kind: BuildingKind) =>
     MATERIALS.filter((m) => RECIPES[kind][m] > 0).map((m) => (
@@ -604,29 +600,6 @@ function RealmEditor({
                   testid="min-players"
                 />
               </div>
-              {count(realm, "chance") > 0 ? (
-                <div className="space-y-1">
-                  <p className="text-center text-xs font-black">{t("機會卡")}</p>
-                  <div className="flex items-center justify-center gap-2" role="group" aria-label={t("機會卡")}>
-                    {(Object.keys(DECK_NAMES) as DeckId[]).map((id) => (
-                      <button
-                        key={id}
-                        type="button"
-                        onClick={() => onChange({ realm: { ...realm, deck: id } })}
-                        aria-pressed={realm.deck === id}
-                        className={cn(
-                          "cursor-pointer rounded-full border-2 px-3 py-1 text-sm font-black",
-                          realm.deck === id ? "border-[#FBD000] bg-[#8B5CF6] text-white" : "border-[#D6DEEA] bg-white",
-                        )}
-                      >
-                        {t(DECK_NAMES[id])}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-center text-xs font-bold text-[#3B5BA9]">{t("起咗機會屋就可以揀機會卡")}</p>
-              )}
             </>
             <button
               type="button"

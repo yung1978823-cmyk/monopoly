@@ -46,7 +46,7 @@ const TABS: [Tab, string][] = [
   ["materials", "材料"],
   ["deals", "精選"],
 ];
-const HOUSE_NAMES: Record<BuildingKind, string> = { facade: "門面", table: "加枱", rent: "租金屋", station: "車站", chance: "機會屋" };
+const HOUSE_NAMES: Record<BuildingKind, string> = { table: "加枱", rent: "租金屋", station: "車站" };
 const MAT_NAMES = { wood: "木材", stone: "石磚", gold: "金塊" } as const;
 const RARITY_STYLE: Record<Rarity, string> = {
   SSR: "bg-gradient-to-b from-[#FFE27A] to-[#F59E0B] text-[#7C2D12] border-[#FBD000]",
