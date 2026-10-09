@@ -419,7 +419,6 @@ export function EightBoard({
               play("coin");
               say(state.board === "clover" ? "經過廣場 +{n}" : "經過起點 +{n}", { n: E(START_PAY) });
               void scene.coinsBurst(event.seat, 2);
-              void scene.rainbow(event.seat);
             }
             break;
           case "second": {
@@ -896,7 +895,7 @@ export function EightBoard({
                 </span>
               ) : null}
               {/* How much land and how many building levels they hold. */}
-              {table.board === "clover" ? null : <span className="text-[10px] font-black leading-tight text-[#3B5BA9] tabular-nums" data-testid={`holdings-${index}`}>
+              {<span className="text-[10px] font-black leading-tight text-[#3B5BA9] tabular-nums" data-testid={`holdings-${index}`}>
                 {t("地 {l}・樓 {b}", { l: holdings[index].lots, b: holdings[index].levels })}
               </span>}
               {seat.jailed ? <span className="text-xs">🔒</span> : null}

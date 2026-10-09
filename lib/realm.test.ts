@@ -63,16 +63,16 @@ describe("領地: materials and building", () => {
   it("buildings cost materials, not money", () => {
     const { realm } = buyLand(emptyRealm(), newWallet(), "island");
     const wallet = rich();
-    const built = build(realm, wallet, 0, "rent");
-    assert.equal(built.realm.slots[0], "rent");
+    const built = build(realm, wallet, 0, "station");
+    assert.equal(built.realm.slots[0], "station");
     assert.equal(built.wallet.points, wallet.points);
-    assert.equal(built.wallet.stock.wood, 99 - RECIPES.rent.wood);
-    assert.equal(built.wallet.stock.stone, 99 - RECIPES.rent.stone);
+    assert.equal(built.wallet.stock.wood, 99 - RECIPES.station.wood);
+    assert.equal(built.wallet.stock.stone, 99 - RECIPES.station.stone);
   });
 
   it("can't build without enough materials", () => {
     const { realm, wallet } = buyLand(emptyRealm(), newWallet(), "island");
-    const tried = build(realm, wallet, 0, "rent");
+    const tried = build(realm, wallet, 0, "station");
     assert.equal(tried.realm, realm);
   });
 
@@ -86,8 +86,8 @@ describe("領地: materials and building", () => {
 
   it("demolishing frees the slot without a refund", () => {
     const { realm } = buyLand(emptyRealm(), newWallet(), "island");
-    const first = build(realm, rich(), 0, "rent");
-    assert.equal(first.realm.slots[0], "rent");
+    const first = build(realm, rich(), 0, "table");
+    assert.equal(first.realm.slots[0], "table");
     const down = demolish(first.realm, 0);
     assert.equal(down.slots[0], null);
   });
@@ -143,14 +143,12 @@ describe("領地: playing on the island", () => {
     assert.equal(state.hostIncome, RENT_CAP);
   });
 
-  it("三葉草: a 租金屋 raises the 地主關卡 toll, and materials pile up", () => {
-    let { realm, wallet } = buyLand(emptyRealm(), rich(), "island");
-    ({ realm, wallet } = build(realm, wallet, 0, "rent"));
+  it("三葉草: every square is land — landing on one buys it", () => {
+    const { realm } = buyLand(emptyRealm(), rich(), "island");
     assert.equal(boardOf(realm), "clover");
     let state = newTable(guests(3), rulesOf(realm), "clover");
-    state = reduceTable(state, { type: "roll", dice: [1, 3] }); // plaza → o1 (stone) → o4 (toll)
-    assert.equal(state.seats[0].stock?.stone, 2);
-    assert.equal(state.hostIncome, 2);
+    state = reduceTable(state, { type: "roll", dice: [1, 3] }); // plaza → o4
+    assert.equal(state.deeds.o4?.owner, 0);
   });
 
   it("seats six on a land, and a full game ends", () => {

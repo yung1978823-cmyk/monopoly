@@ -64,7 +64,7 @@ export const HOUSE_SPOTS: Record<BoardId, readonly string[]> = {
   island: ["o2", "o12", "o7", "o17", "o1", "o11"],
   eight: ["o2", "o18", "o10", "o26", "o6", "o22"],
   // 三葉草: a 租金屋 sits on a 地主關卡 and raises its toll by one.
-  clover: ["o4", "o9", "o15"],
+  clover: [],
 };
 
 /** Published chance decks. Each one's money cards add up to zero, so none pays out on average. */

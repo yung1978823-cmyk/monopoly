@@ -149,12 +149,8 @@ export const CLOVER_PETAL = 6;
 export const CLOVER_LOOP = CLOVER_PETAL * 3 + 1;
 export type Material = "wood" | "stone" | "gold";
 export const CLOVER_ZONES: readonly Material[] = ["stone", "wood", "gold"];
-/** Each area's six squares, in walking order (quarry, forest, mine). */
-const CLOVER_PETALS: readonly (readonly SquareKind[])[] = [
-  ["stone", "caravan", "stone", "toll", "landslide", "map"],
-  ["wood", "map", "toll", "termite", "wood", "artisan"],
-  ["gold", "bandit", "toll", "gold", "caravan", "sand"],
-];
+/** Sky (2026-10-09): every square is land to buy and build on — no materials, no penalties, no pictures. */
+const CLOVER_PETALS: readonly (readonly SquareKind[])[] = [0, 1, 2].map(() => Array<SquareKind>(CLOVER_PETAL).fill("lot"));
 export function cloverKey(i: number): string {
   const n = ((i % CLOVER_LOOP) + CLOVER_LOOP) % CLOVER_LOOP;
   return `o${n}`;
@@ -164,7 +160,7 @@ const CLOVER_SQUARES: Record<string, Square> = (() => {
   CLOVER_PETALS.forEach((petal, z) =>
     petal.forEach((kind, k) => {
       const key = `o${z * CLOVER_PETAL + k + 1}`; // o1…o18
-      squares[key] = { key, kind, price: 0, gold: false, group: z };
+      squares[key] = { key, kind, price: kind === "lot" ? LOT_PRICE : 0, gold: false, group: z };
     }),
   );
   return squares;
@@ -197,7 +193,7 @@ export const BOARDS: Record<BoardId, Board> = {
   clover: {
     id: "clover",
     squares: CLOVER_SQUARES,
-    lotKeys: [],
+    lotKeys: Object.values(CLOVER_SQUARES).filter((s) => s.kind === "lot").map((s) => s.key),
     jail: 0,
     keyOf: (spot) => cloverKey(spot.on === "loop" ? spot.i : 0),
     nextSpot: (spot) => ({ on: "loop", i: ((spot.on === "loop" ? spot.i : 0) + 1) % CLOVER_LOOP }),
@@ -433,7 +429,7 @@ export function newTable(
     hostIncome: 0,
     // 三葉草 has no land to buy, so no power cards either: it's all about the materials.
     pickups: clover ? [] : [firstPickup(board, players.length)],
-    ...(clover ? { hostStock: { ...NO_MATERIALS } } : {}),
+
     seats: players.slice(0, MAX_SEATS).map((player) => ({
       ...player,
       cash: STAKE,
@@ -443,7 +439,7 @@ export function newTable(
       turnsTaken: 0,
       // Sky (2026-10-03): everyone sits down holding two power cards — 全城加建 (土地升價) and 怪獸卡.
       powers: clover ? [] : [...START_POWERS],
-      ...(clover ? { stock: { ...NO_MATERIALS }, maps: 0 } : {}),
+
     })),
     deeds: {},
     current: 0,

@@ -10,6 +10,7 @@
  * Everything here is show only: the rules live in lib/eight.ts and the screen calls these
  * functions to play back the events a move produced.
  */
+import { DECOR_DIR, ISLANDS } from "@/lib/islands";
 import { BOARDS, EDGE_STEPS, cloverKey, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
 import { GALAXY_SPACE, TABLE_SPACE, createSpace, type Backdrop } from "@/components/backdrop";
 
@@ -575,6 +576,8 @@ export function createBoardScene(
   const bobOf = (key: string) => bobs.get(key) ?? 0;
   const bobs = new Map<string, number>();
   let deckMat: any = null;
+  /** 三葉草: the painted island's moving bits (water, sails, flag, balloon, airship). */
+  const islandAnims: ((now: number, dt: number) => void)[] = [];
   let motes: any = null;
   /** The outer-space backdrop (八字 board). */
   let space: Backdrop | null = null;
@@ -597,6 +600,75 @@ export function createBoardScene(
       art.position.set((x0 + x1) / 2, TOP - 0.02, (z0 + z1) / 2);
       art.renderOrder = -1;
       scene.add(art);
+      // Waterfalls run in Sky's dry channels, lying on the ground like the picture.
+      const isle = ISLANDS[0];
+      for (const f of isle.falls) {
+        const [ax, az] = cloverAt(f.x, f.y + CLOVER_ISLAND.top), [bx, bz] = cloverAt(f.x + f.w, f.y + f.h + CLOVER_ISLAND.top);
+        const t = new T.TextureLoader().load("/art/islands/water.webp");
+        t.encoding = T.sRGBEncoding;
+        t.wrapS = t.wrapT = T.RepeatWrapping;
+        t.repeat.set(1, (f.h / f.w) * 0.5);
+        const w = new T.Mesh(new T.PlaneGeometry(bx - ax, bz - az), new T.MeshBasicMaterial({ map: t, transparent: true, opacity: 0.85, depthWrite: false, toneMapped: false }));
+        w.rotation.x = -Math.PI / 2;
+        w.position.set((ax + bx) / 2, TOP - 0.01, (az + bz) / 2);
+        scene.add(w);
+        islandAnims.push((now) => (t.offset.y = (now / 1100) % 1));
+      }
+      // Decorations stand up facing the camera (it never turns), feet on their spot, moving like on the 領地 page.
+      const loader = new T.TextureLoader();
+      const standee = (file: string, widthPx: number, anchor: [number, number] = [0.5, 0]) => {
+        const tex = loader.load(DECOR_DIR + file);
+        tex.encoding = T.sRGBEncoding;
+        const geo = new T.PlaneGeometry(1, 1);
+        geo.translate(0.5 - anchor[0], 0.5 - anchor[1], 0);
+        const mesh = new T.Mesh(geo, new T.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05, depthWrite: false, toneMapped: false }));
+        const w = widthPx * CLOVER_PX;
+        mesh.scale.set(w, w, 1); // height set once the picture has loaded
+        const img = new Image();
+        img.onload = () => mesh.scale.set(w, (w * img.height) / img.width, 1);
+        img.src = DECOR_DIR + file;
+        return mesh;
+      };
+      for (const d of isle.decor) {
+        const at = isle.spots[d.spot];
+        const [x, z] = cloverAt(at.x, at.y + CLOVER_ISLAND.top);
+        const g = new T.Group();
+        g.position.set(x, TOP, z);
+        g.rotation.x = -CLOVER_ELEV; // lean back to face the camera square on
+        scene.add(g);
+        const face = new T.Group();
+        g.add(face);
+        if (d.kind === "windmill") {
+          face.add(standee("windmill.webp", d.w));
+          const hub = new T.Group();
+          const bladesW = d.w * 1.74;
+          hub.position.set((0.88 - 0.5) * d.w * CLOVER_PX, (1 - 0.55) * d.w * CLOVER_PX * (520 / 280), 0.01);
+          hub.scale.set(0.5, 1, 1);
+          const blades = standee("blades.webp", bladesW, [0.504, 0.498]);
+          hub.add(blades);
+          face.add(hub);
+          islandAnims.push((_now, dt) => (blades.rotation.z -= dt * 0.9));
+        } else if (d.kind === "tower") {
+          face.add(standee("tower.webp", d.w));
+          const flag = standee("flag.webp", d.w * 0.41, [0.04, 1]);
+          flag.position.set((0.475 - 0.5) * d.w * CLOVER_PX, (1 - 0.06) * d.w * CLOVER_PX * (520 / 263), 0.01);
+          face.add(flag);
+          islandAnims.push((now) => (flag.rotation.y = Math.sin(now / 260) * 0.35));
+        } else if (d.kind === "dragon") {
+          const m = standee("dragon.webp", d.w);
+          face.add(m);
+          islandAnims.push((now) => (face.scale.y = 1 + Math.sin(now / 510) * 0.03));
+        } else if (d.kind === "balloon") {
+          face.add(standee("balloon.webp", d.w));
+          islandAnims.push((now) => (g.position.y = TOP + 0.6 + Math.sin(now / 950) * 0.25));
+        } else {
+          face.add(standee("airship.webp", d.w));
+          islandAnims.push((now) => {
+            const k = (now / 34000) % 1;
+            g.position.set(9 - k * 18, TOP + 1.2 + Math.sin(now / 640) * 0.15, z);
+          });
+        }
+      }
     }
     const sea = new T.Mesh(new T.CylinderGeometry(ENV_R + 3.1, ENV_R + 2.9, 0.5, 48), matC(0x2bb3c9, 0.25, { metalness: 0.2 }));
     sea.position.y = -0.95;
@@ -872,6 +944,9 @@ export function createBoardScene(
       castle.position.set(0, TOP, -0.15);
       castle.scale.set(3.3, 3.3, 1);
     }
+    // Sky (2026-10-09): no pictures on the squares — a square shows its owner's colour once bought.
+    if (!plaza) pic.visible = false;
+    pad.scale.y = 0.15;
     group.add(pic);
     const shadow = new T.Mesh(new T.PlaneGeometry(1.7 * ISLE, 1.7 * ISLE), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     shadow.visible = false;
@@ -1608,6 +1683,7 @@ export function createBoardScene(
     const ease = 1 - Math.pow(0.03, dt * speed);
     if (!dragged || goal.follow < 0) cam.target.lerp(goal.target, ease);
     cam.dist += (goal.dist - cam.dist) * ease;
+    if (!reduceMotion) islandAnims.forEach((step) => step(now, dt));
     if (!reduceMotion) {
       floaters.forEach((f, i) => {
         if (f.bat !== undefined) {
@@ -1875,12 +1951,13 @@ export function createBoardScene(
       const tile = tiles[key];
       if (!tile) return;
       const color = hex(colours[seat]);
-      const m = tile.body.material, from = m.color.clone(), to = new T.Color(color).multiplyScalar(0.3); // the land in the owner's own deep colour (Sky 2026-10-02: deeper still)
+      const m = tile.body.material, from = m.color.clone(), to = clover ? new T.Color(color) : new T.Color(color).multiplyScalar(0.3); // the land in the owner's own deep colour (Sky 2026-10-02: deeper still)
+      if (clover) tile.body.visible = true; // the painted square turns the owner's colour
       if (tile.house) tile.group.remove(tile.house);
       const g = buildingFor(level, color);
       g.position.copy(tile.inward).setY(TOP + 0.03);
       g.rotation.y = -tile.yaw;
-      const size = 0.85; // a touch smaller, so buildings don't hide the next square's players
+      const size = clover ? 0.55 : 0.85; // a touch smaller, so buildings don't hide the next square's players
       g.scale.set(size, 0.01, size);
       tile.group.add(g);
       tile.house = g;
@@ -1899,6 +1976,7 @@ export function createBoardScene(
       if (tile.house) tile.group.remove(tile.house);
       tile.house = null;
       tile.body.material.color.setHex(tile.base);
+      if (clover) tile.body.visible = false;
       tile.pic?.color.setHex(PIC_WHITE);
     },
     async coinsFly(fromSeat, toSeat, count) {
