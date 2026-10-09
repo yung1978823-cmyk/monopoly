@@ -144,16 +144,17 @@ const ISLAND_SQUARES: Record<string, Square> = (() => {
 /**
  * 三葉草 (Sky 2026-10-08): the 領地 board. A plaza in the middle (the owner's castle) and three loops off it —
  * 森林 (wood), 石場 (stone), 金礦 (gold). The walk goes plaza → forest → plaza → quarry → plaza → mine → round
- * again, so the plaza is passed three times a lap (steps 0, 8 and 16 are all the plaza, "o0").
+ * again, so the plaza is passed three times a lap (steps 0, 9 and 18 are all the plaza, "o0").
  */
-export const CLOVER_PETAL = 8;
+export const CLOVER_PETAL = 9;
 export const CLOVER_LOOP = CLOVER_PETAL * 3;
 export type Material = "wood" | "stone" | "gold";
 export const CLOVER_ZONES: readonly Material[] = ["wood", "stone", "gold"];
+/** Sky (2026-10-09): 24 squares — eight on each loop — plus the plaza in the middle. */
 const CLOVER_PETALS: readonly (readonly SquareKind[])[] = [
-  ["wood", "map", "wood", "toll", "termite", "wood", "artisan"],
-  ["stone", "caravan", "stone", "toll", "landslide", "stone", "sand"],
-  ["gold", "map", "bandit", "toll", "gold", "caravan", "sand"],
+  ["wood", "map", "wood", "toll", "termite", "wood", "caravan", "artisan"],
+  ["stone", "caravan", "stone", "toll", "landslide", "stone", "map", "sand"],
+  ["gold", "map", "bandit", "toll", "gold", "caravan", "gold", "sand"],
 ];
 export function cloverKey(i: number): string {
   const n = ((i % CLOVER_LOOP) + CLOVER_LOOP) % CLOVER_LOOP;
