@@ -31,8 +31,8 @@ export type DecorKind = "windmill" | "tower" | "dragon" | "balloon" | "airship";
 export const DECOR_DIR = "/art/islands/decor/";
 
 /**
- * 森林礦島 (Sky 2026-10-09, second drawing): an empty island — Sky drew only the ground, stairs and bridge; the 18
- * squares and stone paths are laid on by us. Plaza at the front → quarry (left) → forest (back) → mine (right).
+ * 森林礦島 (Sky 2026-10-09, third drawing): separate plateaus and no stairs — the 18 squares are floating stones
+ * (Sky's stone picture) that hop between them. Plaza at the front → quarry (left) → forest (back) → mine (right).
  */
 export const ISLANDS: IslandArt[] = [
   {
@@ -40,22 +40,20 @@ export const ISLANDS: IslandArt[] = [
     name: "森林礦島",
     art: "/art/islands/forest.webp",
     w: 941,
-    h: 1240,
-    top: 220,
+    h: 1230,
+    top: 230,
     squares: [
-      { x: 470, y: 872 },
-      // 石場
-      { x: 268, y: 522 }, { x: 185, y: 530 }, { x: 108, y: 485 }, { x: 96, y: 415 }, { x: 150, y: 368 }, { x: 232, y: 380 },
-      // 森林
-      { x: 345, y: 172 }, { x: 305, y: 112 }, { x: 382, y: 66 }, { x: 490, y: 54 }, { x: 590, y: 74 }, { x: 630, y: 140 },
-      // 礦場
-      { x: 728, y: 392 }, { x: 815, y: 392 }, { x: 875, y: 452 }, { x: 860, y: 522 }, { x: 780, y: 550 }, { x: 698, y: 528 },
+      { x: 478, y: 838 },
+      // 平地 → 石場 → 森林 → 礦場 → 平地: floating stones all the way (Sky 2026-10-09: stones are the bridges)
+      { x: 308, y: 623 }, { x: 233, y: 558 }, { x: 167, y: 484 }, { x: 126, y: 395 }, { x: 134, y: 299 }, { x: 208, y: 241 },
+      { x: 283, y: 216 }, { x: 334, y: 133 }, { x: 421, y: 91 }, { x: 519, y: 85 }, { x: 614, y: 110 }, { x: 680, y: 180 },
+      { x: 753, y: 244 }, { x: 837, y: 287 }, { x: 835, y: 372 }, { x: 760, y: 435 }, { x: 689, y: 501 }, { x: 630, y: 580 },
     ],
-    nest: { x: 470, y: 840, w: 250 },
+    nest: { x: 478, y: 805, w: 250 },
     falls: [
-      { x: 95, y: 618, w: 48, h: 125 },
-      { x: 797, y: 620, w: 48, h: 125 },
-      { x: 446, y: 912, w: 62, h: 125 },
+      { x: 118, y: 575, w: 38, h: 180 },
+      { x: 776, y: 570, w: 38, h: 180 },
+      { x: 460, y: 875, w: 42, h: 170 },
     ],
     spots: [
       { x: 470, y: 165, kind: "big" },

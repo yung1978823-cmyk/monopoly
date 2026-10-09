@@ -9,9 +9,9 @@ import { loadNestLevel, loadPet, saveNestLevel } from "@/components/wallet-store
 import { DECOR_DIR as D, type At, type DecorKind, type IslandArt, ISLANDS } from "@/lib/islands";
 
 const SHOW_SPOTS = false;
-/** The board stones float 0.95 world units up (46 picture pixels seen from the camera) and are about 74 pixels across. */
-const STONE_LIFT_PX = 46;
-const STONE_W_PX = 74;
+/** The board stones float 0.8 world units up (39 picture pixels seen from the camera) and are 84 pixels across. */
+const STONE_LIFT_PX = 39;
+const STONE_W_PX = 84;
 const pct = (n: number, of: number) => `${(n / of) * 100}%`;
 
 /** One decoration, its foot on `at`, `w` wide (both in island pixels). */
@@ -108,7 +108,7 @@ function Island({ island, editing }: { island: IslandArt; editing: boolean }) {
               left: pct(sq.x, island.w),
               top: pct(sq.y - STONE_LIFT_PX, island.h),
               width: pct(STONE_W_PX, island.w),
-              transform: "translate(-50%, -34%)",
+              transform: "translate(-49.4%, -26.1%)",
               animation: `stone-bob ${3.4 + (i % 4) * 0.35}s ease-in-out ${-(i * 0.45)}s infinite`,
             }}
           />

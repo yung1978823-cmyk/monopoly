@@ -909,7 +909,10 @@ export function createBoardScene(
   };
   /** 三葉草 (Sky 2026-10-09): each square is a little floating stone over the painted island, the path hopping from
    *  stone to stone. A bought stone turns the owner's colour and shows its toll as ×1…×4 instead of a building. */
-  const STONE = 0xa99d86, STONE_LIFT = 0.95;
+  const STONE = 0xffffff, STONE_LIFT = 0.8, STONE_W_PX = 84;
+  const stoneTex = clover ? new T.TextureLoader().load("/art/islands/stone.webp") : null;
+  const stoneTopTex = clover ? new T.TextureLoader().load("/art/islands/stone-top.webp") : null;
+  if (stoneTex) stoneTex.encoding = T.sRGBEncoding;
   const badgePics = new Map<string, any>();
   const badgePic = (level: number, color: string) => {
     const id = `${level}${color}`;
@@ -955,10 +958,25 @@ export function createBoardScene(
       tiles[key] = { group, body: pad, base: 0xf4e2b8, inward: new T.Vector3(0, 0, -0.27), house: null, yaw: 0 };
       return;
     }
-    const isle = islandMesh(0.95 * ISLE, 300 + Number(key.slice(1)) * 23, STONE);
-    group.add(isle.group);
-    const body = isle.top;
-    body.material = matC(STONE, 0.8, { flatShading: true });
+    // Sky's stone picture, standing up to the camera with the middle of its flat top on the square; a white copy of
+    // just the top, tinted, shows the owner's colour.
+    const holder = new T.Group();
+    holder.rotation.x = -CLOVER_ELEV;
+    group.add(holder);
+    const w = STONE_W_PX * CLOVER_PX, h = w * (294 / 320);
+    const plane = () => {
+      const geo = new T.PlaneGeometry(w, h);
+      geo.translate(w * (0.5 - 0.494), h * (0.5 - (1 - 0.261)), 0);
+      return geo;
+    };
+    const stone = new T.Mesh(plane(), new T.MeshBasicMaterial({ map: stoneTex, transparent: true, alphaTest: 0.05, depthWrite: false, toneMapped: false }));
+    stone.position.y = TOP;
+    holder.add(stone);
+    const tint = new T.Mesh(plane(), new T.MeshBasicMaterial({ map: stoneTopTex, transparent: true, depthWrite: false, toneMapped: false, opacity: 0.72 }));
+    tint.position.set(0, TOP, 0.003);
+    tint.visible = false;
+    holder.add(tint);
+    const body = tint;
     breathers.push({ obj: group, base: STONE_LIFT, phase: Math.random() * Math.PI * 2, period: 3.4 + Math.random() * 1.2, key });
     const badge = new T.Sprite(new T.SpriteMaterial({ transparent: true, depthWrite: false }));
     badge.center.set(0.5, 0);
@@ -1966,7 +1984,8 @@ export function createBoardScene(
       if (!tile) return;
       if (clover) {
         // 三葉草: the stone turns the owner's colour and its toll shows as ×1…×4 (Sky 2026-10-09: no buildings).
-        const m = tile.body.material, from = m.color.clone(), to = new T.Color(hex(colours[seat])).convertSRGBToLinear();
+        const m = tile.body.material, from = tile.body.visible ? m.color.clone() : new T.Color(hex(colours[seat])), to = new T.Color(hex(colours[seat]));
+        tile.body.visible = true;
         const badge = badges[key];
         if (badge) {
           badge.material.map = badgePic(Math.min(4, level), colours[seat]);
@@ -2009,7 +2028,7 @@ export function createBoardScene(
       tile.house = null;
       tile.body.material.color.setHex(tile.base);
       if (clover) {
-        tile.body.material.color.convertSRGBToLinear();
+        tile.body.visible = false;
         if (badges[key]) badges[key].visible = false;
       }
       tile.pic?.color.setHex(PIC_WHITE);
