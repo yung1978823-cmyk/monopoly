@@ -148,8 +148,8 @@ describe("領地: playing on the island", () => {
     ({ realm, wallet } = build(realm, wallet, 0, "rent"));
     assert.equal(boardOf(realm), "clover");
     let state = newTable(guests(3), rulesOf(realm), "clover");
-    state = reduceTable(state, { type: "roll", dice: [1, 3] }); // plaza → o1 (wood) → o4 (toll)
-    assert.equal(state.seats[0].stock?.wood, 2);
+    state = reduceTable(state, { type: "roll", dice: [1, 3] }); // plaza → o1 (stone) → o4 (toll)
+    assert.equal(state.seats[0].stock?.stone, 2);
     assert.equal(state.hostIncome, 2);
   });
 

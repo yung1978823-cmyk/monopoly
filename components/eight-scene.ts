@@ -10,7 +10,7 @@
  * Everything here is show only: the rules live in lib/eight.ts and the screen calls these
  * functions to play back the events a move produced.
  */
-import { BOARDS, CLOVER_PETAL, EDGE_STEPS, cloverKey, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
+import { BOARDS, CLOVER_LOOP, CLOVER_PETAL, EDGE_STEPS, cloverKey, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
 import { GALAXY_SPACE, TABLE_SPACE, createSpace, type Backdrop } from "@/components/backdrop";
 
 const THREE_URL = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
@@ -158,31 +158,18 @@ function islandPoint(i: number): [number, number] {
 }
 
 /**
- * 三葉草 (領地 海島, Sky 2026-10-08): the plaza in the middle and three petal loops round it, each loop's seven
- * squares spaced evenly along a teardrop from the plaza and back. Forest at the back, quarry front-left, mine front-right.
+ * 三葉草 (領地 海島, Sky 2026-10-09): the squares sit where Sky's painted island has them — plaza at the front, the
+ * quarry up the left, the forest arc at the back, the mine down the right. Picture pixels → world units.
  */
-const CLOVER_ANGLES = [Math.PI, (5 * Math.PI) / 3, Math.PI / 3];
-const CLOVER_POINTS: Record<string, [number, number]> = (() => {
-  const points: Record<string, [number, number]> = { o0: [0, 0] };
-  const L = 5.4, spread = 0.55, p = 0.6, N = 600;
-  CLOVER_ANGLES.forEach((th, z) => {
-    const curve = (u: number): [number, number] => {
-      const ph = th + (u - 0.5) * 2 * spread, r = L * Math.sin(Math.PI * u) ** p;
-      return [r * Math.sin(ph), r * Math.cos(ph)];
-    };
-    const pts = Array.from({ length: N + 1 }, (_, i) => curve(i / N));
-    const cum = [0];
-    for (let i = 0; i < N; i++) cum.push(cum[i] + Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]));
-    const total = cum[N];
-    for (let k = 1; k < CLOVER_PETAL; k++) {
-      const want = (total * k) / CLOVER_PETAL;
-      let j = 0;
-      while (j < N && cum[j] < want) j++;
-      points[`o${z * CLOVER_PETAL + k}`] = pts[j];
-    }
-  });
-  return points;
-})();
+export const CLOVER_ART_POINTS: readonly [number, number][] = [
+  [508, 1048],
+  [297, 888], [366, 829], [384, 750], [350, 677], [296, 621], [212, 589],
+  [280, 424], [322, 363], [405, 322], [513, 321], [596, 359], [639, 423],
+  [735, 588], [653, 644], [599, 708], [585, 785], [625, 856], [712, 890],
+];
+const CLOVER_POINTS: Record<string, [number, number]> = Object.fromEntries(
+  CLOVER_ART_POINTS.map(([px, py], i) => [`o${i}`, [(px - 476) / 75, ((py - 680) / 75) * 1.3]]),
+);
 
 type TilePlan = { key: string; x: number; z: number; yaw: number; outward: [number, number] | null };
 type Layout = {
@@ -956,32 +943,34 @@ export function createBoardScene(
   if (clover) {
     // Each loop sits on its own ground — forest green, quarry pale sand, mine gold — so the clover reads at a glance,
     // and a plank path runs along each loop from square to square.
-    CLOVER_ANGLES.forEach((th, z) => {
-      const blob = new T.Mesh(new T.CircleGeometry(1, 48), matC([0x2f8a32, 0xe3cf9e, 0xf0bf45][z], 0.9));
+    const ZONES = [0x8f8a82, 0x2f8a32, 0x5b4630];
+    for (let z = 0; z < 3; z++) {
+      const pts = Array.from({ length: CLOVER_PETAL }, (_, k) => CLOVER_POINTS[`o${z * CLOVER_PETAL + k + 1}`]);
+      const cx = pts.reduce((t, p) => t + p[0], 0) / pts.length, cz = pts.reduce((t, p) => t + p[1], 0) / pts.length;
+      const rx = Math.max(...pts.map((p) => Math.abs(p[0] - cx))) + 1.1, rz = Math.max(...pts.map((p) => Math.abs(p[1] - cz))) + 1.1;
+      const blob = new T.Mesh(new T.CircleGeometry(1, 48), matC(ZONES[z], 0.9));
       blob.rotation.x = -Math.PI / 2;
-      blob.scale.set(2.25, 3.3, 1);
-      const holder = new T.Group();
-      holder.rotation.y = th;
-      blob.position.set(0, 0.085, 3.15);
-      holder.add(blob);
+      blob.scale.set(rx, rz, 1);
+      blob.position.set(cx, 0.085, cz);
       blob.receiveShadow = true;
-      scene.add(holder);
-      const keys = ["o0", ...Array.from({ length: CLOVER_PETAL - 1 }, (_, k) => `o${z * CLOVER_PETAL + k + 1}`), "o0"];
-      for (let k = 0; k < keys.length - 1; k++) {
-        const [ax, az] = CLOVER_POINTS[keys[k]], [bx, bz] = CLOVER_POINTS[keys[k + 1]];
-        const len = Math.hypot(bx - ax, bz - az);
-        for (let n = 0; n < Math.round(len / 0.32); n++) {
-          const t = (n + 0.5) / Math.round(len / 0.32);
-          const plank = shadowy(new T.Mesh(new T.BoxGeometry(0.62, 0.05, 0.22), mat(n % 2 ? 0xb07a45 : 0x9a6a3a, 0.85)));
-          plank.position.set(ax + (bx - ax) * t, 0.11, az + (bz - az) * t);
-          plank.rotation.y = Math.atan2(bx - ax, bz - az);
-          scene.add(plank);
-        }
+      scene.add(blob);
+    }
+    // One plank path from the castle round all eighteen squares and back.
+    const keys = Array.from({ length: CLOVER_LOOP + 1 }, (_, k) => `o${k % CLOVER_LOOP}`);
+    for (let k = 0; k < keys.length - 1; k++) {
+      const [ax, az] = CLOVER_POINTS[keys[k]], [bx, bz] = CLOVER_POINTS[keys[k + 1]];
+      const len = Math.hypot(bx - ax, bz - az);
+      for (let n = 0; n < Math.round(len / 0.32); n++) {
+        const t = (n + 0.5) / Math.round(len / 0.32);
+        const plank = shadowy(new T.Mesh(new T.BoxGeometry(0.62, 0.05, 0.22), mat(n % 2 ? 0xb07a45 : 0x9a6a3a, 0.85)));
+        plank.position.set(ax + (bx - ax) * t, 0.11, az + (bz - az) * t);
+        plank.rotation.y = Math.atan2(bx - ax, bz - az);
+        scene.add(plank);
       }
-    });
+    }
     // 三葉草: palms in the gaps between the loops (the plaza's castle picture carries its own flag).
     for (let n = 0; n < 6; n++) {
-      const a = CLOVER_ANGLES[n % 3] + Math.PI / 3 + (n < 3 ? 0 : 0.18), r = n < 3 ? 4.9 : 6.1;
+      const [px, pz] = ([[0, -1.6], [-3.6, 4.6], [3.6, 4.6], [-4.6, -4.2], [4.6, -4.2], [0, 1.6]] as const)[n];
       const palm = new T.Group();
       for (let k = 0; k < 5; k++) {
         const seg = shadowy(new T.Mesh(new T.CylinderGeometry(0.08, 0.1, 0.36, 8), matC(0x9a6a3a, 0.8)));
@@ -998,7 +987,7 @@ export function createBoardScene(
         hold.add(leaf);
         palm.add(hold);
       }
-      palm.position.set(Math.sin(a) * r, 0.05, Math.cos(a) * r);
+      palm.position.set(px, 0.05, pz);
       palm.scale.setScalar(n < 3 ? 0.85 : 0.7);
       scene.add(palm);
     }

@@ -142,29 +142,28 @@ const ISLAND_SQUARES: Record<string, Square> = (() => {
 })();
 
 /**
- * 三葉草 (Sky 2026-10-08): the 領地 board. A plaza in the middle (the owner's castle) and three loops off it —
- * 森林 (wood), 石場 (stone), 金礦 (gold). The walk goes plaza → forest → plaza → quarry → plaza → mine → round
- * again, so the plaza is passed three times a lap (steps 0, 9 and 18 are all the plaza, "o0").
+ * 三葉草 (Sky 2026-10-09): the 領地 island board, one path from the castle round and back: 廣場/城堡 (o0) → 石場
+ * (o1–o6) → 森林 (o7–o12) → 金礦 (o13–o18) → 廣場. Six squares in each area, so the plaza is passed once a lap.
  */
-export const CLOVER_PETAL = 9;
-export const CLOVER_LOOP = CLOVER_PETAL * 3;
+export const CLOVER_PETAL = 6;
+export const CLOVER_LOOP = CLOVER_PETAL * 3 + 1;
 export type Material = "wood" | "stone" | "gold";
-export const CLOVER_ZONES: readonly Material[] = ["wood", "stone", "gold"];
-/** Sky (2026-10-09): 24 squares — eight on each loop — plus the plaza in the middle. */
+export const CLOVER_ZONES: readonly Material[] = ["stone", "wood", "gold"];
+/** Each area's six squares, in walking order (quarry, forest, mine). */
 const CLOVER_PETALS: readonly (readonly SquareKind[])[] = [
-  ["wood", "map", "wood", "toll", "termite", "wood", "caravan", "artisan"],
-  ["stone", "caravan", "stone", "toll", "landslide", "stone", "map", "sand"],
-  ["gold", "map", "bandit", "toll", "gold", "caravan", "gold", "sand"],
+  ["stone", "caravan", "stone", "toll", "landslide", "map"],
+  ["wood", "map", "toll", "termite", "wood", "artisan"],
+  ["gold", "bandit", "toll", "gold", "caravan", "sand"],
 ];
 export function cloverKey(i: number): string {
   const n = ((i % CLOVER_LOOP) + CLOVER_LOOP) % CLOVER_LOOP;
-  return n % CLOVER_PETAL === 0 ? "o0" : `o${n}`;
+  return `o${n}`;
 }
 const CLOVER_SQUARES: Record<string, Square> = (() => {
   const squares: Record<string, Square> = { o0: { key: "o0", kind: "plaza", price: 0, gold: false, group: 0 } };
   CLOVER_PETALS.forEach((petal, z) =>
     petal.forEach((kind, k) => {
-      const key = `o${z * CLOVER_PETAL + k + 1}`;
+      const key = `o${z * CLOVER_PETAL + k + 1}`; // o1…o18
       squares[key] = { key, kind, price: 0, gold: false, group: z };
     }),
   );

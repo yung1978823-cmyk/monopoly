@@ -1,6 +1,7 @@
 "use client";
 
-import { createBoardScene, loadThree, type BoardScene, type Decor } from "@/components/eight-scene";
+import { type Decor } from "@/components/eight-scene";
+import { IslandHome } from "@/components/island-home";
 import { CAST, EightBoard } from "@/components/table-game";
 import { loadCollection, loadWallet, saveCollection, saveWallet } from "@/components/wallet-store";
 import { ENERGY_ICON, formatEnergy, tableEnergy } from "@/lib/energy";
@@ -343,9 +344,6 @@ function RealmEditor({
   onHost: () => void;
 }) {
   const { t } = useLang();
-  const mount = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<BoardScene | null>(null);
-  const [loaded, setLoaded] = useState<"loading" | "ready" | "failed">("loading");
   const [picking, setPicking] = useState<number | null>(null);
   const [panel, setPanel] = useState<Panel>("build");
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -356,32 +354,6 @@ function RealmEditor({
     const id = window.setTimeout(() => setVouchers(loadCollection().vouchers), 0);
     return () => window.clearTimeout(id);
   }, []);
-  const realmRef = useRef(realm);
-  realmRef.current = realm;
-
-  useEffect(() => {
-    let cancelled = false;
-    let scene: BoardScene | null = null;
-    loadThree()
-      .then((T) => {
-        if (cancelled || !mount.current) return;
-        scene = createBoardScene(T, mount.current, [], decorOf(realmRef.current), boardOf(realmRef.current), undefined, { seeThrough: true });
-        sceneRef.current = scene;
-        scene.focus(null);
-        setLoaded("ready");
-      })
-      .catch(() => {
-        if (!cancelled) setLoaded("failed");
-      });
-    return () => {
-      cancelled = true;
-      sceneRef.current = null;
-      scene?.dispose();
-    };
-  }, []);
-  useEffect(() => {
-    sceneRef.current?.setDecor(decorOf(realm));
-  }, [realm, loaded]);
 
   const describe = (kind: BuildingKind) =>
     ({
@@ -401,7 +373,6 @@ function RealmEditor({
         {RECIPES[kind][m]}
       </span>
     ));
-  const fingers = useRef(new Set<number>());
   const firstEmpty = realm.slots.findIndex((kind) => !kind);
 
   /** One building to choose: picture, what it does, what it costs. Builds into `slot`. */
@@ -451,29 +422,9 @@ function RealmEditor({
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col">
-      {/* The island, floating in the same space as the page. A preview to look at, not to zoom: the wheel and
-          two-finger pinch stay out of the 3D board (Sky 2026-10-01). Dragging to turn it still works. */}
+      {/* Sky (2026-10-09): only space and your painted islands; swipe between them. */}
       <div className="relative min-h-44 flex-1">
-        <div
-          ref={mount}
-          className="absolute inset-0 touch-none"
-          aria-label={t("我嘅領地")}
-          onWheelCapture={(event: { stopPropagation: () => void }) => event.stopPropagation()}
-          onPointerDownCapture={(event: { pointerId: number; stopPropagation: () => void }) => {
-            fingers.current.add(event.pointerId);
-            if (fingers.current.size > 1) event.stopPropagation();
-          }}
-          onPointerMoveCapture={(event: { stopPropagation: () => void }) => {
-            if (fingers.current.size > 1) event.stopPropagation();
-          }}
-          onPointerUpCapture={(event: { pointerId: number }) => fingers.current.delete(event.pointerId)}
-          onPointerCancelCapture={(event: { pointerId: number }) => fingers.current.delete(event.pointerId)}
-        />
-        {loaded !== "ready" ? (
-          <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center font-black text-white">
-            {loaded === "loading" ? t("載入立體棋盤⋯") : t("立體畫面載入唔到，請檢查網絡再試。")}
-          </p>
-        ) : null}
+        <IslandHome />
       </div>
 
       {/* Sky (2026-10-08): the build spots sit in a row on top of the sheet, and the sheet's lower part can be

@@ -400,3 +400,17 @@ body.juice-shake-large > * { animation: juice-shake-l 500ms ease-out; }
   0% { transform: rotate(0deg); }
   100% { transform: rotate(var(--to)); }
 }
+
+/* 領地 islands (Sky 2026-10-09): the island floats, its waterfalls run, foam bubbles at the foot. */
+@keyframes isle-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes water-flow {
+  from { background-position: 0 0; }
+  to { background-position: 0 96px; }
+}
+@keyframes foam {
+  0%, 100% { transform: scale(1, 1); opacity: 0.8; }
+  50% { transform: scale(1.15, 1.4); opacity: 0.55; }
+}
