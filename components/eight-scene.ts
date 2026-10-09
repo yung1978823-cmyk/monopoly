@@ -10,7 +10,7 @@
  * Everything here is show only: the rules live in lib/eight.ts and the screen calls these
  * functions to play back the events a move produced.
  */
-import { BOARDS, CLOVER_LOOP, CLOVER_PETAL, EDGE_STEPS, cloverKey, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
+import { BOARDS, EDGE_STEPS, cloverKey, FORKS, ISLAND_LOOP, LOOP, MIDDLE_AGAIN, ROAD_LENGTH, keyOf, type BoardId, type Spot } from "@/lib/eight";
 import { GALAXY_SPACE, TABLE_SPACE, createSpace, type Backdrop } from "@/components/backdrop";
 
 const THREE_URL = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
@@ -167,9 +167,14 @@ export const CLOVER_ART_POINTS: readonly [number, number][] = [
   [280, 424], [322, 363], [405, 322], [513, 321], [596, 359], [639, 423],
   [735, 588], [653, 644], [599, 708], [585, 785], [625, 856], [712, 890],
 ];
-const CLOVER_POINTS: Record<string, [number, number]> = Object.fromEntries(
-  CLOVER_ART_POINTS.map(([px, py], i) => [`o${i}`, [(px - 476) / 75, ((py - 680) / 75) * 1.3]]),
-);
+/** The 三葉草 camera looks down at 50° and never turns, so the painted island lies flat on the ground stretched by
+ *  1 / sin 50° front to back, and looks just like Sky's picture from the camera. */
+export const CLOVER_ELEV = (50 * Math.PI) / 180;
+const CLOVER_PX = 1 / 75;
+const cloverAt = (px: number, py: number): [number, number] => [(px - 476) * CLOVER_PX, ((py - 680) * CLOVER_PX) / Math.sin(CLOVER_ELEV)];
+const CLOVER_POINTS: Record<string, [number, number]> = Object.fromEntries(CLOVER_ART_POINTS.map(([px, py], i) => [`o${i}`, cloverAt(px, py)]));
+/** Sky's painted island (2026-10-09): the picture is the original cropped from y = 120. */
+const CLOVER_ISLAND = { url: "/art/islands/forest.webp", w: 941, h: 1360, top: 120 };
 
 type TilePlan = { key: string; x: number; z: number; yaw: number; outward: [number, number] | null };
 type Layout = {
@@ -581,17 +586,31 @@ export function createBoardScene(
     // Floating in space (Sky 2026-10-01): a thin ring of sea round the sand, and rock hanging underneath. In a
     // game the galaxy picture fills the sky; in the 領地 preview the page's own background shows through.
     if (!seeThrough) space = createSpace(T, scene, camera, { reduceMotion, picture: GALAXY_SPACE, extras: false, far: 180, meteor: true });
+    if (clover) {
+      // Sky's painted island is the board: one picture lying on the ground, squares and all.
+      const [x0, z0] = cloverAt(0, CLOVER_ISLAND.top), [x1, z1] = cloverAt(CLOVER_ISLAND.w, CLOVER_ISLAND.top + CLOVER_ISLAND.h);
+      const tex = new T.TextureLoader().load(CLOVER_ISLAND.url);
+      tex.encoding = T.sRGBEncoding;
+      tex.anisotropy = 8;
+      const art = new T.Mesh(new T.PlaneGeometry(x1 - x0, z1 - z0), new T.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05, depthWrite: false }));
+      art.rotation.x = -Math.PI / 2;
+      art.position.set((x0 + x1) / 2, TOP - 0.02, (z0 + z1) / 2);
+      art.renderOrder = -1;
+      scene.add(art);
+    }
     const sea = new T.Mesh(new T.CylinderGeometry(ENV_R + 3.1, ENV_R + 2.9, 0.5, 48), matC(0x2bb3c9, 0.25, { metalness: 0.2 }));
     sea.position.y = -0.95;
-    scene.add(sea);
+    if (!clover) scene.add(sea);
     const rock = new T.Mesh(new T.ConeGeometry(ENV_R + 3, 5.5, 12, 3), new T.MeshStandardMaterial({ color: 0x8a8378, roughness: 0.95, flatShading: true }));
     rock.rotation.x = Math.PI;
     rock.position.y = -1.2 - 2.75;
-    scene.add(rock);
+    if (!clover) scene.add(rock);
     const deck = shadowy(new T.Mesh(new T.CylinderGeometry(ENV_R + 1.7, ENV_R + 2.3, 1, 48), matC(clover ? 0x8fd16a : 0xf2d9a0, 0.9)));
     deck.position.y = -0.5;
-    deckMat = deck.material;
-    scene.add(deck);
+    if (!clover) {
+      deckMat = deck.material;
+      scene.add(deck);
+    }
     const grass = shadowy(new T.Mesh(new T.CylinderGeometry(ENV_R - 0.8, ENV_R - 0.6, 0.12, 40), matC(0x5fae4a, 0.8)));
     grass.position.y = 0.02;
     // 三葉草 has each loop's own ground instead of one lawn.
@@ -811,7 +830,8 @@ export function createBoardScene(
   function makeCloverTile(key: string, x: number, z: number) {
     const square = BOARDS[board].squares[key];
     const plaza = square.kind === "plaza";
-    const size = plaza ? 2.2 : 1.3 * ISLE;
+    // The painted square is about 56 pixels across; the event picture sits inside it.
+    const size = plaza ? 2.2 : 56 * CLOVER_PX * 1.05;
     const group = new T.Group();
     group.position.set(x, 0, z);
     scene.add(group);
@@ -820,10 +840,12 @@ export function createBoardScene(
     const pad = shadowy(new T.Mesh(new T.CylinderGeometry(size / 2, size / 2 + 0.06, 0.26, 40), matC(base, 0.85)));
     pad.position.y = TOP - 0.13;
     pad.receiveShadow = true;
+    pad.visible = false;
     group.add(pad);
     const ring = shadowy(new T.Mesh(new T.TorusGeometry(size / 2, 0.05, 8, 40), matC(plaza ? 0xd4a72c : BAD.has(square.kind) ? 0xe5484d : 0xffffff, 0.4)));
     ring.rotation.x = Math.PI / 2;
     ring.position.y = TOP + 0.005;
+    ring.visible = false;
     group.add(ring);
     const picSize = size * (plaza ? 0.95 : 0.85);
     const pic = new T.Mesh(
@@ -845,15 +867,18 @@ export function createBoardScene(
       const rock = shadowy(new T.Mesh(new T.ConeGeometry(size / 2 + 0.05, 1.6, 9, 2), matC(0x8a7f74, 0.95, { flatShading: true })));
       rock.rotation.x = Math.PI;
       rock.position.y = TOP - 0.26 - 0.8;
+      rock.visible = false;
       group.add(rock);
-      pad.material = matC(0x6cc04a, 0.85);
-      group.position.y = 0.35;
+      castle.position.set(0, TOP, -0.15);
+      castle.scale.set(3.3, 3.3, 1);
     }
     group.add(pic);
     const shadow = new T.Mesh(new T.PlaneGeometry(1.7 * ISLE, 1.7 * ISLE), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
     shadow.visible = false;
     const glow = new T.Sprite(new T.SpriteMaterial({ map: glowTex, color: 0xfff1b0, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0 }));
-    breathers.push({ obj: group, base: plaza ? 0.35 : 0, phase: Math.random() * Math.PI * 2, period: 3.2 + Math.random() * 1.2, shadow, glow, key });
+    // The painted ground doesn't bob, so neither do its squares.
+    void shadow;
+    void glow;
     const holder = new T.Group();
     group.add(holder);
     tiles[key] = { group, body: pad, base, inward: new T.Vector3(0, 0, -0.27), house: null, yaw: 0 };
@@ -941,56 +966,7 @@ export function createBoardScene(
   const castleZ = layout.hub[2];
   const roof = mat(0xc0264b, 0.4);
   if (clover) {
-    // Each loop sits on its own ground — forest green, quarry pale sand, mine gold — so the clover reads at a glance,
-    // and a plank path runs along each loop from square to square.
-    const ZONES = [0x8f8a82, 0x2f8a32, 0x5b4630];
-    for (let z = 0; z < 3; z++) {
-      const pts = Array.from({ length: CLOVER_PETAL }, (_, k) => CLOVER_POINTS[`o${z * CLOVER_PETAL + k + 1}`]);
-      const cx = pts.reduce((t, p) => t + p[0], 0) / pts.length, cz = pts.reduce((t, p) => t + p[1], 0) / pts.length;
-      const rx = Math.max(...pts.map((p) => Math.abs(p[0] - cx))) + 1.1, rz = Math.max(...pts.map((p) => Math.abs(p[1] - cz))) + 1.1;
-      const blob = new T.Mesh(new T.CircleGeometry(1, 48), matC(ZONES[z], 0.9));
-      blob.rotation.x = -Math.PI / 2;
-      blob.scale.set(rx, rz, 1);
-      blob.position.set(cx, 0.085, cz);
-      blob.receiveShadow = true;
-      scene.add(blob);
-    }
-    // One plank path from the castle round all eighteen squares and back.
-    const keys = Array.from({ length: CLOVER_LOOP + 1 }, (_, k) => `o${k % CLOVER_LOOP}`);
-    for (let k = 0; k < keys.length - 1; k++) {
-      const [ax, az] = CLOVER_POINTS[keys[k]], [bx, bz] = CLOVER_POINTS[keys[k + 1]];
-      const len = Math.hypot(bx - ax, bz - az);
-      for (let n = 0; n < Math.round(len / 0.32); n++) {
-        const t = (n + 0.5) / Math.round(len / 0.32);
-        const plank = shadowy(new T.Mesh(new T.BoxGeometry(0.62, 0.05, 0.22), mat(n % 2 ? 0xb07a45 : 0x9a6a3a, 0.85)));
-        plank.position.set(ax + (bx - ax) * t, 0.11, az + (bz - az) * t);
-        plank.rotation.y = Math.atan2(bx - ax, bz - az);
-        scene.add(plank);
-      }
-    }
-    // 三葉草: palms in the gaps between the loops (the plaza's castle picture carries its own flag).
-    for (let n = 0; n < 6; n++) {
-      const [px, pz] = ([[0, -1.6], [-3.6, 4.6], [3.6, 4.6], [-4.6, -4.2], [4.6, -4.2], [0, 1.6]] as const)[n];
-      const palm = new T.Group();
-      for (let k = 0; k < 5; k++) {
-        const seg = shadowy(new T.Mesh(new T.CylinderGeometry(0.08, 0.1, 0.36, 8), matC(0x9a6a3a, 0.8)));
-        seg.position.set(k * 0.04, 0.18 + k * 0.34, 0);
-        palm.add(seg);
-      }
-      for (let k = 0; k < 6; k++) {
-        const leaf = shadowy(new T.Mesh(new T.ConeGeometry(0.16, 0.9, 4), matC(0x2e9e44, 0.6)));
-        const hold = new T.Group();
-        hold.position.set(0.2, 1.75, 0);
-        hold.rotation.y = (k / 6) * Math.PI * 2;
-        leaf.rotation.set(0, 0, -1.25);
-        leaf.position.x = 0.4;
-        hold.add(leaf);
-        palm.add(hold);
-      }
-      palm.position.set(px, 0.05, pz);
-      palm.scale.setScalar(n < 3 ? 0.85 : 0.7);
-      scene.add(palm);
-    }
+    // Everything is in Sky's painting: no grounds, planks or palms of our own.
   } else if (island) {
     // Lighthouse in the middle, palms around it, a pier out to sea by the dock square.
     const white = mat(0xffffff, 0.5), red = mat(0xe52521, 0.45), dark = mat(0x1f2937, 0.5);
@@ -1399,7 +1375,7 @@ export function createBoardScene(
     new Promise<void>((resolve) => anims.push({ start: performance.now(), ms: ms / pace(), step, resolve }));
 
   // ---------- Camera: 40° down (海島 45°); close on the player, wide between turns ----------
-  const ELEV = ((island ? 45 : 40) * Math.PI) / 180;
+  const ELEV = clover ? CLOVER_ELEV : ((island ? 45 : 40) * Math.PI) / 180;
   /** The player can turn the board round (drag sideways) and tilt it (drag up and down) — 海島 only turns
    *  (Sky 2026-10-02: fixed at 45°, left and right only). */
   const view = { yaw: 0, elev: ELEV, goalYaw: 0, goalElev: ELEV, idle: 0 };
@@ -1422,7 +1398,14 @@ export function createBoardScene(
     const pts = [...pointers.values()];
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     view.idle = 0;
-    if (pts.length === 1) {
+    if (pts.length === 1 && clover) {
+      // The painted island never turns (Sky 2026-10-09): one finger slides it instead.
+      dragged = true;
+      const k = cam.dist / 1400;
+      goal.target.x = Math.max(-8, Math.min(8, goal.target.x - (e.clientX - before.x) * k));
+      goal.target.z = Math.max(-10, Math.min(14, goal.target.z - ((e.clientY - before.y) * k) / Math.sin(CLOVER_ELEV)));
+      cam.target.copy(goal.target);
+    } else if (pts.length === 1) {
       // One finger (or the mouse): turn round the board and tilt it.
       view.goalYaw -= (e.clientX - before.x) * 0.006;
       if (!island) view.goalElev = Math.max(0.35, Math.min(1.35, view.goalElev + (e.clientY - before.y) * 0.004));
@@ -1642,7 +1625,7 @@ export function createBoardScene(
     view.idle += dt;
     view.yaw += (view.goalYaw - view.yaw) * Math.min(1, dt * 8);
     view.elev += (view.goalElev - view.elev) * Math.min(1, dt * 8);
-    const sway = reduceMotion ? 0 : Math.sin(now / 7000) * 0.12 * Math.min(1, Math.max(0, view.idle - 2) / 3);
+    const sway = reduceMotion || clover ? 0 : Math.sin(now / 7000) * 0.12 * Math.min(1, Math.max(0, view.idle - 2) / 3);
     const yaw = view.yaw + sway, flat = Math.cos(view.elev) * cam.dist;
     camera.position.set(cam.target.x + Math.sin(yaw) * flat, cam.target.y + Math.sin(view.elev) * cam.dist, cam.target.z + Math.cos(yaw) * flat);
     camera.lookAt(cam.target);
@@ -1772,6 +1755,8 @@ export function createBoardScene(
   }
   const STATION_SPOTS: [number, number, number][] = layout.stations.map(([x, z]) => [x, 0, z]);
   function applyDecor(next: Decor) {
+    // Sky (2026-10-09): nothing of the old 領地 buildings on the painted island.
+    if (clover) return;
     for (const key of houseTiles.splice(0)) {
       const tile = tiles[key];
       if (!tile) continue;
