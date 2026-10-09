@@ -589,7 +589,7 @@ export function createBoardScene(
   if (island) {
     // Floating in space (Sky 2026-10-01): a thin ring of sea round the sand, and rock hanging underneath. In a
     // game the galaxy picture fills the sky; in the 領地 preview the page's own background shows through.
-    if (!seeThrough) space = createSpace(T, scene, camera, { reduceMotion, picture: GALAXY_SPACE, extras: false, far: 180, meteor: true });
+    if (!seeThrough) space = createSpace(T, scene, camera, { reduceMotion, picture: GALAXY_SPACE, extras: false, far: 180, meteor: false }); // Sky 2026-10-09: no shooting stars over the board
     if (clover) {
       // Sky's painted island is the board: one picture lying on the ground, squares and all.
       const [x0, z0] = cloverAt(0, CLOVER_ISLAND.top), [x1, z1] = cloverAt(CLOVER_ISLAND.w, CLOVER_ISLAND.top + CLOVER_ISLAND.h);
@@ -726,7 +726,7 @@ export function createBoardScene(
     if (!clover) scene.add(grass);
   } else {
     // Outer space all round (the public table's own picture), in place of the old forest floor.
-    space = createSpace(T, scene, camera, { reduceMotion, picture: TABLE_SPACE, extras: false, far: 180, meteor: true });
+    space = createSpace(T, scene, camera, { reduceMotion, picture: TABLE_SPACE, extras: false, far: 180, meteor: false }); // Sky 2026-10-09: no shooting stars over the board
     // Motes of stardust drifting up.
     const count = 200, pos = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
